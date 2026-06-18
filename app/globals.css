@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: "Aptos", "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    linear-gradient(140deg, rgba(231, 242, 240, 0.9), transparent 38%),
+    linear-gradient(180deg, #fbfaf6 0%, #f1eee5 100%);
+  color: #13201c;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: #1f6f5b;
+  color: white;
+}
+

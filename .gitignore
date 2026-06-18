@@ -1,0 +1,9 @@
+.applysharp-data/
+.next/
+node_modules/
+*.log
+tsconfig.tsbuildinfo
+.env
+.env.local
+.env.*.local
+Supabase.env*

@@ -1,0 +1,1317 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Job Sniper</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f1e8;
+      --panel: #ffffff;
+      --panel-alt: #fbfaf6;
+      --ink: #17201c;
+      --muted: #66706b;
+      --line: #d9d4c8;
+      --accent: #1f6f5b;
+      --accent-soft: #e7f2ef;
+      --danger: #9f2f24;
+      --warn: #8a5a12;
+      --blue: #275f85;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Aptos, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    aside {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      border-right: 1px solid var(--line);
+      background: #fffaf0;
+      padding: 16px;
+      overflow-y: auto;
+    }
+
+    .brand {
+      border: 1px solid var(--line);
+      background: var(--ink);
+      color: white;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .brand span {
+      display: block;
+      color: #b8dfd6;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .brand strong {
+      display: block;
+      margin-top: 6px;
+      font-size: 22px;
+    }
+
+    .nav-section {
+      margin-top: 14px;
+    }
+
+    .nav-title {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      margin: 0 0 6px 4px;
+      text-transform: uppercase;
+    }
+
+    nav button {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: var(--ink);
+      cursor: pointer;
+      display: block;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 9px 10px;
+      text-align: left;
+      border-radius: 6px;
+    }
+
+    nav button:hover,
+    nav button.active {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    main {
+      min-width: 0;
+      padding: 22px;
+    }
+
+    .topbar {
+      align-items: start;
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .topbar h1 {
+      font-size: 30px;
+      line-height: 1.1;
+      margin: 0;
+    }
+
+    .topbar p {
+      color: var(--muted);
+      margin: 7px 0 0;
+      max-width: 760px;
+    }
+
+    .status-pill {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+      padding: 8px 10px;
+      white-space: nowrap;
+    }
+
+    .dashboard {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: minmax(320px, 0.95fr) minmax(360px, 1.05fr);
+      max-width: 1500px;
+    }
+
+    .left-stack {
+      display: grid;
+      gap: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      padding: 16px;
+    }
+
+    .panel h2 {
+      font-size: 18px;
+      margin: 0 0 12px;
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    .advanced-fields {
+      grid-column: 1 / -1;
+      border-top: 1px solid var(--line);
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 4px;
+      padding-top: 12px;
+    }
+
+    details.advanced {
+      grid-column: 1 / -1;
+    }
+
+    details.advanced summary {
+      color: var(--accent);
+      cursor: pointer;
+      font-weight: 800;
+      margin: 4px 0 8px;
+    }
+
+    label {
+      color: var(--muted);
+      display: block;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      margin-bottom: 5px;
+      text-transform: uppercase;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #fffdf8;
+      color: var(--ink);
+      padding: 9px 10px;
+      border-radius: 4px;
+    }
+
+    textarea {
+      min-height: 86px;
+      resize: vertical;
+    }
+
+    .jd-box {
+      min-height: 150px;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .button {
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: white;
+      cursor: pointer;
+      font-weight: 800;
+      padding: 9px 12px;
+      border-radius: 5px;
+    }
+
+    .button.secondary {
+      background: white;
+      color: var(--accent);
+    }
+
+    .button.warn {
+      background: var(--warn);
+      border-color: var(--warn);
+    }
+
+    .score-strip {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-bottom: 14px;
+    }
+
+    .score-card {
+      background: var(--panel-alt);
+      border: 1px solid var(--line);
+      padding: 12px;
+    }
+
+    .score-card span {
+      color: var(--muted);
+      display: block;
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .score-card strong {
+      display: block;
+      font-size: 26px;
+      margin-top: 4px;
+    }
+
+    .decision {
+      border-left: 5px solid var(--accent);
+    }
+
+    .map-panel {
+      background: var(--accent-soft);
+      border: 1px solid #b8dfd6;
+      margin-bottom: 14px;
+      padding: 14px;
+    }
+
+    .map-panel h2 {
+      margin: 0 0 8px;
+    }
+
+    .map-panel p {
+      color: var(--muted);
+      margin: 0 0 10px;
+    }
+
+    .search-actions {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 12px;
+    }
+
+    .decision.skip {
+      border-left-color: var(--danger);
+    }
+
+    .decision.stretch {
+      border-left-color: var(--warn);
+    }
+
+    .decision.apply {
+      border-left-color: var(--blue);
+    }
+
+    .decision.strong {
+      border-left-color: var(--accent);
+    }
+
+    .output {
+      background: #111a17;
+      color: #f4f1e8;
+      font-family: "Cascadia Mono", Consolas, monospace;
+      font-size: 12px;
+      min-height: 170px;
+      overflow: auto;
+      padding: 12px;
+      white-space: pre-wrap;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin: 14px 0 10px;
+      overflow-x: auto;
+    }
+
+    .tabs button {
+      border: 1px solid var(--line);
+      background: white;
+      color: var(--ink);
+      cursor: pointer;
+      font-weight: 800;
+      padding: 8px 10px;
+      border-radius: 5px;
+      white-space: nowrap;
+    }
+
+    .tabs button.active {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .note-view {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      max-width: 1280px;
+      overflow-x: auto;
+      padding: 18px;
+    }
+
+    .note-view h1,
+    .note-view h2,
+    .note-view h3 {
+      line-height: 1.2;
+    }
+
+    .note-view h1 {
+      margin: 0 0 12px;
+    }
+
+    .note-view h2 {
+      border-top: 1px solid var(--line);
+      font-size: 20px;
+      margin: 26px 0 10px;
+      padding-top: 14px;
+    }
+
+    .note-view p {
+      color: var(--muted);
+    }
+
+    code {
+      background: #f1eee5;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 1px 5px;
+    }
+
+    table {
+      border-collapse: collapse;
+      font-size: 13px;
+      margin: 12px 0 18px;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--accent-soft);
+      color: #123f34;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 8px;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    @media (max-width: 980px) {
+      .shell {
+        display: block;
+      }
+
+      aside {
+        height: auto;
+        position: static;
+      }
+
+      nav {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+      }
+
+      .dashboard,
+      .score-strip {
+        grid-template-columns: 1fr;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .advanced-fields {
+        grid-template-columns: 1fr;
+      }
+
+      .search-actions {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <div class="brand">
+        <span>Selangor First / Bukit Jelutong</span>
+        <strong>Job Sniper</strong>
+      </div>
+      <nav>
+        <div class="nav-section">
+          <p class="nav-title">Workflow</p>
+          <button class="active" data-mode="analyze">Analyze JD</button>
+        </div>
+        <div class="nav-section">
+          <p class="nav-title">Notes</p>
+          <button data-file="Job Tracker.md">Job Tracker</button>
+          <button data-file="Master Resume.md">Master Resume</button>
+          <button data-file="JD Analysis/JD Analysis Template.md">JD Analysis</button>
+          <button data-file="Applied Jobs.md">Applied Jobs</button>
+          <button data-file="Archived Jobs.md">Archived Jobs</button>
+          <button data-file="Resume Versions/README.md">Resume Versions</button>
+          <button data-file="Cover Letters/README.md">Cover Letters</button>
+        </div>
+      </nav>
+    </aside>
+
+    <main>
+      <div class="topbar">
+        <div>
+          <h1 id="page-title">Analyze JD</h1>
+          <p id="page-subtitle">Upload master resume, search jobs, scan JD, then generate a truthful tailoring prompt.</p>
+        </div>
+        <div class="status-pill" id="status">Personal MVP</div>
+      </div>
+
+      <section id="analyze-view" class="dashboard">
+        <div class="left-stack">
+          <div class="panel">
+            <h2>1. Master Resume</h2>
+            <div class="form-grid">
+              <div class="field full">
+                <label for="masterResumeFile">Upload TXT / MD Resume</label>
+                <input id="masterResumeFile" type="file" accept=".txt,.md,.markdown">
+              </div>
+              <div class="field full">
+                <label for="masterResumeText">Master Resume Text</label>
+                <textarea id="masterResumeText" class="jd-box" placeholder="Paste your master resume text here. For PDF/DOCX, copy the text first and paste it here."></textarea>
+              </div>
+            </div>
+            <div class="actions">
+              <button class="button" id="saveMasterBtn">Save Master Resume</button>
+              <button class="button secondary" id="clearMasterBtn">Clear Resume</button>
+            </div>
+            <p class="hint" id="masterResumeStatus">No master resume saved yet.</p>
+          </div>
+
+          <div class="panel">
+            <h2>2. Search Jobs</h2>
+            <div class="form-grid">
+              <div class="field">
+                <label for="searchRole">Role Keyword</label>
+                <input id="searchRole" value="Analyst" placeholder="Analyst / Power BI / SQL">
+              </div>
+              <div class="field">
+                <label for="searchCategory">Category</label>
+                <select id="searchCategory">
+                  <option>MNC</option>
+                  <option>SME</option>
+                  <option>Fresh Graduate</option>
+                  <option>Startup</option>
+                  <option>Agency</option>
+                  <option>GLC</option>
+                  <option>Other</option>
+                </select>
+              </div>
+              <div class="field full">
+                <label for="searchArea">Area</label>
+                <input id="searchArea" value="Selangor" placeholder="Selangor / Shah Alam / Glenmarie">
+              </div>
+            </div>
+            <div class="search-actions">
+              <button class="button secondary" data-search="jobstreet">JobStreet</button>
+              <button class="button secondary" data-search="linkedin">LinkedIn</button>
+              <button class="button secondary" data-search="indeed">Indeed</button>
+              <button class="button secondary" data-search="google">Company Sites</button>
+            </div>
+            <p class="hint">Search manually. Paste only good JDs here. Use LLM for parsing, not blind mass scraping.</p>
+          </div>
+
+          <div class="panel">
+          <h2>3. Job + Map</h2>
+          <div class="form-grid">
+            <div class="field">
+              <label for="jobTitle">Job Title</label>
+              <input id="jobTitle" placeholder="Power BI Analyst">
+            </div>
+            <div class="field">
+              <label for="company">Company</label>
+              <input id="company" placeholder="Company name">
+            </div>
+            <div class="field">
+              <label for="companyType">Company Type</label>
+              <select id="companyType">
+                <option>MNC</option>
+                <option>SME</option>
+                <option>Startup</option>
+                <option>Agency</option>
+                <option>GLC</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="source">Source</label>
+              <select id="source">
+                <option>JobStreet</option>
+                <option>LinkedIn</option>
+                <option>Indeed</option>
+                <option>Company Site</option>
+                <option>Referral</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="location">Location</label>
+              <input id="location" placeholder="Shah Alam / Glenmarie / Remote">
+            </div>
+            <div class="field">
+              <label for="distanceKm">Distance KM From Bukit Jelutong</label>
+              <input id="distanceKm" type="number" min="0" step="1" placeholder="12">
+            </div>
+            <div class="field">
+              <label for="workMode">Work Mode</label>
+              <select id="workMode">
+                <option>Hybrid</option>
+                <option>Onsite</option>
+                <option>Remote</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="freshness">Freshness</label>
+              <select id="freshness">
+                <option>Today</option>
+                <option>1-3 days</option>
+                <option>4-7 days</option>
+                <option>8-14 days</option>
+                <option>15+ days</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="salaryRange">Salary Range</label>
+              <input id="salaryRange" placeholder="MYR 5,000-7,000">
+            </div>
+            <div class="field">
+              <label for="salaryValue">Salary / Value</label>
+              <select id="salaryValue">
+                <option>Fair</option>
+                <option>Strong</option>
+                <option>Unknown</option>
+                <option>Weak</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="seniority">Seniority</label>
+              <select id="seniority">
+                <option>Junior</option>
+                <option>Mid</option>
+                <option>Entry</option>
+                <option>Senior</option>
+                <option>Lead</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="atsScore">ATS Score</label>
+              <input id="atsScore" type="number" min="0" max="100" value="75">
+            </div>
+            <div class="field">
+              <label for="technicalScore">Technical Match</label>
+              <input id="technicalScore" type="number" min="0" max="100" value="75">
+            </div>
+            <details class="advanced">
+              <summary>Advanced details</summary>
+              <div class="advanced-fields">
+                <div class="field">
+                  <label for="domainScore">Domain Match</label>
+                  <input id="domainScore" type="number" min="0" max="100" value="65">
+                </div>
+                <div class="field full">
+                  <label for="requiredSkills">Required Skills</label>
+                  <textarea id="requiredSkills" placeholder="SQL, Power BI, dashboard reporting"></textarea>
+                </div>
+                <div class="field full">
+                  <label for="preferredSkills">Preferred Skills</label>
+                  <textarea id="preferredSkills" placeholder="BigQuery, Python, stakeholder reporting"></textarea>
+                </div>
+                <div class="field full">
+                  <label for="atsKeywords">ATS Keywords</label>
+                  <textarea id="atsKeywords" placeholder="Power BI, SQL, data analysis, reporting automation"></textarea>
+                </div>
+                <div class="field full">
+                  <label for="missingSkills">Missing / Weak Areas</label>
+                  <textarea id="missingSkills" placeholder="Industry domain, certification, exact tool gap"></textarea>
+                </div>
+              </div>
+            </details>
+            <div class="field full">
+              <label for="jdText">Full JD</label>
+              <textarea id="jdText" class="jd-box" placeholder="Paste JD here only if the map and job title look worth checking."></textarea>
+            </div>
+            <div class="field full">
+              <label for="notes">Notes</label>
+              <textarea id="notes" placeholder="Why apply or skip. Be direct."></textarea>
+            </div>
+          </div>
+          <div class="actions">
+            <button class="button" id="calculateBtn">Score Job</button>
+            <button class="button secondary" id="mapsBtn">Open Google Maps</button>
+            <button class="button secondary" id="clearBtn">Clear</button>
+          </div>
+          <p class="hint">Simple rule: map first. If commute is bad, skip before wasting resume effort.</p>
+          </div>
+        </div>
+
+        <div>
+          <div class="map-panel">
+            <h2>2. Commute Check</h2>
+            <p id="mapSummary">Origin: Bukit Jelutong. Destination: enter job location.</p>
+            <button class="button secondary" id="mapsBtnPanel">Open Google Maps Route</button>
+          </div>
+
+          <div class="score-strip">
+            <div class="score-card">
+              <span>Overall</span>
+              <strong id="overallScore">0</strong>
+            </div>
+            <div class="score-card">
+              <span>Decision</span>
+              <strong id="decisionText">-</strong>
+            </div>
+            <div class="score-card">
+              <span>Location</span>
+              <strong id="locationScore">0</strong>
+            </div>
+            <div class="score-card">
+              <span>Freshness</span>
+              <strong id="freshnessScore">0</strong>
+            </div>
+          </div>
+
+          <div class="panel decision" id="decisionPanel">
+            <h2>2. Decision</h2>
+            <p id="whyText">Score a job to see whether it is worth applying.</p>
+            <div class="actions">
+              <button class="button" id="copyAnalysisBtn">Copy JD Analysis</button>
+              <button class="button secondary" id="copyTrackerBtn">Copy Tracker Row</button>
+              <button class="button warn" id="copyPromptBtn">Copy AI Prompt</button>
+              <button class="button secondary" id="copyTailorBtn">Copy Tailor Prompt</button>
+              <button class="button secondary" id="copyEmailBtn">Copy HR Email</button>
+            </div>
+          </div>
+
+          <div class="tabs">
+            <button class="active" data-output="analysis">JD Analysis</button>
+            <button data-output="tracker">Tracker Row</button>
+            <button data-output="prompt">AI Prompt</button>
+            <button data-output="tailor">Tailor Resume</button>
+            <button data-output="email">HR Email</button>
+          </div>
+          <pre class="output" id="outputBox"></pre>
+        </div>
+      </section>
+
+      <section id="note-view" class="note-view hidden"></section>
+    </main>
+  </div>
+
+  <script>
+    const fields = [
+      "jobTitle",
+      "company",
+      "companyType",
+      "source",
+      "location",
+      "distanceKm",
+      "workMode",
+      "freshness",
+      "salaryRange",
+      "salaryValue",
+      "seniority",
+      "atsScore",
+      "technicalScore",
+      "domainScore",
+      "requiredSkills",
+      "preferredSkills",
+      "atsKeywords",
+      "missingSkills",
+      "jdText",
+      "notes"
+    ];
+
+    const freshnessScores = {
+      "Today": 100,
+      "1-3 days": 90,
+      "4-7 days": 70,
+      "8-14 days": 50,
+      "15+ days": 25
+    };
+
+    const seniorityScores = {
+      "Entry": 82,
+      "Junior": 95,
+      "Mid": 85,
+      "Senior": 62,
+      "Lead": 25
+    };
+
+    const salaryScores = {
+      "Strong": 100,
+      "Fair": 75,
+      "Unknown": 50,
+      "Weak": 30
+    };
+
+    const nearbyAreas = [
+      "bukit jelutong",
+      "shah alam",
+      "glenmarie",
+      "subang",
+      "ara damansara",
+      "kelana jaya",
+      "petaling jaya",
+      "damansara",
+      "kota damansara",
+      "setia alam"
+    ];
+
+    const state = {
+      analysis: "",
+      tracker: "",
+      prompt: "",
+      tailor: "",
+      email: ""
+    };
+
+    const noteView = document.getElementById("note-view");
+    const analyzeView = document.getElementById("analyze-view");
+    const pageTitle = document.getElementById("page-title");
+    const pageSubtitle = document.getElementById("page-subtitle");
+    const statusNode = document.getElementById("status");
+    const outputBox = document.getElementById("outputBox");
+    const navButtons = Array.from(document.querySelectorAll("nav button"));
+    const outputTabs = Array.from(document.querySelectorAll(".tabs button"));
+
+    function value(id) {
+      return document.getElementById(id).value.trim();
+    }
+
+    function numberValue(id) {
+      const raw = Number(value(id));
+      if (Number.isNaN(raw)) {
+        return 0;
+      }
+      return Math.max(0, Math.min(100, raw));
+    }
+
+    function todayIso() {
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    function savedMasterResume() {
+      return localStorage.getItem("jobSniperMasterResume") || "";
+    }
+
+    function setMasterResumeStatus() {
+      const text = value("masterResumeText");
+      const wordCount = text ? text.split(/\s+/).filter(Boolean).length : 0;
+      document.getElementById("masterResumeStatus").textContent = wordCount
+        ? `Master resume loaded: ${wordCount} words.`
+        : "No master resume saved yet.";
+    }
+
+    function saveMasterResume() {
+      localStorage.setItem("jobSniperMasterResume", value("masterResumeText"));
+      setMasterResumeStatus();
+      statusNode.textContent = "Master resume saved locally";
+    }
+
+    function clearMasterResume() {
+      localStorage.removeItem("jobSniperMasterResume");
+      document.getElementById("masterResumeText").value = "";
+      setMasterResumeStatus();
+      statusNode.textContent = "Master resume cleared";
+    }
+
+    function searchQuery() {
+      const role = document.getElementById("searchRole").value.trim() || "Analyst";
+      const category = document.getElementById("searchCategory").value;
+      const area = document.getElementById("searchArea").value.trim() || "Selangor";
+      return `${role} ${category} ${area}`;
+    }
+
+    function searchUrl(source) {
+      const query = searchQuery();
+      if (source === "jobstreet") {
+        return `https://www.jobstreet.com.my/${encodeURIComponent(query).replaceAll("%20", "-")}-jobs/in-selangor`;
+      }
+      if (source === "linkedin") {
+        return `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(query)}&location=${encodeURIComponent("Selangor, Malaysia")}`;
+      }
+      if (source === "indeed") {
+        return `https://my.indeed.com/jobs?q=${encodeURIComponent(query)}&l=${encodeURIComponent("Selangor")}`;
+      }
+      return `https://www.google.com/search?q=${encodeURIComponent(`${query} careers site:my`)}`;
+    }
+
+    function mapsUrl() {
+      const origin = "Bukit Jelutong, Shah Alam, Selangor, Malaysia";
+      const destination = value("location") || value("company") || "Selangor, Malaysia";
+      return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=driving`;
+    }
+
+    function distanceScore() {
+      const mode = value("workMode");
+      const distance = Number(value("distanceKm"));
+      const location = value("location").toLowerCase();
+
+      if (mode === "Remote") {
+        return 100;
+      }
+
+      if (Number.isNaN(distance) || value("distanceKm") === "") {
+        return nearbyAreas.some((area) => location.includes(area)) ? 80 : 45;
+      }
+
+      if (distance <= 10) {
+        return 100;
+      }
+      if (distance <= 15) {
+        return 95;
+      }
+      if (distance <= 25) {
+        return 65;
+      }
+      if (distance <= 30) {
+        return 50;
+      }
+      if (distance <= 50) {
+        return 25;
+      }
+      return 0;
+    }
+
+    function decisionFor(score, gates) {
+      if (gates.includes("hard skip")) {
+        return "Skip";
+      }
+      if (score >= 90) {
+        return "Strong Apply";
+      }
+      if (score >= 80) {
+        return "Apply";
+      }
+      if (score >= 70) {
+        return "Stretch Apply";
+      }
+      return "Skip";
+    }
+
+    function normalizeDecision(decision) {
+      if (decision === "Strong Apply") {
+        return "strong";
+      }
+      if (decision === "Apply") {
+        return "apply";
+      }
+      if (decision === "Stretch Apply") {
+        return "stretch";
+      }
+      return "skip";
+    }
+
+    function getScores() {
+      const locScore = distanceScore();
+      const freshScore = freshnessScores[value("freshness")];
+      const ats = numberValue("atsScore");
+      const technical = numberValue("technicalScore");
+      const domain = numberValue("domainScore");
+      const seniority = seniorityScores[value("seniority")];
+      const salary = salaryScores[value("salaryValue")];
+      const gates = [];
+      const mode = value("workMode");
+      const distance = Number(value("distanceKm"));
+
+      if (mode !== "Remote" && !Number.isNaN(distance) && distance > 30 && value("salaryValue") !== "Strong") {
+        gates.push("hard skip");
+      }
+      if (value("seniority") === "Lead") {
+        gates.push("hard skip");
+      }
+      if (ats < 60 || technical < 60) {
+        gates.push("weak match");
+      }
+      if (freshScore <= 50) {
+        gates.push("old posting");
+      }
+
+      const overall = Math.round(
+        ats * 0.25 +
+        technical * 0.20 +
+        domain * 0.10 +
+        seniority * 0.15 +
+        locScore * 0.15 +
+        freshScore * 0.10 +
+        salary * 0.05
+      );
+      const decision = decisionFor(overall, gates);
+
+      return {
+        ats,
+        technical,
+        domain,
+        seniority,
+        salary,
+        location: locScore,
+        freshness: freshScore,
+        overall,
+        decision,
+        gates
+      };
+    }
+
+    function why(scores) {
+      const location = value("location") || "unknown location";
+      const distance = value("distanceKm") || "unknown";
+      const reasons = [];
+
+      reasons.push(`${value("workMode")} role in ${location}, ${distance}km from Bukit Jelutong.`);
+      reasons.push(`ATS ${scores.ats}, technical ${scores.technical}, freshness ${scores.freshness}, location ${scores.location}.`);
+
+      if (scores.decision === "Skip") {
+        reasons.push("Do not spend resume effort unless the JD, salary, or commute improves.");
+      } else if (scores.decision === "Stretch Apply") {
+        reasons.push("Track only. Tailor later if evidence and value improve.");
+      } else {
+        reasons.push("Worth tailoring only with verified Master Resume evidence.");
+      }
+
+      if (scores.gates.length) {
+        reasons.push(`Flags: ${scores.gates.join(", ")}.`);
+      }
+
+      return reasons.join(" ");
+    }
+
+    function splitLines(text) {
+      return text
+        .split(/,|\n/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+
+    function bullets(text) {
+      const items = splitLines(text);
+      if (!items.length) {
+        return "- ";
+      }
+      return items.map((item) => `- ${item}`).join("\n");
+    }
+
+    function trackerRow(scores) {
+      const cells = [
+        "",
+        todayIso(),
+        value("jobTitle"),
+        value("company"),
+        value("companyType"),
+        value("location"),
+        value("distanceKm"),
+        value("workMode"),
+        value("source"),
+        value("freshness"),
+        value("salaryRange"),
+        value("seniority"),
+        splitLines(value("requiredSkills")).join(", "),
+        splitLines(value("preferredSkills")).join(", "),
+        splitLines(value("atsKeywords")).join(", "),
+        splitLines(value("missingSkills")).join(", "),
+        scores.ats,
+        scores.technical,
+        scores.domain,
+        scores.seniority,
+        scores.location,
+        scores.freshness,
+        scores.overall,
+        scores.decision,
+        scores.decision === "Skip" ? "Reviewed" : "Reviewed",
+        value("notes") || why(scores)
+      ];
+
+      return `| ${cells.map((cell) => String(cell).replaceAll("|", "/")).join(" | ")} |`;
+    }
+
+    function jdAnalysis(scores) {
+      return `# ${value("company") || "Company"} - ${value("jobTitle") || "Job Title"}\n\n## Job Summary\n\n- Job Title: ${value("jobTitle")}\n- Company: ${value("company")}\n- Company Type: ${value("companyType")}\n- Location: ${value("location")}\n- Distance KM from Bukit Jelutong: ${value("distanceKm")}\n- Google Maps: ${mapsUrl()}\n- Work Mode: ${value("workMode")}\n- Source: ${value("source")}\n- Freshness: ${value("freshness")}\n- Salary: ${value("salaryRange")}\n- Seniority: ${value("seniority")}\n\n## Match Scores\n\n- ATS Match: ${scores.ats}\n- Technical Match: ${scores.technical}\n- Domain Match: ${scores.domain}\n- Seniority Match: ${scores.seniority}\n- Salary / Value Check: ${value("salaryValue")} (${scores.salary})\n- Location Match: ${scores.location}\n- Freshness Score: ${scores.freshness}\n- Overall Score: ${scores.overall}\n\n## Decision\n\n${scores.decision}\n\n## Why\n\n${why(scores)}\n\n## Keywords to Add\n\n${bullets(value("atsKeywords"))}\n\n## Resume Strategy\n\nEmphasize only verified Master Resume evidence matching: ${splitLines(value("requiredSkills")).concat(splitLines(value("preferredSkills"))).join(", ") || "role requirements"}.\n\nDo not fabricate tools, years, companies, certifications, achievements, or seniority.\n\n## Missing / Weak Areas\n\n${bullets(value("missingSkills"))}\n\n## Hidden Requirements\n\n- Check exact office location and commute from Bukit Jelutong.\n- Confirm salary range and hybrid/onsite expectations.\n- Confirm seniority expectations from responsibilities, not title only.\n\n## Next Action\n\n${nextAction(scores)}\n`;
+    }
+
+    function aiPrompt() {
+      return `Analyze this JD for my Job Sniper system.\n\nContext:\n- I live in Bukit Jelutong, Shah Alam, Selangor.\n- Selangor first.\n- Preferred commute: 10-15km.\n- Quality over quantity.\n- Best-fit roles: Data Analyst, Business Analyst, Reporting Analyst, Dashboard Analyst, Power BI Analyst, SQL Analyst, BigQuery Analyst, Grafana / Monitoring Analyst, Data Operations, Application Support, IT Operations, System Support, Junior Developer, Laravel / PHP Support, Python Automation, Reporting Automation.\n- Never fabricate experience.\n- Tailor resume only if decision is Strong Apply or Apply.\n\nMaster Resume source of truth:\n${savedMasterResume() || "[Paste/upload Master Resume first]"}\n\nTasks:\n1. Extract job details.\n2. Classify company type.\n3. Estimate distance from Bukit Jelutong if location is given.\n4. Extract required skills, preferred skills, ATS keywords, hidden requirements.\n5. Compare against my Master Resume only.\n6. Identify gaps.\n7. Score ATS, technical, domain, seniority, location, freshness, overall.\n8. Decide Strong Apply / Apply / Stretch Apply / Skip.\n9. Output Job Summary, Match Scores, Decision, Why, Keywords to Add, Resume Strategy, Missing / Weak Areas, Next Action.\n\nJD:\n${value("jdText")}`;
+    }
+
+    function tailorPrompt(scores) {
+      return `Create a tailored ATS resume for this job only if the decision is Strong Apply or Apply.\n\nDecision: ${scores.decision}\n\nRules:\n- Use only the Master Resume below as source of truth.\n- Do not fabricate tools, years, companies, certifications, achievements, or seniority.\n- Reorder and reframe only true experience.\n- Add JD keywords only where truthful.\n- ATS-safe format: no tables, no graphics, no columns.\n- Use standard headings and strong bullet points.\n- Optimize for recruiter readability and interview conversion.\n\nMaster Resume:\n${savedMasterResume() || "[Paste/upload Master Resume first]"}\n\nJob Details:\n- Title: ${value("jobTitle")}\n- Company: ${value("company")}\n- Location: ${value("location")}\n- Work Mode: ${value("workMode")}\n- Salary: ${value("salaryRange")}\n- ATS Keywords: ${value("atsKeywords")}\n- Required Skills: ${value("requiredSkills")}\n- Preferred Skills: ${value("preferredSkills")}\n- Missing Skills: ${value("missingSkills")}\n\nFull JD:\n${value("jdText")}\n\nOutput:\n1. Tailored resume in ATS-safe markdown.\n2. Keywords added and where they came from in the Master Resume.\n3. Claims excluded because unsupported.\n4. Short apply strategy.`;
+    }
+
+    function applyEmail(scores) {
+      return `Subject: Application for ${value("jobTitle") || "[Job Title]"} - ${value("company") || "[Company]"}\n\nHi Hiring Team,\n\nI would like to apply for the ${value("jobTitle") || "[Job Title]"} role at ${value("company") || "[Company]"}.\n\nBased on the JD, the strongest matching areas from my verified experience are:\n- ${splitLines(value("requiredSkills")).slice(0, 3).join("\\n- ") || "[add 2-3 truthful matching strengths]"}\n\nI have attached my tailored resume for your review.\n\nThank you,\n[Your Name]\n\nApplication channel notes:\n- Decision: ${scores.decision}\n- Apply via: HR email / company website / JobStreet / Indeed / LinkedIn\n- Google Maps: ${mapsUrl()}`;
+    }
+
+    function nextAction(scores) {
+      if (scores.decision === "Strong Apply" || scores.decision === "Apply") {
+        return "Create resume tailoring plan, then update Job Tracker. Tailor only from Master Resume evidence.";
+      }
+      if (scores.decision === "Stretch Apply") {
+        return "Track only. Do not tailor yet.";
+      }
+      return "Skip and archive if already reviewed.";
+    }
+
+    function calculate() {
+      const scores = getScores();
+      const decisionClass = normalizeDecision(scores.decision);
+      const panel = document.getElementById("decisionPanel");
+
+      document.getElementById("overallScore").textContent = scores.overall;
+      document.getElementById("decisionText").textContent = scores.decision;
+      document.getElementById("locationScore").textContent = scores.location;
+      document.getElementById("freshnessScore").textContent = scores.freshness;
+      document.getElementById("whyText").textContent = why(scores);
+      panel.className = `panel decision ${decisionClass}`;
+      document.getElementById("mapSummary").textContent = `Bukit Jelutong -> ${value("location") || "job location"} / ${value("distanceKm") || "?"}km / ${value("workMode")}`;
+
+      state.analysis = jdAnalysis(scores);
+      state.tracker = trackerRow(scores);
+      state.prompt = aiPrompt();
+      state.tailor = tailorPrompt(scores);
+      state.email = applyEmail(scores);
+      setOutput("analysis");
+    }
+
+    function setOutput(kind) {
+      outputTabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.output === kind));
+      outputBox.textContent = state[kind] || "";
+    }
+
+    async function copyText(text) {
+      await navigator.clipboard.writeText(text);
+      statusNode.textContent = "Copied";
+    }
+
+    function clearForm() {
+      fields.forEach((id) => {
+        const node = document.getElementById(id);
+        if (node.tagName === "SELECT") {
+          node.selectedIndex = 0;
+        } else {
+          node.value = "";
+        }
+      });
+      document.getElementById("atsScore").value = 75;
+      document.getElementById("technicalScore").value = 75;
+      document.getElementById("domainScore").value = 65;
+      calculate();
+    }
+
+    function escapeHtml(value) {
+      return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    }
+
+    function inlineMarkdown(value) {
+      return escapeHtml(value)
+        .replace(/`([^`]+)`/g, "<code>$1</code>")
+        .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, "$2")
+        .replace(/\[\[([^\]]+)\]\]/g, "$1");
+    }
+
+    function isTableDivider(line) {
+      return /^\|\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(line);
+    }
+
+    function parseTable(lines, start) {
+      const rows = [];
+      let index = start;
+
+      while (index < lines.length && lines[index].trim().startsWith("|")) {
+        if (!isTableDivider(lines[index].trim())) {
+          rows.push(lines[index].trim());
+        }
+        index += 1;
+      }
+
+      const htmlRows = rows.map((row, rowIndex) => {
+        const cells = row.replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => inlineMarkdown(cell.trim()));
+        const tag = rowIndex === 0 ? "th" : "td";
+        return `<tr>${cells.map((cell) => `<${tag}>${cell}</${tag}>`).join("")}</tr>`;
+      });
+
+      return { html: `<table>${htmlRows.join("")}</table>`, next: index };
+    }
+
+    function renderMarkdown(markdown) {
+      const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+      const output = [];
+      let listType = null;
+
+      function closeList() {
+        if (listType) {
+          output.push(`</${listType}>`);
+          listType = null;
+        }
+      }
+
+      for (let i = 0; i < lines.length; i += 1) {
+        const trimmed = lines[i].trim();
+
+        if (!trimmed) {
+          closeList();
+          continue;
+        }
+
+        if (trimmed.startsWith("|") && i + 1 < lines.length && isTableDivider(lines[i + 1].trim())) {
+          closeList();
+          const table = parseTable(lines, i);
+          output.push(table.html);
+          i = table.next - 1;
+          continue;
+        }
+
+        const heading = trimmed.match(/^(#{1,3})\s+(.+)$/);
+        if (heading) {
+          closeList();
+          const level = heading[1].length;
+          output.push(`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`);
+          continue;
+        }
+
+        const ordered = trimmed.match(/^\d+\.\s+(.+)$/);
+        if (ordered) {
+          if (listType !== "ol") {
+            closeList();
+            output.push("<ol>");
+            listType = "ol";
+          }
+          output.push(`<li>${inlineMarkdown(ordered[1])}</li>`);
+          continue;
+        }
+
+        const unordered = trimmed.match(/^-\s+(.+)$/);
+        if (unordered) {
+          if (listType !== "ul") {
+            closeList();
+            output.push("<ul>");
+            listType = "ul";
+          }
+          output.push(`<li>${inlineMarkdown(unordered[1])}</li>`);
+          continue;
+        }
+
+        closeList();
+        output.push(`<p>${inlineMarkdown(trimmed)}</p>`);
+      }
+
+      closeList();
+      return output.join("\n");
+    }
+
+    async function loadFile(file) {
+      analyzeView.classList.add("hidden");
+      noteView.classList.remove("hidden");
+      pageTitle.textContent = file.replace(/\.md$/, "").replace(/README$/, "README");
+      pageSubtitle.textContent = "Rendered markdown note.";
+      statusNode.textContent = "Loading " + file;
+
+      try {
+        const response = await fetch(encodeURI(file), { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("HTTP " + response.status);
+        }
+        noteView.innerHTML = renderMarkdown(await response.text());
+        statusNode.textContent = "Loaded " + file;
+      } catch (error) {
+        noteView.innerHTML = `<div class="error">Could not load ${escapeHtml(file)}: ${escapeHtml(error.message)}</div>`;
+        statusNode.textContent = "Load failed";
+      }
+    }
+
+    function showAnalyze() {
+      noteView.classList.add("hidden");
+      analyzeView.classList.remove("hidden");
+      pageTitle.textContent = "Analyze JD";
+      pageSubtitle.textContent = "Paste one JD, score it from Bukit Jelutong, then copy the generated analysis and tracker row.";
+      statusNode.textContent = "Personal MVP";
+    }
+
+    navButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        navButtons.forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        if (button.dataset.mode === "analyze") {
+          showAnalyze();
+        } else {
+          loadFile(button.dataset.file);
+        }
+      });
+    });
+
+    outputTabs.forEach((button) => {
+      button.addEventListener("click", () => setOutput(button.dataset.output));
+    });
+
+    document.getElementById("calculateBtn").addEventListener("click", calculate);
+    document.getElementById("mapsBtn").addEventListener("click", () => {
+      window.open(mapsUrl(), "_blank", "noopener,noreferrer");
+    });
+    document.getElementById("mapsBtnPanel").addEventListener("click", () => {
+      window.open(mapsUrl(), "_blank", "noopener,noreferrer");
+    });
+    document.getElementById("clearBtn").addEventListener("click", clearForm);
+    document.getElementById("copyAnalysisBtn").addEventListener("click", () => copyText(state.analysis));
+    document.getElementById("copyTrackerBtn").addEventListener("click", () => copyText(state.tracker));
+    document.getElementById("copyPromptBtn").addEventListener("click", () => copyText(state.prompt));
+    document.getElementById("copyTailorBtn").addEventListener("click", () => copyText(state.tailor));
+    document.getElementById("copyEmailBtn").addEventListener("click", () => copyText(state.email));
+    document.getElementById("saveMasterBtn").addEventListener("click", saveMasterResume);
+    document.getElementById("clearMasterBtn").addEventListener("click", clearMasterResume);
+    document.getElementById("masterResumeFile").addEventListener("change", async (event) => {
+      const file = event.target.files[0];
+      if (!file) {
+        return;
+      }
+      document.getElementById("masterResumeText").value = await file.text();
+      saveMasterResume();
+    });
+    document.querySelectorAll("[data-search]").forEach((button) => {
+      button.addEventListener("click", () => {
+        window.open(searchUrl(button.dataset.search), "_blank", "noopener,noreferrer");
+      });
+    });
+
+    document.getElementById("masterResumeText").value = savedMasterResume();
+    setMasterResumeStatus();
+
+    calculate();
+  </script>
+</body>
+</html>
