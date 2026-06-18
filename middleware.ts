@@ -1,15 +1,10 @@
-import {
-  getAuthRequiredMessage,
-  resolveRequestUserScope
-} from "@/lib/auth-context";
 import { createRateLimitKey, evaluateApiRateLimit } from "@/lib/rate-limit";
 import {
   defaultApiRateLimit,
   getClientKey,
   getSecurityHeaders,
-  isAdminAuthorized,
   isAdminRoute,
-  isProtectedUserApiRoute,
+  isAdminAuthorized,
   isRequestTooLarge,
   type RateLimitEntry
 } from "@/lib/security";
@@ -60,25 +55,16 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  if (isProtectedUserApiRoute(pathname) && !resolveRequestUserScope(request.headers) && !hasAuthSessionCookie(request)) {
-    return withSecurityHeaders(
-      NextResponse.json(
-        {
-          error: getAuthRequiredMessage()
-        },
-        { status: 401 }
-      )
-    );
-  }
-
   if (isAdminRoute(pathname)) {
-    const providedToken = request.headers.get("x-applysharp-admin-token") ?? request.cookies.get("applysharp_admin_token")?.value;
+    const providedToken =
+      request.headers.get("x-meta-ads-admin-token") ??
+      request.cookies.get("meta_ads_admin_token")?.value;
 
-    if (!isAdminAuthorized(providedToken, process.env.APPLYSHARP_ADMIN_TOKEN)) {
+    if (!isAdminAuthorized(providedToken, process.env.META_ADS_ADMIN_TOKEN)) {
       return withSecurityHeaders(
         NextResponse.json(
           {
-            error: "Admin access requires a valid ApplySharp admin token."
+            error: "Admin access requires a valid Meta Ads admin token."
           },
           { status: 401 }
         )
@@ -99,13 +85,4 @@ function withSecurityHeaders(response: NextResponse) {
   }
 
   return response;
-}
-
-function hasAuthSessionCookie(request: NextRequest): boolean {
-  return [
-    "authjs.session-token",
-    "__Secure-authjs.session-token",
-    "next-auth.session-token",
-    "__Secure-next-auth.session-token"
-  ].some((name) => Boolean(request.cookies.get(name)?.value));
 }

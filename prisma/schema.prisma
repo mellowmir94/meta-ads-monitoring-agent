@@ -7,80 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum CompanyType {
-  MNC
-  SME
-  STARTUP
-  AGENCY
-  GLC
-  OTHER
-}
-
-enum JobCategory {
-  MNC
-  SME
-  FRESH_GRADUATE
-  REMOTE
-  INTERNSHIP
-  CONTRACT
-  OTHERS
-}
-
-enum WorkMode {
-  REMOTE
-  HYBRID
-  ON_SITE
-}
-
-enum ExperienceLevel {
-  FRESH_GRADUATE
-  ENTRY
-  JUNIOR
-  MID
-  SENIOR
-}
-
-enum JobSourcePlatform {
-  JOBSTREET
-  INDEED
-  LINKEDIN
-  COMPANY_SITE
-  PUBLIC_LISTING
-  OTHER
-}
-
-enum ApplicationStatus {
-  SAVED
-  TAILORED
-  DOWNLOADED
-  APPLIED
-  INTERVIEW
-  REJECTED
-  OFFER
-  ARCHIVED
-}
-
-enum ResumeVersionStatus {
-  DRAFT
-  READY
-  DOWNLOADED
-  ARCHIVED
-}
-
-enum SubscriptionPlan {
-  FREE
-  PRO
-  TEAM
-  ENTERPRISE
-}
-
-enum SubscriptionStatus {
-  TRIALING
-  ACTIVE
-  PAST_DUE
-  CANCELED
-}
-
 enum MetaAdsEntityLevel {
   CAMPAIGN
   AD_SET
@@ -143,15 +69,8 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts          Account[]
-  sessions          Session[]
-  masterResumes     MasterResume[]
-  uploadedAssets    UploadedAsset[]
-  jobListings       JobListing[]
-  applications      Application[]
-  aiInteractions    AiInteraction[]
-  auditLogs         AuditLog[]
-  subscriptions     Subscription[]
+  accounts Account[]
+  sessions Session[]
 }
 
 model Account {
@@ -190,255 +109,22 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-model MasterResume {
-  id              String   @id @default(cuid())
-  userId          String
-  title           String
-  originalFileUrl String?
-  fileHash        String?
-  rawText         String
-  encryptedBlob   String?
-  active          Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  profile         ResumeProfile?
-  tailoredResumes TailoredResume[]
-
-  @@index([userId, active])
-}
-
-model ResumeProfile {
-  id             String   @id @default(cuid())
-  masterResumeId String   @unique
-  experience     Json
-  skills         String[]
-  education      Json
-  achievements   String[]
-  industries     String[]
-  tools          String[]
-  keywords       String[]
-  strengths      String[]
-  gaps           String[]
-  parserVersion  String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  masterResume MasterResume @relation(fields: [masterResumeId], references: [id], onDelete: Cascade)
-}
-
-model UploadedAsset {
-  id           String   @id @default(cuid())
-  userId       String
-  fileName     String
-  fileType     String
-  fileSize     Int
-  storageKey   String
-  checksum     String?
-  encrypted    Boolean  @default(true)
-  createdAt    DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, createdAt])
-}
-
-model JobListing {
-  id                String            @id @default(cuid())
-  userId            String?
-  title             String
-  company           String
-  companyType       CompanyType
-  category          JobCategory
-  location          String
-  distanceKmFromBukitJelutong Float?
-  estimatedCommuteMinutes Int?
-  mapLink           String?
-  salary            String?
-  workMode          WorkMode
-  experienceLevel   ExperienceLevel
-  sourcePlatform    JobSourcePlatform
-  sourceUrl         String?
-  officialApplyLink String?
-  externalApplyLink String?
-  hrEmail           String?
-  requirements      String[]
-  responsibilities  String[]
-  atsKeywords       String[]
-  rawDescription    String
-  scrapedAt         DateTime?
-  postedAt          DateTime?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-
-  user         User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
-  analyses     JobAnalysis[]
-  applications Application[]
-
-  @@index([userId, sourcePlatform])
-  @@index([companyType, category, workMode])
-}
-
-model JobAnalysis {
-  id                String   @id @default(cuid())
-  jobListingId      String
-  userId            String?
-  fitScore          Int
-  atsScore          Int
-  missingKeywords   String[]
-  matchedKeywords   String[]
-  skillGaps         String[]
-  recruiterConcerns String[]
-  improvements      String[]
-  promptWarnings    String[]
-  provider          String
-  model             String
-  createdAt         DateTime @default(now())
-
-  jobListing      JobListing       @relation(fields: [jobListingId], references: [id], onDelete: Cascade)
-  tailoredResumes TailoredResume[]
-  coverLetters    CoverLetter[]
-
-  @@index([jobListingId, createdAt])
-}
-
-model TailoredResume {
-  id                String              @id @default(cuid())
-  userId            String
-  masterResumeId    String
-  jobAnalysisId     String
-  title             String
-  markdown          String
-  pdfUrl            String?
-  truthMap          Json
-  unsupportedClaims String[]
-  status            ResumeVersionStatus @default(DRAFT)
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-
-  masterResume MasterResume @relation(fields: [masterResumeId], references: [id], onDelete: Restrict)
-  jobAnalysis  JobAnalysis  @relation(fields: [jobAnalysisId], references: [id], onDelete: Cascade)
-  applications Application[]
-
-  @@index([userId, createdAt])
-}
-
-model CoverLetter {
-  id            String   @id @default(cuid())
-  userId        String
-  jobAnalysisId String
-  title         String
-  body          String
-  emailSubject  String
-  emailBody     String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  jobAnalysis  JobAnalysis   @relation(fields: [jobAnalysisId], references: [id], onDelete: Cascade)
-  applications Application[]
-
-  @@index([userId, createdAt])
-}
-
-model Application {
-  id               String            @id @default(cuid())
-  userId           String
-  jobListingId     String
-  tailoredResumeId String?
-  coverLetterId    String?
-  status           ApplicationStatus @default(SAVED)
-  applyMethod      String
-  applyUrl         String?
-  hrEmail          String?
-  confirmationNote String?
-  appliedAt        DateTime?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-
-  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jobListing     JobListing      @relation(fields: [jobListingId], references: [id], onDelete: Cascade)
-  tailoredResume TailoredResume? @relation(fields: [tailoredResumeId], references: [id], onDelete: SetNull)
-  coverLetter    CoverLetter?    @relation(fields: [coverLetterId], references: [id], onDelete: SetNull)
-  events         ApplicationEvent[]
-
-  @@index([userId, status])
-}
-
-model ApplicationEvent {
-  id            String            @id @default(cuid())
-  applicationId String
-  status        ApplicationStatus
-  note          String?
-  createdAt     DateTime          @default(now())
-
-  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-
-  @@index([applicationId, createdAt])
-}
-
-model AiInteraction {
-  id           String   @id @default(cuid())
-  userId       String
-  intent       String
-  provider     String
-  model        String
-  promptHash   String
-  inputSummary String
-  output       Json
-  warnings     String[]
-  createdAt    DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, createdAt])
-}
-
-model AuditLog {
-  id        String   @id @default(cuid())
-  userId    String?
-  action    String
-  resource  String
-  metadata  Json?
-  ipHash    String?
-  createdAt DateTime @default(now())
-
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@index([userId, createdAt])
-}
-
-model Subscription {
-  id                 String             @id @default(cuid())
-  userId             String
-  plan               SubscriptionPlan
-  status             SubscriptionStatus
-  stripeCustomerId   String?
-  stripeSubscriptionId String?
-  currentPeriodEnd   DateTime?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, status])
-}
-
 model MetaAdsAccount {
-  id              String   @id @default(cuid())
-  adAccountId     String   @unique
-  name            String?
-  currency        String   @default("MYR")
-  timezoneName    String   @default("Asia/Kuala_Lumpur")
-  lastSyncedAt    DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id           String   @id @default(cuid())
+  adAccountId  String   @unique
+  name         String?
+  currency     String   @default("MYR")
+  timezoneName String   @default("Asia/Kuala_Lumpur")
+  lastSyncedAt DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  entities  MetaAdsEntity[]
-  snapshots MetaAdsPerformanceSnapshot[]
-  runs      MetaAdsAgentRun[]
-  reports   MetaAdsReport[]
-  alerts    MetaAdsAlert[]
+  entities           MetaAdsEntity[]
+  snapshots          MetaAdsPerformanceSnapshot[]
+  runs               MetaAdsAgentRun[]
+  reports            MetaAdsReport[]
+  alerts             MetaAdsAlert[]
+  recommendedActions MetaAdsRecommendedAction[]
 }
 
 model MetaAdsEntity {
@@ -462,7 +148,7 @@ model MetaAdsEntity {
 }
 
 model MetaAdsPerformanceSnapshot {
-  id           String             @id @default(cuid())
+  id           String              @id @default(cuid())
   accountId    String
   entityId     String?
   metaEntityId String
@@ -471,18 +157,18 @@ model MetaAdsPerformanceSnapshot {
   name         String
   date         DateTime
   status       MetaAdsEntityStatus @default(UNKNOWN)
-  spend        Float              @default(0)
-  impressions  Int                @default(0)
-  reach        Int                @default(0)
-  clicks       Int                @default(0)
-  ctr          Float              @default(0)
-  cpc          Float              @default(0)
-  cpm          Float              @default(0)
-  leads        Int                @default(0)
+  spend        Float               @default(0)
+  impressions  Int                 @default(0)
+  reach        Int                 @default(0)
+  clicks       Int                 @default(0)
+  ctr          Float               @default(0)
+  cpc          Float               @default(0)
+  cpm          Float               @default(0)
+  leads        Int                 @default(0)
   cpl          Float?
-  frequency    Float              @default(0)
+  frequency    Float               @default(0)
   raw          Json?
-  createdAt    DateTime           @default(now())
+  createdAt    DateTime            @default(now())
 
   account MetaAdsAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
   entity  MetaAdsEntity? @relation(fields: [entityId], references: [id], onDelete: SetNull)
@@ -493,18 +179,18 @@ model MetaAdsPerformanceSnapshot {
 }
 
 model MetaAdsAgentRun {
-  id              String           @id @default(cuid())
-  accountId       String?
-  status          MetaAdsRunStatus @default(STARTED)
-  runType         String
-  startedAt       DateTime         @default(now())
-  completedAt     DateTime?
-  errorMessage    String?
-  campaignsChecked Int             @default(0)
-  adSetsChecked    Int             @default(0)
-  adsChecked       Int             @default(0)
-  alertsGenerated  Int             @default(0)
-  reportSent       Boolean         @default(false)
+  id               String           @id @default(cuid())
+  accountId        String?
+  status           MetaAdsRunStatus @default(STARTED)
+  runType          String
+  startedAt        DateTime         @default(now())
+  completedAt      DateTime?
+  errorMessage     String?
+  campaignsChecked Int              @default(0)
+  adSetsChecked    Int              @default(0)
+  adsChecked       Int              @default(0)
+  alertsGenerated  Int              @default(0)
+  reportSent       Boolean          @default(false)
   metadata         Json?
 
   account MetaAdsAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
@@ -534,27 +220,27 @@ model MetaAdsAlert {
   baselineValue  Float?
   createdAt      DateTime             @default(now())
 
-  account MetaAdsAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account MetaAdsAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
   run     MetaAdsAgentRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
-  entity  MetaAdsEntity? @relation(fields: [entityId], references: [id], onDelete: SetNull)
+  entity  MetaAdsEntity?   @relation(fields: [entityId], references: [id], onDelete: SetNull)
 
   @@index([accountId, createdAt, severity])
   @@index([metaEntityId, level, type])
 }
 
 model MetaAdsReport {
-  id          String            @id @default(cuid())
-  accountId   String
-  runId       String?
-  type        MetaAdsReportType
-  periodStart DateTime
-  periodEnd   DateTime
-  body        String
-  sentToTelegram Boolean        @default(false)
-  sentAt      DateTime?
-  createdAt   DateTime          @default(now())
+  id             String            @id @default(cuid())
+  accountId      String
+  runId          String?
+  type           MetaAdsReportType
+  periodStart    DateTime
+  periodEnd      DateTime
+  body           String
+  sentToTelegram Boolean           @default(false)
+  sentAt         DateTime?
+  createdAt      DateTime          @default(now())
 
-  account MetaAdsAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account MetaAdsAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
   run     MetaAdsAgentRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
 
   @@index([accountId, type, createdAt])
@@ -572,6 +258,8 @@ model MetaAdsRecommendedAction {
   rejectedAt     DateTime?
   createdAt      DateTime                    @default(now())
   updatedAt      DateTime                    @updatedAt
+
+  account MetaAdsAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([accountId, status, createdAt])
   @@index([metaEntityId, level])

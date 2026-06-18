@@ -1,28 +1,27 @@
 import clsx from "clsx";
 import {
-  BriefcaseBusiness,
-  CreditCard,
-  FileText,
+  Activity,
+  AlertTriangle,
+  BarChart3,
+  Bot,
+  CalendarClock,
   LayoutDashboard,
-  MailCheck,
+  MessageCircle,
   Settings,
-  Shield,
-  Sparkles,
-  UserCircle,
-  UsersRound
+  ShieldCheck,
+  TrendingUp
 } from "lucide-react";
 import Link from "next/link";
 
 const navItems = [
-  { href: "/dashboard", label: "Command", icon: LayoutDashboard },
-  { href: "/dashboard", label: "Resume", icon: FileText },
-  { href: "/dashboard", label: "Jobs", icon: BriefcaseBusiness },
-  { href: "/dashboard", label: "AI Tailor", icon: Sparkles },
-  { href: "/dashboard", label: "Apply", icon: MailCheck },
-  { href: "/admin", label: "Admin", icon: UsersRound },
-  { href: "/dashboard", label: "Billing", icon: CreditCard },
-  { href: "/dashboard", label: "Security", icon: Shield },
-  { href: "/account", label: "Account", icon: UserCircle },
+  { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
+  { href: "/dashboard", label: "Campaigns", icon: BarChart3 },
+  { href: "/dashboard", label: "Alerts", icon: AlertTriangle },
+  { href: "/dashboard", label: "Telegram", icon: MessageCircle },
+  { href: "/dashboard", label: "Scheduler", icon: CalendarClock },
+  { href: "/dashboard", label: "Agent", icon: Bot },
+  { href: "/dashboard", label: "Scaling", icon: TrendingUp },
+  { href: "/dashboard", label: "Safety", icon: ShieldCheck },
   { href: "/dashboard", label: "Settings", icon: Settings }
 ];
 
@@ -36,8 +35,8 @@ export function AppShell({ activePath, children }: AppShellProps) {
     <div className="min-h-screen lg:grid lg:grid-cols-[260px_1fr]">
       <aside className="hidden border-r border-line bg-white/85 px-4 py-5 lg:block">
         <Link href="/dashboard" className="block rounded-lg bg-ink p-4 text-white">
-          <span className="text-xs font-semibold uppercase tracking-[0.16em] text-skyglass">ApplySharp</span>
-          <p className="mt-2 text-lg font-semibold leading-6">AI job search and resume tailoring</p>
+          <span className="text-xs font-semibold uppercase tracking-[0.16em] text-skyglass">Meta Ads Agent</span>
+          <p className="mt-2 text-lg font-semibold leading-6">Read-only monitoring and Telegram reports</p>
         </Link>
         <nav className="mt-5 flex flex-col gap-1">
           {navItems.map((item) => {
@@ -64,14 +63,14 @@ export function AppShell({ activePath, children }: AppShellProps) {
         <header className="sticky top-0 z-10 border-b border-line bg-white/90 px-4 py-3 backdrop-blur lg:px-6">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink/50">Resume truth engine / ATS / one-click apply</p>
-              <p className="text-sm font-semibold text-ink">User workspace: Malaysia job market</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink/50">Meta Ads / Telegram / daily monitoring</p>
+              <p className="text-sm font-semibold text-ink">Workspace: local service-business ad performance</p>
             </div>
             <div className="flex items-center gap-2">
               <span className="hidden rounded-md border border-line bg-field px-3 py-2 text-sm font-medium sm:inline-flex">
-                Pro trial
+                Read-only mode
               </span>
-              <span className="rounded-full bg-palm px-3 py-2 text-xs font-semibold text-white">AS</span>
+              <span className="rounded-full bg-palm px-3 py-2 text-xs font-semibold text-white">MA</span>
             </div>
           </div>
           <nav className="mt-3 flex gap-2 overflow-x-auto lg:hidden">

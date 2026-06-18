@@ -1,30 +1,20 @@
 import { auth, authProviderCatalog, signIn, signOut } from "@/auth";
 import { AppShell } from "@/components/app-shell";
-import { resolveAdminAuthorizationForScope } from "@/lib/admin-authorization";
-import type { ApplySharpUserScope } from "@/lib/auth-context";
 
 export const dynamic = "force-dynamic";
 
 export default async function AccountPage() {
   const session = await auth();
   const configuredProviders = authProviderCatalog.filter((provider) => provider.enabled);
-  const userScope: ApplySharpUserScope | null = session?.user?.email
-    ? {
-        email: session.user.email.toLowerCase(),
-        name: session.user.name ?? undefined,
-        source: "authjs-session"
-      }
-    : null;
-  const adminAuthorization = resolveAdminAuthorizationForScope(userScope);
 
   return (
     <AppShell activePath="/account">
       <section className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
         <div className="rounded-lg border border-line bg-ink p-6 text-white shadow-panel">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-skyglass">Account</p>
-          <h1 className="mt-2 max-w-2xl text-3xl font-semibold leading-tight">Sign in before storing resumes, applications, and subscription data.</h1>
+          <h1 className="mt-2 max-w-2xl text-3xl font-semibold leading-tight">Sign in before managing Meta Ads monitoring settings.</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-white/70">
-            Auth.js is wired with the Prisma adapter. Configure GitHub or Google OAuth env vars to enable production sign-in buttons.
+            Auth.js is wired with the Prisma adapter. Configure GitHub or Google OAuth env vars before enabling multi-user access.
           </p>
         </div>
 
@@ -35,7 +25,7 @@ export default async function AccountPage() {
               <h2 className="mt-2 text-2xl font-semibold">{session.user.name ?? session.user.email}</h2>
               <p className="mt-2 text-sm text-ink/60">{session.user.email}</p>
               <p className="mt-4 rounded-md border border-line bg-field p-3 text-sm text-ink/65">
-                Admin: {adminAuthorization.authorized ? `${adminAuthorization.role} access granted` : "not authorized"}
+                Use this account for protected monitoring views once OAuth is configured.
               </p>
               <form action={signOutAction} className="mt-5">
                 <button className="rounded-md border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:bg-field" type="submit">

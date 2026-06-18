@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ApplySharp",
-  description: "AI-powered job search, resume tailoring, and application tracker SaaS."
+  title: "Meta Ads Monitoring Agent",
+  description: "Read-only Meta Ads monitoring, Telegram reporting, and performance alerting platform."
 };
 
 export default function RootLayout({

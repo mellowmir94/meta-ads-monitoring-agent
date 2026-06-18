@@ -40,8 +40,8 @@ export function resolveRedisRateLimitConfig(env: Partial<NodeJS.ProcessEnv> = pr
     enabled: Boolean(restUrl && token),
     restUrl,
     token,
-    namespace: sanitizeNamespace(env.APPLYSHARP_RATE_LIMIT_NAMESPACE || "applysharp"),
-    failClosed: env.APPLYSHARP_RATE_LIMIT_FAIL_CLOSED === "true"
+    namespace: sanitizeNamespace(env.META_ADS_RATE_LIMIT_NAMESPACE || "meta-ads-monitoring-agent"),
+    failClosed: env.META_ADS_RATE_LIMIT_FAIL_CLOSED === "true"
   };
 }
 
@@ -169,5 +169,5 @@ function sanitizeNamespace(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9:_-]+/g, "-")
     .replace(/^-|-$/g, "")
-    .slice(0, 80) || "applysharp";
+    .slice(0, 80) || "meta-ads-monitoring-agent";
 }

@@ -1,252 +1,87 @@
-# ApplySharp Architecture
+# Meta Ads Monitoring Agent Architecture
 
 ## Purpose
 
-This document defines the implementation boundaries for ApplySharp, the job search and resume tailoring SaaS described in `PROJECT_SPEC.md`.
+Provide a production-ready, read-only monitoring system for Meta Ads performance.
 
-ApplySharp is not an auto-apply bot. It is a decision, tailoring, and tracking system for high-quality job applications.
-
-## Stack
-
-- Framework: Next.js 15 App Router
-- Language: TypeScript strict mode
-- UI: Tailwind CSS
-- Database: PostgreSQL
-- ORM: Prisma
-- Auth: Auth.js v5
-- AI providers: OpenAI and Grok through an internal provider layer
-- Billing: Stripe
-- Rate limiting: Redis/Upstash with memory fallback
-- File storage: local JSON/dev now, S3 or UploadThing for production
-- Tests: Node native test runner with `tsx --test`
+The platform watches local service-business campaigns, detects issues and opportunities, and reports status to Telegram without making automatic changes to Meta Ads.
 
 ## High-Level Flow
 
 ```text
-Browser
-  -> Next.js pages/components
-  -> Route handlers
-  -> Service layer
-  -> Repository/store layer
-  -> local JSON in dev or Prisma/PostgreSQL in production
+Scheduler / CLI / API trigger
+  -> Meta Ads Agent Runner
+  -> Meta Marketing API read-only client
+  -> Snapshot normalization
+  -> PostgreSQL via Prisma
+  -> 7-day baseline calculation
+  -> Analysis rules
+  -> Daily/weekly report generation
+  -> Telegram Bot API notifications
+```
 
-AI request
-  -> User scope resolver
-  -> Master resume evidence retrieval
-  -> JD extraction/scoring
-  -> Prompt safety checks
-  -> AI provider abstraction
-  -> JSON validation
-  -> Metadata-only AiInteraction log
-  -> Tailored resume/cover letter/email draft
+Telegram command flow:
+
+```text
+Telegram /status
+  -> /api/telegram/webhook
+  -> latest MetaAdsAgentRun
+  -> Telegram status reply
 ```
 
 ## Core Boundaries
 
-- `auth`: Auth.js session, dev fallback, user scope, admin authorization.
-- `resumes`: master resume upload, parsing, source-of-truth profile evidence, resume version history.
-- `jobs`: local catalog, pasted JD extraction, URL extraction, company/location/source metadata, scoring.
-- `applications`: saved applications, status workflow, manual apply confirmation, deletion.
-- `ai`: provider abstraction, prompt construction, strict JSON validation, deterministic fallback.
-- `billing`: Stripe checkout, customer portal, webhooks, subscriptions, entitlements.
-- `security`: middleware headers, request size limits, API rate limits, admin compatibility controls.
-- `admin`: operational overview, readiness checklist, security posture.
+- `meta`: API client and Meta response normalization.
+- `meta-ads`: orchestration, persistence, setup checks, run status.
+- `ads-analysis`: deterministic alert rules.
+- `reports`: human-readable daily and weekly Telegram reports.
+- `telegram`: Bot API integration and command handling.
 
-## Source Of Truth Rules
+## Database
 
-The master resume is the only source for personal experience.
+Core Prisma models:
 
-Tailoring can:
+- `MetaAdsAccount`
+- `MetaAdsEntity`
+- `MetaAdsPerformanceSnapshot`
+- `MetaAdsAgentRun`
+- `MetaAdsAlert`
+- `MetaAdsReport`
+- `MetaAdsRecommendedAction`
 
-- rewrite
-- reorder
-- emphasize
-- simplify
-- add truthful ATS wording
-- quantify only when supported
+Historical snapshots are stored by account, entity, level, and date. Baselines are calculated from the previous 7 days.
 
-Tailoring cannot:
+## Read-Only Contract
 
-- invent skills
-- invent tools
-- invent years
-- invent companies
-- invent certifications
-- invent achievements
-- upgrade seniority beyond evidence
+Allowed:
 
-## User Scope And Tenancy
+- GET/list Meta campaigns, ad sets, ads, and insights.
+- Store local analysis results.
+- Send Telegram messages.
 
-ApplySharp is multi-user ready.
+Forbidden:
 
-Rules:
+- pause campaigns
+- edit budgets
+- create ads
+- delete ads
+- modify Meta objects
 
-- Resolve user scope server-side for every protected route.
-- Do not trust user IDs from client input.
-- Use Auth.js session first.
-- Use trusted dev header only when explicitly enabled.
-- Use demo fallback only when auth is optional.
-- Scope resumes, applications, AI logs, and subscriptions to the resolved user.
+## Scheduling
 
-## Storage Modes
+Supported:
 
-Development defaults:
+- manual CLI: `npm run meta-ads:daily`
+- weekly CLI: `npm run meta-ads:weekly`
+- HTTP trigger: `POST /api/meta-ads/run?type=daily`
+- Railway Cron or another scheduler can call the HTTP route.
 
-- Master resumes: local JSON
-- Applications: local JSON
-- AI interactions: local JSON
-- Subscriptions: local JSON
+## Setup Validation
 
-Production modes:
-
-- Set the `APPLYSHARP_*_STORE` variables to `prisma`.
-- Use PostgreSQL through Prisma.
-- Use S3 or UploadThing for original file uploads.
-- Use Redis/Upstash for distributed rate limiting.
-
-## API Shape
-
-Current core endpoints:
-
-- `GET /api/health`
-- `GET /api/master-resume`
-- `POST /api/master-resume`
-- `DELETE /api/master-resume?id=...`
-- `POST /api/resumes/upload`
-- `POST /api/resumes/parse`
-- `POST /api/resumes/tailor`
-- `POST /api/resumes/pdf`
-- `POST /api/jobs/search`
-- `POST /api/jobs/extract`
-- `POST /api/jobs/analyze`
-- `GET /api/applications`
-- `POST /api/applications`
-- `PATCH /api/applications/[id]`
-- `DELETE /api/applications/[id]`
-- `GET /api/resume-versions`
-- `GET /api/ai/interactions`
-- `POST /api/billing/checkout`
-- `POST /api/billing/portal`
-- `POST /api/billing/webhook`
-- `GET /api/billing/subscriptions`
-- `GET/POST /api/auth/[...nextauth]`
-
-## Service Contracts
-
-### Master Resume Service
-
-Inputs:
-
-- User scope
-- Uploaded file or pasted text
-- File metadata
-
-Outputs:
-
-- Active resume record
-- Parsed profile evidence
-- Skills/tools/projects/experience summary
-- Warnings for unsupported parsing cases
-
-### Job Extraction Service
-
-Inputs:
-
-- JD text or URL
-- Source platform
-- Optional user-provided company/location metadata
-
-Outputs:
-
-- Normalized job listing
-- Required skills
-- Preferred skills
-- ATS keywords
-- Salary/work-mode/source/freshness metadata
-- Prompt-injection warnings
-
-### Job Analysis Service
-
-Inputs:
-
-- User scope
-- Master resume evidence
-- Normalized job listing
-- Location preference profile
-
-Outputs:
-
-- ATS match
-- Technical match
-- Domain match
-- Seniority match
-- Location match
-- Freshness score
-- Overall score
-- Apply decision
-- Missing skills
-- Resume strategy
-
-### Resume Tailoring Service
-
-Inputs:
-
-- User scope
-- Master resume evidence
-- JD analysis
-- Apply decision
-
-Outputs:
-
-- ATS-safe tailored resume markdown/plain text
-- Cover letter draft
-- HR email draft
-- Warnings for unverified keywords
-- PDF download payload
-
-Tailoring should be blocked or discouraged for `Skip` decisions.
-
-## Security And Safety
-
-- Rate-limit API requests.
-- Enforce request size limits.
-- Add browser security headers.
-- Validate route input with schemas.
-- Never expose stack traces in production responses.
-- Do not log raw resume/JD text to AI interaction logs.
-- Never auto-submit applications.
-- Require user confirmation before marking an application as applied.
-
-## UI Structure
-
-Primary routes:
-
-- `/`
-- `/dashboard`
-- `/account`
-- `/admin`
-
-Primary user surfaces:
-
-- Master resume upload/paste
-- Job search/filter panel
-- JD paste/URL extraction panel
-- Match score and decision panel
-- Tailored resume editor
-- Cover letter/email draft
-- Application tracker
-- Resume versions
-- Map/commute links
-
-## Verification
-
-Before marking a functional change complete, run relevant checks:
+Use:
 
 ```bash
-npm run typecheck
-npm test
-npm run build
+npm run meta-ads:check-setup
 ```
 
-For UI changes, also smoke test in the browser when practical.
-
+This reports missing config without printing secrets.

@@ -21,7 +21,6 @@ export const defaultApiRateLimit: RateLimitOptions = {
 };
 
 const defaultJsonBytes = 1_000_000;
-const uploadBytes = 8 * 1024 * 1024;
 
 export function evaluateRateLimit(
   store: Map<string, RateLimitEntry>,
@@ -73,8 +72,8 @@ export function getSecurityHeaders(): Record<string, string> {
 }
 
 export function getMaxRequestBytes(pathname: string): number {
-  if (pathname === "/api/resumes/upload") {
-    return uploadBytes;
+  if (pathname === "/api/telegram/webhook") {
+    return 256_000;
   }
 
   return defaultJsonBytes;
@@ -100,26 +99,6 @@ export function getClientKey(headers: Headers, fallback = "unknown"): string {
 
 export function isAdminRoute(pathname: string): boolean {
   return pathname === "/admin" || pathname.startsWith("/admin/");
-}
-
-export function isProtectedUserApiRoute(pathname: string): boolean {
-  if (!pathname.startsWith("/api/")) {
-    return false;
-  }
-  if (pathname === "/api/health" || pathname === "/api/billing/webhook") {
-    return false;
-  }
-
-  return (
-    pathname.startsWith("/api/ai/") ||
-    pathname.startsWith("/api/applications") ||
-    pathname.startsWith("/api/billing/") ||
-    pathname.startsWith("/api/jobs/") ||
-    pathname.startsWith("/api/master-resume") ||
-    pathname.startsWith("/api/resume-versions") ||
-    pathname.startsWith("/api/resumes/") ||
-    pathname.startsWith("/api/visual-requests")
-  );
 }
 
 export function isAdminAuthorized(providedToken: string | null | undefined, configuredToken: string | undefined): boolean {

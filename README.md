@@ -1,137 +1,45 @@
-# ApplySharp
+# Meta Ads Monitoring Agent
 
-AI-powered job search and resume tailoring SaaS.
+Read-only Meta Ads monitoring platform for local service-business campaigns.
 
-ApplySharp helps users upload one master resume, parse it into a structured profile, search suitable jobs, analyze each JD, score fit and ATS strength, create truthful tailored resumes, generate cover letters and HR emails, and track applications.
+The agent pulls Meta Marketing API performance data, stores daily snapshots in PostgreSQL, compares current results against 7-day baselines, detects waste/fatigue/scaling opportunities, and sends Telegram reports plus bot status updates.
 
-## Current MVP Surface
+## Core Goal
 
-- Next.js App Router dashboard with an interactive first-user workbench
-- Master resume paste/upload for `.txt`, `.md`, `.docx`, and text-based `.pdf`
-- Active master resume persistence with first-user local JSON mode and opt-in Prisma/PostgreSQL mode via `APPLYSHARP_MASTER_RESUME_STORE=prisma`
-- Local Malaysia/Selangor job search catalog with role, location, category, work mode, and source filters
-- Pasted JD or job URL extraction into normalized job listings with HR email, apply link, salary, requirements, responsibilities, ATS keywords, source platform, and prompt-injection warnings
-- Bukit Jelutong commute metadata, location scoring, and Google Maps route links
-- TypeScript domain service for resume parsing, JD scoring, prompt safety, truthful tailored resume assets, cover letters, HR email drafts, and confirmation-gated apply actions
-- OpenAI/Grok-ready AI tailoring provider with strict JSON prompts, truth-only guardrails, prompt hashes, provider metadata, and deterministic fallback when keys are missing
-- Metadata-only AI interaction logging for provider, model, prompt hash, fallback status, warnings, and output-size observability without storing raw resumes or JDs
-- Server-generated ATS-safe PDF downloads using plain text and standard PDF fonts
-- Server-backed application tracker persistence for job, fit score, tailored resume, PDF filename, cover letter, email draft, apply link, HR email, status, and status history
-- Resume version history projected from saved application snapshots, including job context, score, PDF filename, cover letter state, and email draft state
-- Application persistence repository with first-user local JSON mode and opt-in Prisma/PostgreSQL mode via `APPLYSHARP_APPLICATION_STORE=prisma`
-- Tracker status controls for saved, tailored, downloaded, applied, interview, rejected, offer, and archived, plus confirmed deletion of saved application data
-- Stripe-ready billing endpoints for subscription checkout, customer portal handoff, signed webhook handling, subscription status tracking, and entitlement summaries with local JSON fallback
-- Auth.js route scaffold with Prisma adapter, conditional GitHub/Google OAuth providers, and session-first user-scope resolution for Prisma-backed resumes, applications, resume versions, subscriptions, and AI interaction logs
-- Account page with configured OAuth provider sign-in buttons, sign-out action, and admin access status
-- Role-gated admin page using Auth.js user scope plus `APPLYSHARP_ADMIN_EMAILS`, with first-user local fallback for demo mode
-- Admin overview page for application counts, average fit score, pipeline status, source mix, recent applications, and production-readiness notes
-- Middleware security hardening: Redis/Upstash-ready distributed API rate limits with memory fallback, request-size checks, browser security headers, and optional admin token compatibility
-- Prisma schema for users, resumes, parsed profiles, jobs, analyses, tailored resumes, cover letters, applications, audit logs, AI logs, uploads, and Stripe subscriptions
-- API routes:
-  - `GET /api/applications`
-  - `POST /api/applications`
-  - `PATCH /api/applications/[id]`
-  - `DELETE /api/applications/[id]`
-  - `GET/POST /api/auth/[...nextauth]`
-  - `GET /api/ai/interactions`
-  - `GET /api/master-resume`
-  - `POST /api/master-resume`
-  - `DELETE /api/master-resume?id=...`
-  - `GET /api/resume-versions`
-  - `POST /api/billing/checkout`
-  - `POST /api/billing/portal`
-  - `POST /api/billing/webhook`
-  - `GET /api/billing/subscriptions`
-  - `GET /account`
-  - `POST /api/resumes/parse`
-  - `POST /api/resumes/upload`
-  - `POST /api/resumes/pdf`
-  - `POST /api/jobs/extract`
-  - `POST /api/jobs/search`
-  - `POST /api/jobs/analyze`
-  - `POST /api/resumes/tailor`
-- Browser-side editable tailored resume, cover letter, email draft, markdown/PDF downloads, apply/map actions, explicit post-submission applied marking, and saved application tracker
-- Local markdown/static prototype under `Job Sniper/`
+Help a service business quickly know:
 
-## Critical Product Rules
+- which campaigns are working
+- which campaigns are wasting money
+- which ad sets or ads need attention
+- what action to take next
+- whether the bot ran successfully
 
-- Never fake skills, job history, certifications, salary, achievements, or experience.
-- Only rewrite, reorganize, and optimize truthful facts from the master resume.
-- Warn before adding unverified skills or keywords.
-- Do not auto-submit applications without user confirmation.
-- Opening an email or external apply channel prepares the application only; mark `applied` after manual submission.
+## Safety Rules
 
-## Intended Stack
+- Read-only mode only.
+- Never pause campaigns automatically.
+- Never increase or decrease budgets automatically.
+- Never create, edit, delete, or modify Meta campaigns/ad sets/ads.
+- Recommendations are advice only.
+- Any future write action must require explicit human approval.
 
-- Next.js App Router
-- TypeScript
-- Tailwind CSS
-- PostgreSQL
-- Prisma
-- Auth.js
-- OpenAI/Grok API
-- Redis
-- Stripe
-- S3 or UploadThing
-- Vercel
+## Current Platform Surface
 
-## Environment Variables
+- Next.js App Router backend/API surface
+- TypeScript domain modules
+- Prisma/PostgreSQL schema for Meta accounts, entities, snapshots, runs, alerts, reports, and recommended actions
+- Meta Marketing API read-only client
+- Telegram Bot API notification client
+- Telegram `/status` command handler
+- daily and weekly report generators
+- alert rules for budget waste, CPL spikes, low CTR, high frequency, zero impressions, CPM spikes, fatigue, and scaling opportunities
+- setup checker that reports missing configuration without printing secret values
+- manual CLI runners
+- Docker/Railway deployment scaffolding
 
-```env
-DATABASE_URL=
-AUTH_SECRET=
-AUTH_URL=http://localhost:3000
-AUTH_TRUST_HOST=true
-NEXTAUTH_SECRET=
-NEXTAUTH_URL=http://localhost:3000
-APPLYSHARP_ADMIN_TOKEN=
-APPLYSHARP_ADMIN_EMAILS=
-APPLYSHARP_MASTER_RESUME_STORE=local-json
-APPLYSHARP_APPLICATION_STORE=local-json
-APPLYSHARP_AI_INTERACTION_STORE=local-json
-APPLYSHARP_SUBSCRIPTION_STORE=local-json
-APPLYSHARP_DEMO_USER_EMAIL=founder@applysharp.local
-APPLYSHARP_REQUIRE_AUTH=false
-APPLYSHARP_TRUST_DEV_USER_HEADER=false
-AUTH_GITHUB_ID=
-AUTH_GITHUB_SECRET=
-AUTH_GOOGLE_ID=
-AUTH_GOOGLE_SECRET=
-OPENAI_API_KEY=
-GROK_API_KEY=
-AI_PROVIDER=openai
-AI_MODEL=
-OPENAI_MODEL=
-GROK_MODEL=
-STRIPE_SECRET_KEY=
-STRIPE_WEBHOOK_SECRET=
-STRIPE_PRO_PRICE_ID=
-UPSTASH_REDIS_REST_URL=
-UPSTASH_REDIS_REST_TOKEN=
-APPLYSHARP_RATE_LIMIT_NAMESPACE=applysharp
-APPLYSHARP_RATE_LIMIT_FAIL_CLOSED=false
-UPLOADTHING_TOKEN=
-S3_BUCKET=
-S3_REGION=
-S3_ACCESS_KEY_ID=
-S3_SECRET_ACCESS_KEY=
-```
+## Required Environment Variables
 
-## Commands
-
-## Meta Ads Monitoring Agent
-
-Read-only Meta Ads monitoring for local service-business campaigns. The agent fetches Meta Marketing API performance data, stores daily snapshots in PostgreSQL, compares results with 7-day baselines, and sends Telegram daily/weekly reports plus bot status updates.
-
-Safety rules:
-
-- The agent is read-only.
-- It never pauses campaigns.
-- It never changes budgets.
-- It never creates, edits, or deletes campaigns, ad sets, or ads.
-- Pause/scale recommendations are advice only and require manual approval outside the agent.
-
-Required environment variables:
+Create `C:\Users\AmirKhalil\Documents\CC\.env`.
 
 ```env
 DATABASE_URL=
@@ -141,7 +49,7 @@ TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
 ```
 
-Optional environment variables:
+Optional:
 
 ```env
 META_GRAPH_API_VERSION=v21.0
@@ -151,78 +59,120 @@ META_ADS_RUN_SECRET=
 TELEGRAM_WEBHOOK_SECRET=
 ```
 
-Manual runs:
+For Supabase Postgres, `DATABASE_URL` must start with `postgresql://`.
+
+Do not use Supabase API keys such as `sb_secret_...`, anon keys, or service-role keys as `DATABASE_URL`.
+
+## Commands
 
 ```bash
 npm run meta-ads:check-setup
+npm run db:generate
+npm run db:push
 npm run meta-ads:daily
 npm run meta-ads:weekly
 ```
 
-Local PostgreSQL with Docker:
+Local app:
+
+```bash
+npm run dev
+```
+
+Verification:
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
+
+## API Routes
+
+- `GET /api/meta-ads/setup` - safe setup status, no secret values
+- `GET /api/meta-ads/status` - latest agent run status
+- `POST /api/meta-ads/run?type=daily` - run daily report
+- `POST /api/meta-ads/run?type=weekly` - run weekly report
+- `POST /api/telegram/webhook` - Telegram webhook for `/status`
+
+When `META_ADS_RUN_SECRET` is configured, send:
+
+```http
+x-meta-ads-run-secret: <META_ADS_RUN_SECRET>
+```
+
+## Telegram Output
+
+The bot sends:
+
+- run started
+- daily or weekly report
+- run completed
+- run failed
+- checked campaign/ad set/ad counts
+- alert count
+- report sent status
+
+Manual Telegram command:
+
+```text
+/status
+```
+
+## Alert Rules
+
+- Spend above RM100 and zero leads
+- CPL 30% higher than previous 7-day average
+- CTR below 0.8%
+- Frequency above 4
+- Active campaign/ad set with zero impressions
+- Spend increased while leads dropped
+- CPM increased by more than 30%
+- Best campaign CPL below baseline
+- Creative fatigue
+- Audience fatigue
+- Scaling opportunity
+- Manual pause recommendation for underperformers
+
+## Deployment Notes
+
+Recommended cheap setup:
+
+```text
+Supabase Postgres
++ local laptop or Railway runner
++ Telegram Bot API
++ Meta Marketing API
+```
+
+Docker is optional. If local Docker is available:
 
 ```bash
 npm run db:local:up
 ```
 
-Use this local database URL:
+Local Docker database URL:
 
 ```env
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/meta_ads"
 ```
 
-Then apply the schema:
+## Current Runtime Blocker
+
+The app code is ready, but runtime secrets are still required:
+
+- `.env`
+- `DATABASE_URL`
+- `META_ACCESS_TOKEN`
+- `META_AD_ACCOUNT_ID`
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
+
+Run:
 
 ```bash
-npm run db:generate
-npm run db:push
+npm run meta-ads:check-setup
 ```
 
-Telegram status:
-
-- The agent sends status messages when a run starts, completes, or fails.
-- The Telegram webhook supports `/status`.
-- Only the configured `TELEGRAM_CHAT_ID` receives command responses.
-
-Scheduler options:
-
-- Railway Cron can call `POST /api/meta-ads/run?type=daily`.
-- Use header `x-meta-ads-run-secret: <META_ADS_RUN_SECRET>` when `META_ADS_RUN_SECRET` is configured.
-- Weekly runs can call `POST /api/meta-ads/run?type=weekly`.
-
-Meta lead counting:
-
-- Default lead mapping counts Meta actions whose `action_type` contains `lead`.
-- This covers common lead events but should be reviewed after the first live API response.
-
-Production deployment:
-
-1. Set all required environment variables in Railway.
-2. Provision PostgreSQL and set `DATABASE_URL`.
-3. Run `npm run db:generate`, then apply the schema with `npm run db:push` unless you create formal Prisma migrations first.
-4. Deploy with the included `Dockerfile` and `railway.json`.
-5. Configure Telegram webhook to point at `/api/telegram/webhook`.
-6. Configure Railway Cron or an equivalent scheduler for the daily run endpoint.
-
-```bash
-npm run dev
-npm run typecheck
-npm test
-npm run build
-npm run db:generate
-npm run db:migrate
-npm run db:seed
-```
-
-## Production Gaps Still To Wire
-
-- Production OAuth provider setup and branded sign-in/error pages
-- Replace optional middleware admin token compatibility with Auth.js-only admin authorization
-- OCR for scanned/image-only PDFs
-- Provider cost/latency dashboards and alerting beyond current metadata-only AI interaction logs
-- Production-grade job-board/company-page ingestion connectors beyond deterministic pasted JD/URL extraction
-- Direct HR email sending with confirmation
-- Stripe invoices and authenticated per-user entitlement enforcement beyond current billing portal/subscription summary support
-- Provision production Redis/Upstash credentials and rate-limit alerting
-- S3/UploadThing file storage
-- External security review, secrets rotation policy, and deployment hardening
+to see exactly what is missing.
