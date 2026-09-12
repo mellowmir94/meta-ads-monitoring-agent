@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+const origin = 'http://127.0.0.1:4326';
+const login = await fetch(origin + '/api/auth/login', { method: 'POST', body: new URLSearchParams({ pin: 'deduction-local-test' }), redirect: 'manual' });
+assert.equal(login.status, 303);
+const cookie = login.headers.get('set-cookie').split(';')[0];
+const call = async (path, body) => {
+  const response = await fetch(origin + path, { method: body ? 'POST' : 'GET', headers: { cookie, origin, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  return { status: response.status, body: await response.json() };
+};
+assert.equal((await call('/api/concurrency/enter', {})).body.status, 'admitted');
+const input = { requestId: crypto.randomUUID(), rider: 'LOCAL QA ' + crypto.randomUUID(), orderId: 'LOCAL-ONLY', type: 'insurance', subtype: 'insurance', amount: '47.25', reason: 'Local runtime integration test', deductionDate: '2026-09-10', createdBy: 'Local QA' };
+const created = await call('/api/deductions/create', input);
+assert.equal(created.status, 201, JSON.stringify(created));
+assert.deepEqual(await call('/api/deductions/create', input), created);
+const records = (await call('/api/deductions')).body.records;
+assert.equal(records.find(record => record.id === created.body.id).amountCents, 4725);
+assert.equal((await call('/api/deductions/approve', { recordId: created.body.id })).status, 403);
+const cancelled = await call('/api/deductions/cancel', { requestId: crypto.randomUUID(), recordId: created.body.id, createdBy: 'Local QA', reason: 'Test complete' });
+assert.equal(cancelled.status, 201, JSON.stringify(cancelled));
+const final = (await call('/api/deductions')).body.records.find(record => record.id === created.body.id);
+assert.equal(final.approvalStatus, 'cancelled');
+assert.equal(final.audit[0].action, 'created');
+assert.equal(final.cancellation.reason, 'Test complete');
+await call('/api/concurrency/release', {});
+console.log('PASS: actual local Cloudflare auth, Durable Object creation, idempotency, list, locked approval and immutable cancellation.');

@@ -1,0 +1,137 @@
+/* Commission Rider settlement workspace. Keep after legacy deduction styles. */
+.deduction-workspace {
+  --deduction-surface: color-mix(in srgb, var(--success) 11%, var(--surface));
+  --deduction-border: color-mix(in srgb, var(--success) 28%, var(--line));
+  background: var(--deduction-surface); color: var(--text); padding: 20px; border-top: 1px solid var(--deduction-border);
+}
+.deduction-workspace .deduction-workspace-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin: 0 0 16px; }
+.deduction-eyebrow { display: block; color: var(--text-soft); font-size: .64rem; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; }
+.deduction-workspace-head h3 { margin: 5px 0; color: var(--text); font-size: .95rem; line-height: 1.4; }
+.deduction-workspace-head p { margin: 0; color: var(--text-soft); font-size: .7rem; font-variant-numeric: tabular-nums; }
+.deduction-workspace .deduction-workspace-head span { color: var(--text-soft); }
+.deduction-workspace button { border: 1px solid var(--deduction-border); border-radius: 5px; padding: 8px 12px; font: inherit; font-size: .7rem; font-weight: 700; color: var(--text); background: var(--surface); }
+.deduction-workspace button:disabled { opacity: .5; cursor: not-allowed; }
+.deduction-workspace button:not(:disabled):hover { border-color: var(--success); }
+.deduction-choice-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.deduction-choice-card { display: flex; min-width: 0; flex-direction: column; align-items: stretch; gap: 9px; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 7px; }
+.deduction-choice-card.is-selected { border-color: var(--success); background: color-mix(in srgb, var(--success) 6%, var(--surface)); box-shadow: inset 0 0 0 1px var(--success); }
+.deduction-workspace .deduction-inline-choice { display: flex; align-items: center; gap: 8px; color: var(--text); line-height: 1.35; min-height: 22px; }
+.deduction-workspace .deduction-inline-choice strong { font-size: .73rem; margin: 0; }
+.deduction-inline-choice input { accent-color: var(--success); width: 15px; height: 15px; margin: 0; flex: 0 0 auto; }
+.deduction-workspace .deduction-amount-field { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; background: var(--surface-muted, var(--surface)); }
+.deduction-amount-field > span { padding-left: 10px; color: var(--text-soft); font-size: .7rem; }
+.deduction-workspace .deduction-amount-field input { width: 100%; min-width: 0; border: 0; background: transparent; color: var(--text); padding: 8px 10px; font: inherit; font-size: .82rem; font-weight: 750; font-variant-numeric: tabular-nums; }
+.deduction-workspace .deduction-amount-field input[readonly] { color: var(--text-soft); }
+.deduction-choice-card > select { width: 100%; min-width: 0; min-height: 33px; border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px; background: var(--surface); color: var(--text); font: inherit; font-size: .68rem; }
+.deduction-choice-card > small { color: var(--text-soft); font-size: .64rem; line-height: 1.5; }
+.deduction-card-applied { margin-top: auto; padding-top: 8px; display: flex; justify-content: space-between; gap: 8px; color: var(--text-soft); border-top: 1px solid var(--line); font-size: .65rem; }
+.deduction-card-applied b { color: var(--text); font-variant-numeric: tabular-nums; }
+.deduction-settlement-strip { display: grid; grid-template-columns: 1fr 24px 1.25fr 24px 1fr; gap: 12px; align-items: center; margin-top: 16px; border-top: 1px solid var(--deduction-border); padding-top: 14px; }
+.deduction-settlement-strip > div { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
+.deduction-settlement-strip > div > span { font-size: .68rem; color: var(--text-soft); }
+.deduction-settlement-strip strong { color: var(--text); font-size: 1.02rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.deduction-settlement-strip small { font-size: .6rem; color: var(--text-soft); line-height: 1.4; }
+.deduction-equation-sign { color: var(--text-soft); font-size: 1.25rem; text-align: center; }
+.deduction-workspace .commission-net-total { padding: 12px 16px; border: 1px solid var(--deduction-border); border-radius: 5px; background: color-mix(in srgb, var(--success) 14%, var(--surface)); }
+.deduction-workspace .commission-net-total strong { color: var(--success); font-size: 1.18rem; }
+.deduction-workspace .commission-net-total.is-negative strong { color: var(--danger); }
+.deduction-workspace .deduction-inline-actions { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--deduction-border); }
+.deduction-inline-actions > div { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
+.deduction-workspace .deduction-inline-total { color: var(--text); font-size: .72rem; white-space: nowrap; margin: 0; font-variant-numeric: tabular-nums; }
+.deduction-inline-actions [data-deduction-inline-preview] { color: var(--text); font-size: .7rem; }
+.deduction-inline-actions [data-deduction-inline-message] { color: var(--text-soft); font-size: .64rem; line-height: 1.5; }
+.deduction-workspace [data-deduction-inline-create] { background: var(--success); color: var(--surface); border-color: var(--success); flex-shrink: 0; }
+.deduction-feedback, .deduction-eligibility { margin: 0 0 14px; padding: 10px 12px; border: 1px solid var(--line); background: var(--surface); border-radius: 5px; color: var(--text-soft); font-size: .73rem; line-height: 1.5; }
+.deduction-feedback.is-error, .deduction-eligibility.is-error { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, var(--line)); background: color-mix(in srgb, var(--danger) 5%, var(--surface)); }
+.deduction-legacy-note { color: var(--text-soft); font-size: .62rem; line-height: 1.45; margin: 10px 0 0; }
+.audit-template-dialog.deduction-workflow-dialog { width: min(900px, calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 48px); padding: 0; overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); }
+.deduction-workflow-dialog > header { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: 0; padding: 18px 24px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.deduction-workflow-dialog > header h3 { margin: 5px 0 0; font-size: 1.12rem; line-height: 1.35; }
+.deduction-workflow-dialog > header button { width: 34px; height: 34px; padding: 0; font-size: 1.1rem; flex-shrink: 0; }
+.deduction-workflow-dialog [data-deduction-body] { display: block; padding: 20px 24px 0; min-width: 0; }
+.deduction-workflow-dialog form { display: block; min-width: 0; }
+.deduction-workflow-dialog .deduction-request-context { display: grid; grid-template-columns: 1.5fr 1fr; justify-content: stretch; justify-items: stretch; gap: 14px 20px; padding-bottom: 16px; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
+.deduction-request-context > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.deduction-request-context > div:first-child { grid-column: auto; }
+.deduction-request-context span { color: var(--text-soft); font-size: .67rem; }
+.deduction-request-context strong { color: var(--text); font-size: .8rem; line-height: 1.4; overflow-wrap: anywhere; }
+.deduction-workflow-dialog .deduction-note { margin: 0 0 16px; color: var(--text-soft); font-size: .74rem; line-height: 1.55; }
+.deduction-workflow-dialog label { display: grid; gap: 6px; color: var(--text-soft); font-size: .72rem; font-weight: 650; min-width: 0; }
+.deduction-workflow-dialog input, .deduction-workflow-dialog select, .deduction-workflow-dialog textarea { box-sizing: border-box; width: 100%; min-width: 0; min-height: 38px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-muted, var(--surface)); color: var(--text); font: inherit; font-size: .8rem; }
+.deduction-workflow-dialog [type="hidden"] { display: none; }
+.deduction-workflow-dialog input[readonly] { color: var(--text-soft); background: var(--surface); }
+.deduction-workflow-dialog textarea { resize: vertical; min-height: 65px; }
+.deduction-workflow-dialog .deduction-maker-field { max-width: 340px; margin-bottom: 16px; }
+.deduction-workflow-dialog .deduction-lines { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: stretch; justify-items: stretch; align-items: stretch; width: 100%; gap: 16px; margin: 0; }
+.deduction-workflow-dialog .deduction-eligibility { display: block; text-align: left; }
+.deduction-workflow-dialog .deduction-line { display: block; min-width: 0; margin: 0; padding: 16px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }
+.deduction-workflow-dialog .deduction-line legend { padding: 0 8px; color: var(--text); font-size: .85rem; font-weight: 750; }
+.deduction-workflow-dialog .deduction-line-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.deduction-workflow-dialog .deduction-line-rule { margin: 12px 0; color: var(--text-soft); font-size: .7rem; line-height: 1.5; }
+.deduction-workflow-dialog .deduction-line-reason { width: 100%; }
+.deduction-workflow-dialog .deduction-submit-bar { position: sticky; bottom: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; margin: 18px 0 0; border-top: 1px solid var(--line); background: var(--surface); }
+.deduction-submit-bar strong { font-size: .78rem; color: var(--text); }
+.deduction-submit-bar [data-deduction-error] { font-size: .7rem; color: var(--danger); margin: 5px 0 0; line-height: 1.5; }
+.deduction-submit-bar button { white-space: nowrap; flex-shrink: 0; }
+.deduction-workflow-dialog button { border: 1px solid var(--line); border-radius: 5px; padding: 9px 14px; font: inherit; font-size: .77rem; color: var(--text); background: var(--surface-muted, var(--surface)); }
+.deduction-workflow-dialog button[type="submit"], .deduction-workflow-dialog [data-deduction-done] { background: var(--success); border-color: var(--success); color: var(--surface); font-weight: 750; }
+.deduction-workflow-dialog button:disabled { opacity: .5; cursor: not-allowed; }
+.deduction-workflow-dialog :focus-visible, .deduction-workspace :focus-visible { outline: 2px solid var(--success); outline-offset: 2px; }
+.deduction-workflow-dialog .deduction-action-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.deduction-action-context { display: grid; gap: 5px; margin: 0 0 16px; }
+.deduction-action-context strong { font-size: .95rem; }
+.deduction-action-context span { color: var(--text-soft); font-size: .72rem; }
+.deduction-save-success { padding: 8px 0 24px; }
+.deduction-save-success h4 { font-size: 1.12rem; margin: 14px 0 8px; }
+.deduction-save-success p { color: var(--text-soft); font-size: .8rem; line-height: 1.55; }
+.deduction-save-success ul { list-style: none; margin: 18px 0; padding: 0; border-top: 1px solid var(--line); }
+.deduction-save-success li { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: .78rem; }
+.deduction-status-pill { display: inline-flex; padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; color: var(--success); font-size: .68rem; }
+.deduction-audit-table { overflow: auto; border: 1px solid var(--line); border-radius: 5px; }
+.deduction-audit-table table { width: 100%; border-collapse: collapse; font-size: .72rem; }
+.deduction-audit-table th, .deduction-audit-table td { text-align: left; padding: 10px; border-bottom: 1px solid var(--line); }
+.deduction-audit-table small { display: block; margin-top: 4px; color: var(--text-soft); }
+.deduction-audit-list { list-style: none; margin: 0; padding: 0 0 24px; }
+.deduction-audit-list li { padding: 12px 0; border-top: 1px solid var(--line); font-size: .74rem; }
+.deduction-audit-list li > div { display: flex; justify-content: space-between; gap: 16px; }
+.deduction-audit-list li span, .deduction-audit-list li p, .deduction-audit-list li small { color: var(--text-soft); }
+.deduction-audit-list summary { cursor: pointer; margin-top: 8px; color: var(--text-soft); }
+.deduction-audit-list pre { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-soft); font-size: .68rem; }
+.deduction-history-view .deduction-history-toolbar { display: grid; grid-template-columns: minmax(200px, 2fr) repeat(4, minmax(130px, 1fr)); gap: 12px; }
+.deduction-history-view .deduction-history-kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.deduction-history-view [data-deduction-history-feedback] { font-size: .75rem; color: var(--text-soft); margin-bottom: 14px; }
+.deduction-history-table-wrap td > small { display: block; margin-top: 4px; color: var(--text-soft); font-size: .66rem; }
+.deduction-history-table-wrap td { max-width: 260px; overflow-wrap: anywhere; }
+.deduction-history-table-wrap .deduction-overdue { color: var(--danger); }
+.is-table-fullscreen .deduction-workspace .deduction-inline-actions { position: sticky; bottom: -20px; z-index: 2; margin-bottom: -20px; padding-bottom: 14px; background: var(--deduction-surface); }
+@media (max-width: 900px) {
+  .deduction-workspace .deduction-inline-actions { flex-wrap: wrap; }
+  .deduction-inline-actions > div { flex-basis: calc(100% - 100px); }
+  .deduction-choice-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .deduction-history-view .deduction-history-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .deduction-history-view .deduction-history-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .deduction-workspace { padding: 14px; }
+  .is-table-fullscreen .deduction-workspace .deduction-inline-actions { bottom: -14px; margin-bottom: -14px; }
+  .deduction-workspace .deduction-workspace-head { align-items: flex-start; flex-direction: row; }
+  .deduction-workspace-head h3 { font-size: .84rem; }
+  .deduction-workspace-head button { padding: 7px 9px; white-space: nowrap; }
+  .deduction-choice-grid { grid-template-columns: 1fr; gap: 8px; }
+  .deduction-choice-card { padding: 12px; }
+  .deduction-settlement-strip { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .deduction-settlement-strip > div { flex-direction: row; flex-wrap: wrap; align-items: baseline; justify-content: space-between; }
+  .deduction-settlement-strip small { flex-basis: 100%; }
+  .deduction-equation-sign { display: none; }
+  .deduction-workspace .deduction-inline-actions { flex-direction: column; align-items: stretch; gap: 12px; }
+  .audit-template-dialog.deduction-workflow-dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); border-radius: 8px; }
+  .deduction-workflow-dialog > header { padding: 14px; }
+  .deduction-workflow-dialog [data-deduction-body] { padding: 14px 14px 0; }
+  .deduction-workflow-dialog .deduction-request-context { grid-template-columns: 1fr 1fr; gap: 14px; }
+  .deduction-workflow-dialog .deduction-request-context > div:first-child { grid-column: 1 / -1; }
+  .deduction-workflow-dialog .deduction-line-fields, .deduction-workflow-dialog .deduction-action-form { grid-template-columns: 1fr; }
+  .deduction-workflow-dialog .deduction-line { padding: 12px; }
+  .deduction-workflow-dialog .deduction-submit-bar { flex-direction: column; align-items: stretch; gap: 10px; }
+  .deduction-submit-bar button { width: 100%; }
+  .deduction-history-view .deduction-history-toolbar, .deduction-history-view .deduction-history-kpis { grid-template-columns: 1fr; }
+}

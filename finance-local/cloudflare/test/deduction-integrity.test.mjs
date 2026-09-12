@@ -1,0 +1,224 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { DeductionRegister, deductionsApi } from '../src/deductions.js';
+import { createDeductionSnapshot, validateDeductionSnapshot, restoreDeductionSnapshot } from '../src/deduction-backup.js';
+
+class MemoryStorage {
+  constructor() { this.data = new Map(); this.queue = Promise.resolve(); }
+  async get(key) { return structuredClone(this.data.get(key)); }
+  async put(key, value) { this.data.set(key, structuredClone(value)); }
+  async list({ prefix = '', startAfter, limit } = {}) { return new Map([...this.data].sort(([a], [b]) => a.localeCompare(b)).filter(([key]) => key.startsWith(prefix) && (!startAfter || key > startAfter)).slice(0, limit)); }
+  transaction(fn) {
+    const operation = this.queue.then(async () => { const before = structuredClone(this.data); try { return await fn(this); } catch (error) { this.data = before; throw error; } });
+    this.queue = operation.catch(() => {}); return operation;
+  }
+}
+const fixedNow = () => new Date('2026-09-23T12:00:00.000Z');
+const actor = { sessionId: 'maker-session', name: 'Finance Maker', role: 'maker' };
+const checker = { sessionId: 'checker-session', name: 'Finance Checker', role: 'checker' };
+const base = { rider: 'Rider A', periodStart: '2026-09-07', periodEnd: '2026-09-13', type: 'insurance', subtype: 'insurance', amount: '50', installmentCount: 2, deductionDate: '2026-09-14', createdBy: 'Self-declared Finance', reason: 'Policy repayment' };
+const epf = { ...base, type: 'epf', subtype: 'EPF', amount: '25', installmentCount: 1, deductionDate: '2026-09-14', weeklyCommission: '999999' };
+function setup(rows = [{ rider_name: 'Rider A', commission: 350, created_at: '2026-09-10 12:00:00', order_id: '1' }]) {
+  const storage = new MemoryStorage();
+  const register = new DeductionRegister({ storage }, {}, { now: fixedNow });
+  const upstreamRequests = []; const backups = [];
+  const env = {
+    DEDUCTIONS: { idFromName: value => value, get: () => register },
+    FINANCE_PROXY_SHARED_SECRET: 'test-only',
+    GRAFANA_PROXY: { async fetch(request) {
+      upstreamRequests.push(request);
+      const url = new URL(request.url);
+      return Response.json({ ok: true, source: 'Grafana Finance', panel: 'commission-main', part: 'primary', rows, rowCount: rows.length, from: url.searchParams.get('from') + ' 00:00:00', to: url.searchParams.get('to') + ' 23:59:59', truncated: false });
+    } },
+    DEDUCTION_BACKUPS: { async put(key, body) { backups.push({ key, body: JSON.parse(body) }); } }
+  };
+  return { storage, register, env, upstreamRequests, backups };
+}
+async function call(env, path, input, identity = actor) {
+  const settlement = path === '/apply' ? { settlementPeriodStart: '2026-09-07', settlementPeriodEnd: '2026-09-13' } : {};
+  const response = await deductionsApi(new Request('https://app/api/deductions' + path, input ? { method: 'POST', headers: { origin: 'https://app', 'content-type': 'application/json' }, body: JSON.stringify({ requestId: crypto.randomUUID(), ...settlement, ...input }) } : {}), env, identity);
+  return { status: response.status, body: await response.json() };
+}
+test('eligibility uses complete all-filter UTC week and ignores forged client commission', async () => {
+  const state = setup();
+  const eligibility = await call(state.env, '/eligibility?rider=Rider%20A&periodStart=2026-09-07&periodEnd=2026-09-13');
+  assert.equal(eligibility.status, 200);
+  assert.equal(eligibility.body.amountCents, 35000);
+  assert.equal(eligibility.body.eligible, true);
+  const created = await call(state.env, '/create', { ...epf, weeklyCommission: '1', epfVerification: { amountCents: 99999999 } });
+  assert.equal(created.status, 201);
+  const record = await state.storage.get('record:' + created.body.id);
+  assert.equal(record.reportedWeeklyCommissionCents, 35000);
+  assert.equal(record.epfVerification.amountCents, 35000);
+  assert.equal(record.weeklyCommissionVerified, false);
+  const query = new URL(state.upstreamRequests[0].url);
+  assert.equal(query.pathname, '/api/internal/finance-data');
+  assert.equal(query.searchParams.get('panel'), 'commission-main');
+  assert.equal(query.searchParams.get('part'), 'primary');
+  assert.equal(query.searchParams.get('scope'), 'grafana');
+  assert.ok(Object.values(JSON.parse(query.searchParams.get('filters'))).every(value => value.length === 1 && value[0] === '$__all'));
+});
+test('EPF creation and approval fail closed for unavailable, incomplete or ineligible source', async () => {
+  const unavailable = setup(); delete unavailable.env.GRAFANA_PROXY;
+  assert.equal((await call(unavailable.env, '/create', epf)).status, 503);
+  const incomplete = setup(); incomplete.env.GRAFANA_PROXY.fetch = async () => Response.json({ ok: true, panel: 'commission-main', rows: [], rowCount: 1, truncated: true });
+  assert.notEqual((await call(incomplete.env, '/create', epf)).status, 201);
+  const insufficient = setup([{ rider_name: 'Rider A', commission: 299.99, created_at: '2026-09-10 12:00:00' }]);
+  assert.notEqual((await call(insufficient.env, '/create', epf)).status, 201);
+  const state = setup(); const created = await call(state.env, '/create', epf);
+  state.env.GRAFANA_PROXY.fetch = insufficient.env.GRAFANA_PROXY.fetch;
+  const approval = await call(state.env, '/approve', { recordId: created.body.id }, checker);
+  assert.notEqual(approval.status, 201);
+  assert.equal((await state.storage.get('record:' + created.body.id)).status, 'pending');
+});
+test('same rider week cannot be duplicated by changing hold date or month, including legacy records', async () => {
+  const state = setup(); const created = await call(state.env, '/create', epf);
+  assert.equal(created.status, 201);
+  const second = await call(state.env, '/create', { ...epf, rider: '  RIDER  A ', deductionDate: '2026-10-01' });
+  assert.equal(second.status, 400);
+  assert.match(second.body.error, /week|duplicate/i);
+  for (const key of [...state.storage.data.keys()]) if (key.startsWith('epf-week:')) state.storage.data.delete(key);
+  assert.equal((await call(state.env, '/create', { ...epf, deductionDate: '2026-11-01' })).status, 400);
+});
+test('application requires explicit installment, non-future payment date and an independent earned commission week', async () => {
+  const state = setup(); const created = await call(state.env, '/create', base);
+  assert.equal(created.status, 201);
+  await call(state.env, '/approve', { recordId: created.body.id }, checker);
+  assert.equal((await call(state.env, '/apply', { recordId: created.body.id }, checker)).status, 400);
+  assert.equal((await call(state.env, '/apply', { recordId: created.body.id, installmentIndex: 0, paymentDate: '2026-10-01' }, checker)).status, 400);
+  assert.equal((await call(state.env, '/apply', { recordId: created.body.id, installmentIndex: 1, paymentDate: '2026-09-20' }, checker)).status, 400);
+  const applied = await call(state.env, '/apply', { recordId: created.body.id, installmentIndex: 0, paymentDate: '2026-09-22' }, checker);
+  assert.equal(applied.status, 201);
+  const record = await state.storage.get('record:' + created.body.id);
+  assert.equal(record.installments[0].paymentDate, '2026-09-22');
+  assert.equal(record.installments[0].settlementPeriodStart, '2026-09-07');
+  assert.equal(record.installments[0].settlementPeriodEnd, '2026-09-13');
+  assert.equal(record.audit.at(-1).paymentDate, '2026-09-22');
+  assert.equal((await call(state.env, '/apply', { recordId: created.body.id, installmentIndex: 0, paymentDate: '2026-09-22' }, checker)).status, 400);
+  assert.equal((await call(state.env, '/apply', { recordId: created.body.id, installmentIndex: 1, paymentDate: '2026-09-22', settlementPeriodStart: '', settlementPeriodEnd: '' }, checker)).status, 400);
+  assert.equal((await call(state.env, '/apply', { recordId: created.body.id, installmentIndex: 1, paymentDate: '2026-09-22', settlementPeriodStart: '2026-09-08', settlementPeriodEnd: '2026-09-14' }, checker)).status, 400);
+});
+test('reversing a partially applied plan cancels its unapplied remainder and preserves application history', async () => {
+  const state = setup(); const created = await call(state.env, '/create', base);
+  await call(state.env, '/approve', { recordId: created.body.id }, checker);
+  await call(state.env, '/apply', { recordId: created.body.id, installmentIndex: 0, paymentDate: '2026-09-22' }, checker);
+  const reversed = await call(state.env, '/reverse', { recordId: created.body.id, reason: 'Wrong policy; cancel remaining payments' }, checker);
+  assert.equal(reversed.status, 201);
+  const record = await state.storage.get('record:' + created.body.id);
+  assert.deepEqual(record.installments.map(item => item.status), ['reversed', 'cancelled']);
+  assert.ok(record.installments[0].appliedAt);
+  assert.equal(record.audit.filter(entry => entry.action === 'applied').length, 1);
+  assert.equal(record.reversal.amountCents, 5000);
+});
+test('partial reversal targets one applied installment without losing other applied or scheduled entries', async () => {
+  const state = setup(); const created = await call(state.env, '/create', base);
+  await call(state.env, '/approve', { recordId: created.body.id }, checker);
+  for (const installmentIndex of [0, 1]) await call(state.env, '/apply', { recordId: created.body.id, installmentIndex, paymentDate: '2026-09-22' }, checker);
+  assert.equal((await call(state.env, '/reverse', { recordId: created.body.id, installmentIndex: 0, reason: 'First installment returned' }, checker)).status, 201);
+  const record = await state.storage.get('record:' + created.body.id);
+  assert.deepEqual(record.installments.map(item => item.status), ['reversed', 'applied']);
+  assert.equal(record.status, 'applied');
+  assert.equal(record.reversals[0].amountCents, 5000);
+});
+
+test('duplicate source rows and mismatched source dates never qualify a rider', async () => {
+  const row = { rider_name: 'Rider A', commission: 200, created_at: '2026-09-10 12:00:00', order_id: '1' };
+  const duplicated = setup([row, row]);
+  assert.equal((await call(duplicated.env, '/create', epf)).status, 503);
+  const dates = setup([{ ...row, commission: 350, created_at: '2026-08-31 12:00:00' }]);
+  assert.equal((await call(dates.env, '/create', epf)).status, 503);
+});
+test('a saved request retry returns its receipt during upstream failure and cannot cross actions', async () => {
+  const state = setup(); const requestId = crypto.randomUUID();
+  const first = await call(state.env, '/create', { ...epf, requestId });
+  delete state.env.GRAFANA_PROXY;
+  assert.deepEqual(await call(state.env, '/create', { ...epf, requestId }), first);
+  assert.equal((await call(state.env, '/cancel', { ...epf, requestId })).status, 400);
+  assert.equal([...state.storage.data.keys()].filter(key => key.startsWith('record:')).length, 1);
+});
+test('R2 snapshots contain every record, audit, index and receipt and restore deterministically into an empty store', async () => {
+  const state = setup(); const created = await call(state.env, '/create', base);
+  await call(state.env, '/approve', { recordId: created.body.id }, checker);
+  await call(state.env, '/apply', { recordId: created.body.id, installmentIndex: 0, paymentDate: '2026-09-22' }, checker);
+  assert.equal(state.backups.length, 3);
+  const latest = state.backups.at(-1).body;
+  const validated = await validateDeductionSnapshot(latest);
+  assert.deepEqual(validated, new Map([...state.storage.data].sort(([a], [b]) => a.localeCompare(b))));
+  assert.ok(validated.get('record:' + created.body.id).creatorSession);
+  assert.ok([...validated.keys()].some(key => key.startsWith('request:')));
+  const restored = new MemoryStorage();
+  assert.deepEqual(await restoreDeductionSnapshot(restored, latest), { revision: 3, records: 1, entries: validated.size });
+  assert.deepEqual(await createDeductionSnapshot(restored, latest.createdAt), latest);
+  await assert.rejects(restoreDeductionSnapshot(restored, latest), /empty/);
+  const corrupt = structuredClone(latest); corrupt.entries.find(([key]) => key.startsWith('record:'))[1].amountCents = 1;
+  await assert.rejects(validateDeductionSnapshot(corrupt), /checksum/);
+});
+test('backup failure never misreports an already committed deduction as a failed save', async () => {
+  const state = setup(); const input = { ...base, requestId: crypto.randomUUID() };
+  state.env.DEDUCTION_BACKUPS.put = async () => { throw new Error('offline'); };
+  const created = await call(state.env, '/create', input);
+  assert.equal(created.status, 201);
+  assert.equal(created.body.backupStatus, 'failed');
+  assert.equal([...state.storage.data.keys()].filter(key => key.startsWith('record:')).length, 1);
+  state.env.DEDUCTION_BACKUPS.put = async (key, body) => state.backups.push({ key, body: JSON.parse(body) });
+  const retried = await call(state.env, '/create', input);
+  assert.equal(retried.status, 201);
+  assert.equal(retried.body.id, created.body.id);
+  assert.equal(state.backups.length, 1);
+});
+test('EPF uniqueness remains atomic when same-week requests use different dates concurrently', async () => {
+  const state = setup();
+  const results = await Promise.all(['2026-09-14', '2026-10-01'].map(deductionDate => call(state.env, '/create', { ...epf, deductionDate })));
+  assert.equal(results.filter(result => result.status === 201).length, 1);
+  assert.equal(results.filter(result => result.status === 400).length, 1);
+});
+test('the actual EPF payment month enforces its own four-hold cap and next-month allocation', async () => {
+  const state = setup();
+  state.env.GRAFANA_PROXY.fetch = async request => {
+    const query = new URL(request.url).searchParams;
+    const rows = [{ rider_name: 'Rider A', commission: 350, created_at: query.get('from') + ' 12:00:00' }];
+    return Response.json({ ok: true, source: 'Grafana Finance', panel: 'commission-main', part: 'primary', rows, rowCount: 1, from: query.get('from') + ' 00:00:00', to: query.get('to') + ' 23:59:59', truncated: false });
+  };
+  const weeks = [['2026-07-27', '2026-08-02'], ['2026-08-03', '2026-08-09'], ['2026-08-10', '2026-08-16'], ['2026-08-17', '2026-08-23'], ['2026-08-24', '2026-08-30']];
+  const ids = [];
+  for (let index = 0; index < weeks.length; index += 1) {
+    const [periodStart, periodEnd] = weeks[index];
+    const created = await call(state.env, '/create', { ...epf, periodStart, periodEnd, deductionDate: index === 4 ? '2026-08-31' : '2026-09-14' });
+    assert.equal(created.status, 201); ids.push(created.body.id);
+  }
+  await call(state.env, '/approve', { recordId: ids[4] }, checker);
+  const apply = { recordId: ids[4], installmentIndex: 0, paymentDate: '2026-09-22', settlementPeriodStart: weeks[4][0], settlementPeriodEnd: weeks[4][1] };
+  const blocked = await call(state.env, '/apply', apply, checker);
+  assert.equal(blocked.status, 400);
+  assert.match(blocked.body.error, /four.*actual payment month/);
+  await call(state.env, '/cancel', { recordId: ids[0], reason: 'Duplicate hold removed' });
+  assert.equal((await call(state.env, '/apply', apply, checker)).status, 201);
+  const record = await state.storage.get('record:' + ids[4]);
+  assert.equal(record.epfContributionMonth, '2026-10');
+  assert.equal(record.installments[0].epfContributionMonth, '2026-10');
+  assert.equal(record.installments[0].settlementPeriodStart, '2026-08-24');
+});
+test('a qualifying row in the final fractional second of Sunday is included', async () => {
+  const state = setup([{ rider_name: 'Rider A', commission: 300, created_at: '2026-09-13T23:59:59.999Z' }]);
+  assert.equal((await call(state.env, '/create', epf)).status, 201);
+});
+test('a complete backup and restore retain more than one thousand storage keys', async () => {
+  const state = setup(); await call(state.env, '/create', base);
+  for (let index = 0; index < 1200; index += 1) await state.storage.put('request:test-receipt-' + index, { signature: 'test', session: actor.sessionId, result: { id: 'fixture' } });
+  const snapshot = await createDeductionSnapshot(state.storage, fixedNow().toISOString());
+  assert.equal(snapshot.entries.length, state.storage.data.size);
+  assert.ok(snapshot.entries.length > 1200);
+  const restored = new MemoryStorage(); await restoreDeductionSnapshot(restored, snapshot);
+  assert.equal(restored.data.size, state.storage.data.size);
+});
+test('EPF applies only to the earning week that qualified it, while payment may occur later', async () => {
+  const state = setup(); const created = await call(state.env, '/create', epf);
+  await call(state.env, '/approve', { recordId: created.body.id }, checker);
+  const payment = { recordId: created.body.id, installmentIndex: 0, paymentDate: '2026-09-22' };
+  const differentWeek = await call(state.env, '/apply', { ...payment, settlementPeriodStart: '2026-09-14', settlementPeriodEnd: '2026-09-20' }, checker);
+  assert.equal(differentWeek.status, 400);
+  assert.match(differentWeek.body.error, /verified earning commission week/);
+  assert.equal((await call(state.env, '/apply', { ...payment, settlementPeriodStart: '2026-09-07', settlementPeriodEnd: '2026-09-13' }, checker)).status, 201);
+});
+
+export { MemoryStorage, setup, call, base, epf, actor, checker };

@@ -1,0 +1,211 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { DeductionRegister, validateDeduction, deductionsApi } from '../src/deductions.js';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+
+const base = { rider: 'Rider A', orderId: '123', type: 'insurance', subtype: 'insurance', amount: '12.35', installmentCount: '2', reason: 'Policy renewal', deductionDate: '2026-09-14', createdBy: 'Finance A' };
+const dashboardHtml = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
+class MemoryStorage {
+  constructor() { this.data = new Map(); this.queue = Promise.resolve(); }
+  async get(key) { return structuredClone(this.data.get(key)); }
+  async put(key, value) { this.data.set(key, structuredClone(value)); }
+  async list({ prefix, startAfter, limit }) { return new Map([...this.data].sort(([a],[b]) => a.localeCompare(b)).filter(([key]) => key.startsWith(prefix) && (!startAfter || key > startAfter)).slice(0, limit)); }
+  transaction(fn) {
+    const operation = this.queue.then(async () => { const before = structuredClone(this.data); try { return await fn(this); } catch (error) { this.data = before; throw error; } });
+    this.queue = operation.catch(() => {}); return operation;
+  }
+}
+const post = async (register, body, path = '/create', session = 'session-a', role = 'maker', name = role === 'checker' ? 'Finance Checker' : 'Finance Maker') => {
+  const input = structuredClone(body);
+  // Direct register tests stand in for the trusted gateway; gateway verification is covered separately.
+  for (const line of path === '/create-batch' ? input.lines : [input]) {
+    const scope = { ...input, ...line };
+    if (line.type === 'epf') line.epfVerification = { rider: scope.rider, riderKey: scope.rider.trim().normalize('NFKC').toLowerCase().replace(/\s+/g, ' '), periodStart: scope.periodStart, periodEnd: scope.periodEnd, amountCents: Math.round(Number(scope.weeklyCommission) * 100), rowCount: 1, verifiedAt: '2026-09-23T12:00:00Z', source: 'Grafana Finance', eligible: true };
+  }
+  const response = await register.fetch(new Request('https://local' + path, { method: 'POST', headers: { 'x-deduction-session': session, 'x-deduction-user': name, 'x-deduction-role': role, 'x-deduction-internal': '1' }, body: JSON.stringify(input) }));
+  return { status: response.status, body: await response.json() };
+};
+test('validates cents, required fields, subtype, dates and weekly EPF qualification', () => {
+  assert.equal(validateDeduction(base).amountCents, 1235);
+  assert.equal(validateDeduction(base).scheduledAmountCents, 2470);
+  assert.equal(validateDeduction(base).installmentCount, 2);
+  assert.equal(validateDeduction(base).installmentIntervalDays, 7);
+  assert.deepEqual(validateDeduction(base).codes, [2]);
+  const batteryTwo = validateDeduction({ ...base, type: 'battery-tester', subtype: 'battery tester', pricingMode: 'fixed-2', amount: '50', installmentCount: '2' });
+  assert.deepEqual(batteryTwo.codes, [2,7]);
+  assert.equal(batteryTwo.scheduledAmountCents, 10000);
+  const batterySeven = validateDeduction({ ...base, type: 'battery-tester', subtype: 'battery tester', pricingMode: 'fixed-7', amount: '40', installmentCount: '7' });
+  assert.equal(batterySeven.scheduledAmountCents, 28000);
+  assert.equal(validateDeduction({ ...base, type: 'battery-tester', subtype: 'battery tester', pricingMode: 'manual', amount: '63.50', installmentCount: '1', deductionDate: '2026-09-15' }).scheduledAmountCents, 6350);
+  assert.throws(() => validateDeduction({ ...base, installmentCount: '7' }));
+  assert.throws(() => validateDeduction({ ...base, type: 'battery-tester', subtype: 'battery tester', pricingMode: 'fixed-2', amount: '40', installmentCount: '2' }));
+  assert.throws(() => validateDeduction({ ...base, type: 'battery-tester', subtype: 'battery tester', pricingMode: 'fixed-7', amount: '40', installmentCount: '3' }));
+  assert.throws(() => validateDeduction({ ...base, deductionDate: '2026-09-15' }));
+  for (const field of ['rider', 'reason', 'createdBy']) assert.throws(() => validateDeduction({ ...base, [field]: '' }));
+  for (const amount of ['-1', '0', '1.001', 'NaN', 'Infinity']) assert.throws(() => validateDeduction({ ...base, amount }));
+  assert.throws(() => validateDeduction({ ...base, deductionDate: '2026-02-30' }));
+  const epf = { ...base, type: 'epf', subtype: 'EPF', amount: '25', installmentCount: '1', periodStart: '2026-08-31', periodEnd: '2026-09-06', deductionDate: '2026-09-11', weeklyCommission: '300' };
+  assert.equal(validateDeduction(epf).reportedWeeklyCommissionCents, 30000);
+  assert.equal(validateDeduction(epf).epfContributionMonth, '2026-10');
+  assert.equal(validateDeduction(epf).installments[0].dueDate, '2026-09-11');
+  assert.throws(() => validateDeduction({ ...epf, weeklyCommission: '299.99' }));
+  assert.throws(() => validateDeduction({ ...epf, amount: '26' }));
+  assert.throws(() => validateDeduction({ ...epf, periodStart: '2026-09-01' }));
+});
+test('one rider request can create independent EPF and Insurance records atomically', async () => {
+  const register = new DeductionRegister({ storage: new MemoryStorage() });
+  const requestId = crypto.randomUUID();
+  const result = await post(register, {
+    requestId, rider: 'Rider A', orderId: '', periodStart: '2026-09-07', periodEnd: '2026-09-13', grossCommission: '555', createdBy: 'Finance A',
+    lines: [
+      { type: 'epf', subtype: 'EPF', amount: '25', installmentCount: '1', deductionDate: '2026-09-11', weeklyCommission: '555', reason: 'Held for next month EPF' },
+      { type: 'insurance', subtype: 'insurance', amount: '12', installmentCount: '2', deductionDate: '2026-09-14', reason: 'Insurance repayment' }
+    ]
+  }, '/create-batch');
+  assert.equal(result.status, 201);
+  assert.equal(result.body.records.length, 2);
+  assert.deepEqual(result.body.records.map(record => record.type), ['epf', 'insurance']);
+  assert.equal(result.body.records.every(record => /^DED-\d{6}-\d{6}$/.test(record.reference)), true);
+  const listed = await (await register.fetch(new Request('https://local/', { headers: { 'x-deduction-session': 'session-a', 'x-deduction-user': 'Signed-in User', 'x-deduction-role': 'maker' } }))).json();
+  assert.equal(listed.records.every(record => record.createdBy === 'Finance A'), true);
+  assert.equal(listed.records.every(record => record.identityVerified === false), true);
+});
+test('maker-checker approval, installment application, reversal, cancellation, idempotency and month cap', async () => {
+  const storage = new MemoryStorage(); const register = new DeductionRegister({ storage }, {}, { now: () => new Date('2026-09-23T12:00:00Z') });
+  const input = { ...base, requestId: crypto.randomUUID() };
+  const first = await post(register, input); assert.equal(first.status, 201);
+  assert.deepEqual(await post(register, input), first);
+  assert.equal((await post(register, { ...input, amount: '99' })).status, 400);
+  const recordId = first.body.id;
+  assert.equal((await post(register, { requestId: crypto.randomUUID(), recordId }, '/approve', 'session-a', 'checker')).status, 400);
+  assert.equal((await post(register, { requestId: crypto.randomUUID(), recordId }, '/approve', 'session-b', 'checker')).status, 201);
+  assert.equal((await post(register, { requestId: crypto.randomUUID(), recordId, installmentIndex: 0, paymentDate: '2026-09-14', settlementPeriodStart: '2026-09-07', settlementPeriodEnd: '2026-09-13' }, '/apply', 'session-b', 'checker')).body.status, 'approved');
+  assert.equal((await post(register, { requestId: crypto.randomUUID(), recordId, installmentIndex: 1, paymentDate: '2026-09-21', settlementPeriodStart: '2026-09-14', settlementPeriodEnd: '2026-09-20' }, '/apply', 'session-b', 'checker')).body.status, 'applied');
+  assert.equal((await post(register, { requestId: crypto.randomUUID(), recordId, reason: 'Correction' }, '/reverse', 'session-b', 'checker')).body.status, 'reversed');
+  const pending = await post(register, { ...input, requestId: crypto.randomUUID(), amount: '13.35' });
+  const cancel = { requestId: crypto.randomUUID(), recordId: pending.body.id, reason: 'Incorrect reference; recreate' };
+  assert.equal((await post(register, cancel, '/cancel', 'session-c')).status, 400);
+  assert.equal((await post(register, cancel, '/cancel')).status, 201);
+  const listRequest = new Request('https://local/', { headers: { 'x-deduction-session': 'session-a', 'x-deduction-user': 'Finance Maker', 'x-deduction-role': 'maker' } });
+  const result = await (await register.fetch(listRequest)).json();
+  assert.equal(result.records.some(record => record.status === 'cancelled'), true);
+  assert.equal(result.records.some(record => record.status === 'reversed'), true);
+  assert.equal(result.records.every(record => !('creatorSession' in record)), true);
+  const augustWeeks = [['2026-07-27','2026-08-02'],['2026-08-03','2026-08-09'],['2026-08-10','2026-08-16'],['2026-08-17','2026-08-23'],['2026-08-24','2026-08-30']];
+  const outcomes = await Promise.all(augustWeeks.map(([periodStart, periodEnd], index) => post(register, { ...base, type: 'epf', subtype: 'EPF', amount: '25', installmentCount: '1', periodStart, periodEnd, deductionDate: '2026-08-' + String(index + 1).padStart(2, '0'), weeklyCommission: '300', requestId: crypto.randomUUID(), reason: 'EPF ' + index })));
+  assert.equal(outcomes.filter(value => value.status === 201).length, 4);
+  assert.equal(outcomes.filter(value => value.status === 400).length, 1);
+});
+test('gateway rejects cross-origin and non-JSON mutations', async () => {
+  const actor = { sessionId: 's', name: 'Finance Maker', role: 'maker' };
+  assert.equal((await deductionsApi(new Request('https://app/api/deductions/create', { method: 'POST', headers: { origin: 'https://evil', 'content-type': 'application/json' } }), { DEDUCTIONS: {} }, actor)).status, 403);
+  assert.equal((await deductionsApi(new Request('https://app/api/deductions/create', { method: 'POST', headers: { origin: 'https://app', 'content-type': 'text/plain' } }), { DEDUCTIONS: {} }, actor)).status, 403);
+});
+test('deduction filters only match linked rider records and retain independent table scope', () => {
+  const source = readFileSync(new URL('../../deductions.js', import.meta.url), 'utf8');
+  const context = vm.createContext({ document: { addEventListener() {} }, auditViews: { tables: { main: { deductionFilter: 'insurance' }, copy: {} } }, formatGrafanaTimestamp: value => value });
+  vm.runInContext(source + '\nglobalThis.registerState = deductionState;', context);
+  context.registerState.loaded = true;
+  context.registerState.records = [{ ...validateDeduction(base), id: 'a' }];
+  const rows = [{ rider_name: 'Rider A', order_id: '123' }, { rider_name: 'Rider B', order_id: '123' }, { rider_name: 'Rider A', order_id: '456' }];
+  assert.equal(context.deductionFilterRows('main', rows).length, 1);
+  assert.equal(context.deductionFilterRows('copy', rows).length, 3);
+  context.registerState.records[0].status = context.registerState.records[0].approvalStatus = 'cancelled';
+  assert.equal(context.deductionFilterRows('main', rows).length, 0);
+  context.registerState.records = [{ ...validateDeduction({ ...base, orderId: '', periodStart: '2026-09-01', periodEnd: '2026-09-07' }) }];
+  assert.equal(context.deductionFilterRows('main', [{ rider_name: 'Rider A', created_at: '2026-09-07 23:59:59' }, { rider_name: 'Rider A', created_at: '2026-09-08 00:00:00' }]).length, 1);
+});
+test('only applied installments reduce rider commission; pending and approved schedules do not', () => {
+  const source = readFileSync(new URL('../../deductions.js', import.meta.url), 'utf8');
+  const context = vm.createContext({ document: { addEventListener() {} }, auditViews: { tables: {} }, auditCapture: () => ({ scope: { dates: { start: '2026-09-07', end: '2026-09-13' } } }), formatGrafanaTimestamp: value => String(value).replace('T', ' ').replace('Z', ''), numberValue: value => Number(value) || 0, formatNumber: value => Number(value).toLocaleString('en-US'), formatMoney: value => `RM ${Number(value).toFixed(2)}`, esc: value => String(value) });
+  vm.runInContext(source + '\nglobalThis.registerState = deductionState;', context);
+  context.registerState.loaded = true;
+  const insurance = validateDeduction({ ...base, amount: '10', deductionDate: '2026-09-07' });
+  insurance.status = insurance.approvalStatus = 'approved'; insurance.installments[0].status = 'applied';
+  const pending = validateDeduction({ ...base, amount: '99', deductionDate: '2026-09-07' });
+  const epf = validateDeduction({ ...base, type: 'epf', subtype: 'EPF', amount: '25', installmentCount: '1', orderId: '', periodStart: '2026-09-07', periodEnd: '2026-09-13', deductionDate: '2026-09-11', weeklyCommission: '350' });
+  epf.status = epf.approvalStatus = 'applied'; epf.installments[0].status = 'applied';
+  context.registerState.records = [insurance, pending, epf];
+  const rows = [{ rider_name: 'Rider A', created_at: '2026-09-10 10:00:00', commission: 350 }];
+  const result = context.deductionSummaryForRows(rows, { start: '2026-09-07 00:00:00', end: '2026-09-13 23:59:59' });
+  assert.equal(result.amounts.insurance, 1000);
+  assert.equal(result.amounts.epf, 2500);
+  assert.equal(result.pendingCents, 9900);
+  assert.equal(result.approvedCents, 3500);
+  assert.equal(result.netCents, 31500);
+  const active = context.deductionSummaryMarkup(rows, 'main');
+  assert.match(active, /<h3>Rider A<\/h3>/);
+  assert.match(active, /data-deduction-inline-type/);
+  assert.match(active, /data-deduction-history-open>History<\/button>/);
+  assert.match(active, /Applied deductions<\/span><strong>RM 35\.00/);
+  assert.match(active, /Net commission<\/span><strong>RM 315\.00/);
+  assert.doesNotMatch(active, /data-deduction-inline-type disabled/);
+  const inactive = context.deductionSummaryMarkup([...rows, { rider_name: 'Rider B', created_at: '2026-09-10 11:00:00', commission: 20 }], 'main');
+  assert.match(inactive, /More than 1 rider_name found\. Filter to one rider before creating a deduction\./);
+  assert.match(inactive, /class="deduction-feedback is-error" role="alert"/);
+  assert.match(inactive, /data-deduction-inline-type disabled/);
+  const missing = context.deductionSummaryMarkup([...rows, { rider_name: '', created_at: '2026-09-10 12:00:00', commission: 10 }], 'main');
+  assert.match(missing, /row has no rider_name/i);
+  assert.match(missing, /data-deduction-inline-type disabled/);
+});
+test('Commission Rider uses the green rider-level deduction form and has no toolbar or row-level Deduct buttons', () => {
+  assert.doesNotMatch(dashboardHtml, /data-deduction-row/);
+  assert.doesNotMatch(dashboardHtml, /deductionRowAction/);
+  assert.doesNotMatch(dashboardHtml, /card\.querySelector\('\.audit-template-controls'\)\?\.after\(menu\)/);
+  assert.match(dashboardHtml, /data-deduction-inline-type/);
+  assert.match(dashboardHtml, /data-deduction-inline-amount/);
+  assert.match(dashboardHtml, /data-deduction-inline-battery-plan/);
+  assert.match(dashboardHtml, /2 × RM50/);
+  assert.match(dashboardHtml, /7 × RM40/);
+  assert.match(dashboardHtml, /Manual · one-off/);
+  assert.match(dashboardHtml, />Review deduction request<\/button>/);
+  assert.match(dashboardHtml, /type="checkbox"[^>]+data-deduction-inline-type/);
+  assert.match(dashboardHtml, /deductionCreateBatch/);
+  assert.match(dashboardHtml, /\.audit-template-dialog\.deduction-workflow-dialog\s*\{[^}]*width: min\(900px/);
+  assert.match(dashboardHtml, /\.deduction-workflow-dialog \.deduction-lines\s*\{\s*display: grid/);
+  assert.match(dashboardHtml, /class="deduction-request-context"/);
+  assert.match(dashboardHtml, /Commission period/);
+  assert.match(dashboardHtml, /Each selected type becomes its own auditable record/);
+  assert.match(dashboardHtml, /class="deduction-submit-bar"/);
+  assert.match(dashboardHtml, /More than 1 rider_name found\. Filter to one rider/);
+  assert.match(dashboardHtml, /class="button row-detail-action"/);
+  assert.match(dashboardHtml, /Commission deduction formula/);
+  assert.match(dashboardHtml, /Verified full week ≥ RM300/);
+  assert.match(dashboardHtml, /next month’s EPF/);
+  assert.match(dashboardHtml, /foot: payload\.footerRows/);
+  assert.match(dashboardHtml, /payload\.exportSummaryRows/);
+});
+
+test('PDF deduction footer contains only applied deduction categories and their total', () => {
+  const start = dashboardHtml.indexOf('function financeCommissionExportMeta');
+  const end = dashboardHtml.indexOf('function financeTableExportPayload', start);
+  const source = dashboardHtml.slice(start, end);
+  assert.match(source, /\["EPF", deduction\.amounts\.epf\]/);
+  assert.match(source, /\["INSURANCE", deduction\.amounts\.insurance\]/);
+  assert.match(source, /\["OBD \/ BATTERY TESTER", deduction\.amounts\["battery-tester"\]\]/);
+  assert.match(source, /\.filter\(\(\[, cents\]\) => Number\(cents \|\| 0\) > 0\)/);
+  assert.match(source, /const pdfDeductionItems = Number\(deduction\.approvedCents \|\| 0\) > 0/);
+  assert.match(source, /\["Total Deducted"/);
+  assert.match(source, /const footerRows = \[footer, \.\.\.pdfDeductionItems\.map/);
+  assert.doesNotMatch(source, /weekly commission|weekly deductions|Pending Deductions/);
+  assert.match(source, /riderNames\.length !== 1 \|\| !exportRows\.length \|\| exportRows\.some/);
+});
+
+test('deduction history is a dedicated Commission Rider view launched from the green formula footer', () => {
+  assert.doesNotMatch(dashboardHtml, /className = 'nav-button deduction-history-nav'/);
+  assert.match(dashboardHtml, /data-deduction-history-open>History<\/button>/);
+  assert.match(dashboardHtml, /id = 'deductionHistoryView'/);
+  assert.match(dashboardHtml, />Rider deduction history<\/h2>/);
+  assert.match(dashboardHtml, /data-deduction-history-search/);
+  assert.match(dashboardHtml, /data-deduction-history-status/);
+  assert.match(dashboardHtml, /data-deduction-history-type/);
+  assert.match(dashboardHtml, /Applied deductions/);
+  assert.match(dashboardHtml, /Approved · not applied/);
+  assert.match(dashboardHtml, /data-deduction-history-export="pdf"/);
+  assert.match(dashboardHtml, /data-deduction-action="approve"/);
+  assert.match(dashboardHtml, /data-deduction-action="apply"/);
+  assert.match(dashboardHtml, /data-deduction-action="reverse"/);
+  assert.match(dashboardHtml, /← Back to Commission Rider/);
+  assert.doesNotMatch(dashboardHtml, /data-deduction-register>History<\/button>/);
+});

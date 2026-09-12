@@ -1,0 +1,57 @@
+{
+  "$schema": "../../daily-report-html/node_modules/wrangler/config-schema.json",
+  "name": "bateriku-ledger-finance-report-dashboard",
+  "account_id": "db5e583b9575a5c4371e50186e4e7f96",
+  "workers_dev": true,
+  "main": "src/worker.js",
+  "compatibility_date": "2026-08-12",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "run_worker_first": true
+  },
+  "services": [
+    {
+      "binding": "GRAFANA_PROXY",
+      "service": "daily-report-dashboard"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "CONCURRENCY_LIMITER",
+        "class_name": "ConcurrencyLimiter"
+      },
+      {
+        "name": "DEDUCTIONS",
+        "class_name": "DeductionRegister"
+      }
+    ]
+  },
+  "r2_buckets": [
+    {
+      "binding": "DEDUCTION_BACKUPS",
+      "bucket_name": "finance-commission-deduction-backups"
+    }
+  ],
+  "migrations": [
+    {
+      "tag": "v1-finance-concurrency-limiter",
+      "new_sqlite_classes": ["ConcurrencyLimiter"]
+    },
+    {
+      "tag": "v2-finance-deductions",
+      "new_sqlite_classes": ["DeductionRegister"]
+    }
+  ],
+  "vars": {
+    "MAX_CONCURRENT_USERS": "5",
+    "ACTIVE_HEARTBEAT_SECONDS": "30",
+    "ACTIVE_SESSION_TIMEOUT_SECONDS": "90",
+    "QUEUE_HEARTBEAT_SECONDS": "15",
+    "QUEUE_TIMEOUT_SECONDS": "60",
+    "QUEUE_STATUS_POLL_SECONDS": "5",
+    "CONCURRENCY_ALARM_SECONDS": "15"
+  }
+}

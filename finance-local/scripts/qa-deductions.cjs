@@ -1,0 +1,53 @@
+const { chromium } = require('playwright');
+const assert = require('node:assert/strict');
+const { resolve } = require('node:path');
+(async () => {
+  const browser = await chromium.launch({ headless: true, executablePath: process.env.AUDIT_BROWSER });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    const records = [];
+    await page.route('**/api/deductions**', async route => {
+      const input = route.request().postDataJSON();
+      if (route.request().method() === 'GET') return route.fulfill({ json: { records, next: null, approvalAvailable: false } });
+      records.push({ ...input, id: input.requestId, amountCents: Math.round(Number(input.amount) * 100), riderKey: input.rider.toLowerCase().replace(/\s+/g, ' '), approvalStatus: 'pending', createdAt: new Date().toISOString(), audit: [], eligibility: 'Pending checker review' });
+      return route.fulfill({ status: 201, json: { id: input.requestId, approvalStatus: 'pending' } });
+    });
+    await page.goto('http://localhost:4317');
+    const main = page.locator('#commission-main-ledger');
+    await main.locator('.deduction-menu').waitFor();
+    const initial = await main.locator('tbody tr').count(); assert.ok(initial > 1);
+    await main.locator('[data-duplicate-table]').click();
+    const copy = page.locator('.table-copy[data-audit-table]').first(); await copy.waitFor();
+    const beforeCopy = await copy.locator('tbody').innerText();
+    await main.locator('[data-deduction-row]').first().click();
+    const dialog = page.locator('#deductionDialog');
+    assert.ok(await dialog.locator('[name=rider]').inputValue());
+    assert.ok(await dialog.locator('[name=orderId]').inputValue());
+    await dialog.locator('[name=type]').selectOption('insurance');
+    await dialog.locator('[name=amount]').fill('37.50');
+    await dialog.locator('[name=createdBy]').fill('QA Finance');
+    await dialog.locator('[name=reason]').fill('QA insurance case');
+    await dialog.screenshot({ path: resolve(__dirname, '../deduction-form-desktop.png') });
+    await dialog.locator('[type=submit]').click();
+    await dialog.getByText('Pending deduction saved.', { exact: false }).waitFor();
+    await dialog.locator('[data-deduction-close]').click();
+    await main.locator('.deduction-menu summary').click();
+    await main.locator('[data-deduction-filter=insurance]').click();
+    await page.waitForFunction(() => document.querySelector('#commission-main-ledger .deduction-menu summary')?.textContent.includes('Insurance'));
+    assert.equal(await main.locator('[data-deduction-row]').count(), 1);
+    assert.equal(await copy.locator('tbody').innerText(), beforeCopy);
+    await main.locator('.deduction-menu summary').click();
+    await main.locator('[data-deduction-filter=""]').click();
+    assert.equal(await main.locator('tbody tr').count(), initial);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await main.locator('[data-deduction-row]').first().click();
+    await dialog.locator('[name=type]').selectOption('epf');
+    assert.equal(await dialog.locator('[name=amount]').inputValue(), '25.00');
+    assert.equal(await dialog.locator('[name=amount]').getAttribute('readonly'), '');
+    await dialog.screenshot({ path: resolve(__dirname, '../deduction-form-phone.png') });
+    const box = await dialog.boundingBox(); assert.ok(box.x >= 0 && box.x + box.width <= 391);
+    assert.deepEqual(errors, []);
+    console.log('PASS: row prefill, pending save, isolated filters, clear and phone layout. No live records created.');
+  } finally { await browser.close(); }
+})().catch(error => { console.error(error); process.exitCode = 1; });
