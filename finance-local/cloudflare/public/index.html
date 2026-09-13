@@ -9442,6 +9442,12 @@
         return sourceKey ? `${panelId}:grafana:${sourceKey}` : `${panelId}:table`;
       }
 
+      function nextTableSort(current, key) {
+        if (current?.key !== key) return { key, dir: "asc" };
+        if (current.dir === "asc") return { key, dir: "desc" };
+        return null;
+      }
+
       function primaryTableValue(panel, column, row) {
         if (column.key === "channel" && panel.id === "daily-sales-hq-dealer-overview") return rowChannel(row);
         if (column.key === "control_status") return rowControlStatus(panel, row);
@@ -13739,7 +13745,9 @@
           const instance = tableCopyContext(copySort.dataset.copySort);
           if (instance) {
             const key = copySort.dataset.sortKey;
-            state.sort[instance.tableId] = { key, dir: instance.sort?.key === key && instance.sort.dir === "desc" ? "asc" : "desc" };
+            const next = nextTableSort(instance.sort, key);
+            if (next) state.sort[instance.tableId] = next;
+            else delete state.sort[instance.tableId];
             render();
           }
           return;
@@ -14392,10 +14400,9 @@
         const sort = event.target.closest("[data-sort]");
         if (sort) {
           const current = state.sort[sort.dataset.sort] || {};
-          state.sort[sort.dataset.sort] = {
-            key: sort.dataset.sortKey,
-            dir: sort.dataset.sortDir || (current.key === sort.dataset.sortKey && current.dir === "desc" ? "asc" : "desc")
-          };
+          const next = sort.dataset.sortDir ? { key: sort.dataset.sortKey, dir: sort.dataset.sortDir } : nextTableSort(current, sort.dataset.sortKey);
+          if (next) state.sort[sort.dataset.sort] = next;
+          else delete state.sort[sort.dataset.sort];
           state.pages[sort.dataset.sort] = 1;
           render();
           return;
