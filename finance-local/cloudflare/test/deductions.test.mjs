@@ -149,12 +149,9 @@ test('only applied installments reduce rider commission; pending and approved sc
   assert.match(active, /Net commission<\/span><strong>RM 315\.00/);
   assert.doesNotMatch(active, /data-deduction-inline-type disabled/);
   const inactive = context.deductionSummaryMarkup([...rows, { rider_name: 'Rider B', created_at: '2026-09-10 11:00:00', commission: 20 }], 'main');
-  assert.match(inactive, /More than 1 rider_name found\. Filter to one rider before creating a deduction\./);
-  assert.match(inactive, /class="deduction-feedback is-error" role="alert"/);
-  assert.match(inactive, /data-deduction-inline-type disabled/);
+  assert.equal(inactive, '');
   const missing = context.deductionSummaryMarkup([...rows, { rider_name: '', created_at: '2026-09-10 12:00:00', commission: 10 }], 'main');
-  assert.match(missing, /row has no rider_name/i);
-  assert.match(missing, /data-deduction-inline-type disabled/);
+  assert.equal(missing, '');
 });
 test('Commission Rider uses the green rider-level deduction form and has no toolbar or row-level Deduct buttons', () => {
   assert.doesNotMatch(dashboardHtml, /data-deduction-row/);

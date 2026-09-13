@@ -87,10 +87,8 @@ test('independent table drafts reset when rider or date period changes', () => {
   assert.equal(api.deductionDraftFor('two', rider, dates).selected.length, 0);
   assert.equal(api.deductionDraftFor('one', { key: 'b' }, dates).selected.length, 0);
 });
-test('summary keeps History bottom-left and all controls disabled for invalid rider scope', () => {
+test('summary is hidden for an invalid rider scope so the table remains the sole workspace', () => {
   const api = runtime(); api.deductionState.loaded = true;
   const markup = api.deductionSummaryMarkup([{ rider_name: 'A', commission: 1 }, { rider_name: 'B', commission: 2 }], 'main');
-  assert.match(markup, /More than 1 rider_name/); assert.match(markup, /<footer class="deduction-inline-actions"><button type="button" data-deduction-history-open>History/);
-  assert.equal((markup.match(/data-deduction-inline-type disabled/g) || []).length, 4);
-  assert.match(markup, /Total Deducted: —/);
+  assert.equal(markup, '');
 });

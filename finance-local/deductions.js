@@ -110,7 +110,11 @@ function deductionDraftFor(id, rider, dates) {
   return deductionDrafts.get(id);
 }
 function deductionSummaryMarkup(dataRows, tableId) {
-  const dates = auditCapture(tableId)?.scope?.dates || {}, summary = deductionSummaryForRows(dataRows, dates), rider = deductionSingleRider(dataRows);
+  const dates = auditCapture(tableId)?.scope?.dates || {}, rider = deductionSingleRider(dataRows);
+  // The deduction workspace is relevant only after Finance has narrowed the table to one rider.
+  // It must never compete with the normal multi-rider table workflow.
+  if (!rider.valid) return '';
+  const summary = deductionSummaryForRows(dataRows, dates);
   const enabled = rider.valid && summary.loaded, draft = deductionDraftFor(tableId, rider, dates), disabled = enabled ? '' : ' disabled';
   const selected = type => draft.selected.includes(type);
   const choice = type => '<label class="deduction-inline-choice"><input type="checkbox" value="' + type + '" data-deduction-inline-type' + (selected(type) ? ' checked' : '') + disabled + '><strong>' + esc(deductionTypes[type]) + '</strong></label>';
