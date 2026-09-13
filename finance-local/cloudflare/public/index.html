@@ -1284,9 +1284,10 @@
       scrollbar-width: thin;
     }
     /* A deduction can only be prepared for one rider. Keep that rider's full
-       matching detail set visible before the formula workspace begins. */
+       matching detail set loaded while keeping a practical table viewport. */
     .ledger-card.is-single-rider-scope .table-wrap {
-      max-height: none;
+      min-height: 320px;
+      max-height: min(52vh, 520px);
     }
     .ledger-card .table-wrap:focus-visible {
       outline: 3px solid var(--accent);
@@ -11820,7 +11821,7 @@
         const tableColumns = visibleTableColumns(panel);
         const singleRiderScope = panel.id === "commission-main" && typeof deductionSingleRider === "function" && deductionSingleRider(dataRows).valid;
         const renderedCount = singleRiderScope ? dataRows.length : Math.min(TABLE_SCROLL_BATCH, dataRows.length);
-        const tableMinHeight = singleRiderScope ? Math.min(1800, Math.max(960, 680 + dataRows.length * 50)) : 320;
+        const tableMinHeight = singleRiderScope ? 960 : 320;
         const visibleRows = dataRows.slice(0, renderedCount);
         const emptyMessage = rows(panel.id).length
           ? "No records match the current finance filters."
@@ -12410,8 +12411,7 @@
           if (!grid?.classList.contains("visual-stack-layout")) card.style.removeProperty("grid-column-start");
         }
         if (Number.isFinite(height) && height >= minHeight) {
-          const maxHeight = card.classList.contains("is-single-rider-scope") ? 1800 : 1100;
-          const safeHeight = Math.max(minHeight, Math.min(maxHeight, Math.round(height / 20) * 20));
+          const safeHeight = Math.max(minHeight, Math.min(1100, Math.round(height / 20) * 20));
           card.classList.add("visual-sized");
           card.style.setProperty("--visual-height", `${safeHeight}px`);
           if (grid?.classList.contains("visual-stack-layout") && resolvedRow) {

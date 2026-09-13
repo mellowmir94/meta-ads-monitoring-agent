@@ -127,7 +127,7 @@ test('a single-rider Commission Rider filter renders every matching detail row b
   assert.match(dashboardHtml, /const singleRiderScope = panel\.id === "commission-main" && typeof deductionSingleRider === "function" && deductionSingleRider\(dataRows\)\.valid;/);
   assert.match(dashboardHtml, /const renderedCount = singleRiderScope \? dataRows\.length : Math\.min\(TABLE_SCROLL_BATCH, dataRows\.length\);/);
   assert.match(dashboardHtml, /is-single-rider-scope/);
-  assert.match(dashboardHtml, /\.ledger-card\.is-single-rider-scope \.table-wrap\s*\{\s*max-height: none;/);
+  assert.match(dashboardHtml, /\.ledger-card\.is-single-rider-scope \.table-wrap\s*\{\s*min-height: 320px;\s*max-height: min\(52vh, 520px\);/);
 });
 test('only applied installments reduce rider commission; pending and approved schedules do not', () => {
   const source = readFileSync(new URL('../../deductions.js', import.meta.url), 'utf8');
