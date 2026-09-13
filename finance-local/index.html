@@ -1283,6 +1283,11 @@
       scrollbar-color: var(--table-scroll-thumb) var(--table-scroll-track);
       scrollbar-width: thin;
     }
+    /* A deduction can only be prepared for one rider. Keep that rider's full
+       matching detail set visible before the formula workspace begins. */
+    .ledger-card.is-single-rider-scope .table-wrap {
+      max-height: none;
+    }
     .ledger-card .table-wrap:focus-visible {
       outline: 3px solid var(--accent);
       outline-offset: -3px;
@@ -11813,7 +11818,9 @@
         const initialLoading = Boolean(state.api.loading[panel.id] && !rows(panel.id).length);
         const allRows = dataRows;
         const tableColumns = visibleTableColumns(panel);
-        const renderedCount = Math.min(TABLE_SCROLL_BATCH, dataRows.length);
+        const singleRiderScope = panel.id === "commission-main" && typeof deductionSingleRider === "function" && deductionSingleRider(dataRows).valid;
+        const renderedCount = singleRiderScope ? dataRows.length : Math.min(TABLE_SCROLL_BATCH, dataRows.length);
+        const tableMinHeight = singleRiderScope ? Math.min(1800, Math.max(960, 680 + dataRows.length * 50)) : 320;
         const visibleRows = dataRows.slice(0, renderedCount);
         const emptyMessage = rows(panel.id).length
           ? "No records match the current finance filters."
@@ -11835,7 +11842,7 @@
             ${initialLoading ? `<div class="initial-load-skeleton" role="status" aria-label="Loading ${esc(panel.title)} from Grafana"><div class="initial-load-skeleton-card"><span class="initial-load-skeleton-line short"></span><span class="initial-load-skeleton-line value"></span></div><div class="initial-load-skeleton-card"><span class="initial-load-skeleton-line short"></span><span class="initial-load-skeleton-line value"></span></div><div class="initial-load-skeleton-card"><span class="initial-load-skeleton-line short"></span><span class="initial-load-skeleton-line value"></span></div><div class="initial-load-skeleton-chart"><span class="initial-load-skeleton-line"></span></div></div>` : `${branchAlertMarkup(panel)}`}
             ${financeControlCenterMarkup(panel)}
             <div class="dashboard-chart-grid finance-arrange-container" data-visual-panel="${esc(panel.id)}">${initialLoading ? "" : decisionKpiMarkup(panel)}${chartPanel(panel)}${trendVisual(panel)}${grafanaSourceTablesMarkup(panel)}${tableDashboardVisualsMarkup(panel)}
-            <div class="ledger-card finance-visual${fullscreenTableId === panel.id ? " is-table-fullscreen" : ""}" data-visual-key="${esc(panel.id)}:table" data-default-columns="12" data-min-height="320" id="${esc(panel.id)}-ledger">
+            <div class="ledger-card finance-visual${singleRiderScope ? " is-single-rider-scope" : ""}${fullscreenTableId === panel.id ? " is-table-fullscreen" : ""}" data-visual-key="${esc(panel.id)}:table" data-default-columns="12" data-min-height="${tableMinHeight}" id="${esc(panel.id)}-ledger">
               <div class="ledger-head"><div><h4>${esc(ledgerTitle)}</h4><span class="ledger-grain">${esc(ledgerGrain(panel))}</span></div><div class="ledger-actions">${tableColumnMenuMarkup(panel.id, panel.columns, { tableTitle: ledgerTitle, compactPanelId: panel.id })}${TABLE_HEADER_FILTER_PANELS.has(panel.id) ? tableExportMenuMarkup(panel.id, { tableTitle: ledgerTitle }) : `<button type="button" data-table-export="${esc(panel.id)}" title="Export all filtered rows with source, period, and active filters">Export</button>`}<div class="ledger-search"><input type="search" placeholder="${esc(searchPlaceholder(panel.id))}" value="${esc(state.searchDraft[panel.id] ?? state.search[panel.id] ?? "")}" data-search="${esc(panel.id)}" aria-label="Search ${esc(ledgerTitle)}"><button type="button" data-search-submit="${esc(panel.id)}" aria-label="Apply table search">&#128269;</button></div>${panel.id === "commission-main" ? `<button class="table-fullscreen-button" type="button" data-table-fullscreen="${esc(panel.id)}" title="${fullscreenTableId === panel.id ? "Exit full screen" : "Full-screen table"}" aria-label="${fullscreenTableId === panel.id ? "Exit full-screen table" : "Full-screen table"}" aria-pressed="${fullscreenTableId === panel.id}">${fullscreenTableId === panel.id ? "×" : "⛶"}</button>` : ""}</div></div>
             <div class="table-wrap ${state.compactTables[panel.id] ? "compact" : ""}" tabindex="0" role="region" aria-label="${esc(ledgerTitle)} scrollable data table" aria-describedby="${esc(panel.id)}-scroll-status" data-scroll-ledger="${esc(panel.id)}" data-table-id="${esc(tableFilterId(panel.id))}" data-rendered-rows="${renderedCount}" data-rows-complete="${renderedCount >= dataRows.length ? "true" : "false"}">
               <table aria-rowcount="${dataRows.length}">
@@ -12403,7 +12410,8 @@
           if (!grid?.classList.contains("visual-stack-layout")) card.style.removeProperty("grid-column-start");
         }
         if (Number.isFinite(height) && height >= minHeight) {
-          const safeHeight = Math.max(minHeight, Math.min(1100, Math.round(height / 20) * 20));
+          const maxHeight = card.classList.contains("is-single-rider-scope") ? 1800 : 1100;
+          const safeHeight = Math.max(minHeight, Math.min(maxHeight, Math.round(height / 20) * 20));
           card.classList.add("visual-sized");
           card.style.setProperty("--visual-height", `${safeHeight}px`);
           if (grid?.classList.contains("visual-stack-layout") && resolvedRow) {
@@ -12442,6 +12450,7 @@
         if (hasSavedLayout && window.innerWidth > 880) grid.classList.add("visual-stack-layout");
         const savedSizes = sizes && typeof sizes === "object" && !Array.isArray(sizes) ? sizes : {};
         let expandedKpi = false;
+        let expandedSingleRiderTable = false;
         const compactedBands = [];
         financeVisualCards(grid).forEach((card) => {
           const size = savedSizes[card.dataset.visualKey];
@@ -12450,6 +12459,7 @@
           if (size && Number(size.rowStart) >= 1) card.dataset.layoutRowStart = String(Math.round(Number(size.rowStart)));
           if (size) {
             let height = Number(size.height);
+            if (card.classList.contains("is-single-rider-scope") && (!Number.isFinite(height) || height < financeVisualMinHeight(card))) expandedSingleRiderTable = true;
             if (card.classList.contains("finance-kpi-card") && Number.isFinite(height) && height > financeVisualMinHeight(card) && size.kpiDensity !== financeKpiDensity(card)) {
               // Apply the compact default to older KPI layouts; respect later explicit resizing.
               const rowStart = Number(size.rowStart);
@@ -12471,7 +12481,7 @@
           const placements = cards.map((card) => { const position = financeVisualGridPosition(card); return position ? { card, ...position } : null; }).filter(Boolean);
           if (placements.length === cards.length) compactFinanceKpiPlacements(placements, compactedBands).forEach((placement) => applyFinanceVisualPlacement(placement.card, placement.columnStart, placement.rowStart));
         }
-        if (expandedKpi && grid.classList.contains("visual-stack-layout") && window.innerWidth > 880) {
+        if ((expandedKpi || expandedSingleRiderTable) && grid.classList.contains("visual-stack-layout") && window.innerWidth > 880) {
           const placements = financeVisualCards(grid).map((card) => { const position = financeVisualGridPosition(card); return position ? { card, ...position } : null; }).filter(Boolean);
           reflowExpandedKpiPlacements(placements).forEach((placement) => applyFinanceVisualPlacement(placement.card, placement.columnStart, placement.rowStart));
         }

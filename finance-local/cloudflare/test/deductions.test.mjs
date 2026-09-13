@@ -123,6 +123,12 @@ test('multiple rider names only disable deduction controls and never filter Comm
   assert.match(dashboardHtml, /More than 1 rider_name found\. Filter to one rider before creating a deduction\./);
   assert.match(dashboardHtml, /data-deduction-inline-create[^>]*disabled/);
 });
+test('a single-rider Commission Rider filter renders every matching detail row before the deduction formula', () => {
+  assert.match(dashboardHtml, /const singleRiderScope = panel\.id === "commission-main" && typeof deductionSingleRider === "function" && deductionSingleRider\(dataRows\)\.valid;/);
+  assert.match(dashboardHtml, /const renderedCount = singleRiderScope \? dataRows\.length : Math\.min\(TABLE_SCROLL_BATCH, dataRows\.length\);/);
+  assert.match(dashboardHtml, /is-single-rider-scope/);
+  assert.match(dashboardHtml, /\.ledger-card\.is-single-rider-scope \.table-wrap\s*\{\s*max-height: none;/);
+});
 test('only applied installments reduce rider commission; pending and approved schedules do not', () => {
   const source = readFileSync(new URL('../../deductions.js', import.meta.url), 'utf8');
   const context = vm.createContext({ document: { addEventListener() {} }, auditViews: { tables: {} }, auditCapture: () => ({ scope: { dates: { start: '2026-09-07', end: '2026-09-13' } } }), formatGrafanaTimestamp: value => String(value).replace('T', ' ').replace('Z', ''), numberValue: value => Number(value) || 0, formatNumber: value => Number(value).toLocaleString('en-US'), formatMoney: value => `RM ${Number(value).toFixed(2)}`, esc: value => String(value) });
