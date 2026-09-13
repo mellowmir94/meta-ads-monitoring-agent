@@ -106,7 +106,7 @@ function deductionSummaryForRows(dataRows, dates) {
 }
 function deductionDraftFor(id, rider, dates) {
   const key = [rider.key || '', dates.start || '', dates.end || ''].join('|');
-  if (deductionDrafts.get(id)?.scope !== key) deductionDrafts.set(id, { scope: key, selected: [], amounts: {}, batteryPlan: 'fixed-2' });
+  if (deductionDrafts.get(id)?.scope !== key) deductionDrafts.set(id, { scope: key, selected: [], amounts: {}, batteryPlan: 'fixed-2', batteryCount: 3 });
   return deductionDrafts.get(id);
 }
 function deductionSummaryMarkup(dataRows, tableId) {
@@ -124,7 +124,7 @@ function deductionSummaryMarkup(dataRows, tableId) {
   return '<section class="commission-deduction-summary deduction-workspace" data-deduction-table="' + esc(tableId) + '" aria-label="Commission deduction calculation"><header class="deduction-workspace-head"><div><span class="deduction-eyebrow">Commission deduction formula</span><h3>' + esc(rider.valid ? rider.rider : 'Select one rider to prepare deductions') + '</h3><p>' + esc(String(dates.start || '').slice(0, 10) + ' — ' + String(dates.end || '').slice(0, 10)) + ' <span>· ' + formatNumber(dataRows.length) + ' filtered rows</span></p></div></header>' +
     (error ? '<div class="deduction-feedback is-error" role="alert">' + esc(error) + (summary.error ? ' <button type="button" data-deduction-retry>Retry register</button>' : '') + '</div>' : !summary.loaded ? '<div class="deduction-feedback" role="status">Loading deduction register…</div>' : '') +
     '<div class="deduction-choice-grid">' + card('epf', field('epf', '25.00', true), 'Fixed hold · next month’s EPF<br>Verified full week ≥ RM300 · max 4/month') + card('insurance', field('insurance', draft.amounts.insurance), 'Amount per payment · 2 weekly payments') +
-    card('battery-tester', '<select aria-label="Battery Tester payment plan" data-deduction-inline-battery-plan' + disabled + '><option value="fixed-2"' + (draft.batteryPlan === 'fixed-2' ? ' selected' : '') + '>2 × RM50 · RM100 total</option><option value="fixed-7"' + (draft.batteryPlan === 'fixed-7' ? ' selected' : '') + '>7 × RM40 · RM280 total</option><option value="manual"' + (draft.batteryPlan === 'manual' ? ' selected' : '') + '>Manual · one-off</option></select>' + field('battery-tester', draft.batteryPlan === 'manual' ? draft.amounts['battery-tester'] : draft.batteryPlan === 'fixed-7' ? '40.00' : '50.00', draft.batteryPlan !== 'manual'), 'Fixed weekly schedule or manual one-off') + card('manual', field('manual', draft.amounts.manual), 'One-off amount · reason required') + '</div>' +
+    card('battery-tester', '<select aria-label="Battery Tester payment plan" data-deduction-inline-battery-plan' + disabled + '><option value="fixed-2"' + (draft.batteryPlan === 'fixed-2' ? ' selected' : '') + '>2 × RM50 · RM100 total</option><option value="fixed-7"' + (draft.batteryPlan === 'fixed-7' ? ' selected' : '') + '>7 × RM40 · RM280 total</option><option value="manual"' + (draft.batteryPlan === 'manual' ? ' selected' : '') + '>Manual · set amount and payments</option></select>' + field('battery-tester', draft.batteryPlan === 'manual' ? draft.amounts['battery-tester'] : draft.batteryPlan === 'fixed-7' ? '40.00' : '50.00', draft.batteryPlan !== 'manual') + '<label class="deduction-payment-count"><span>Payments</span><input aria-label="Battery Tester number of payments" type="number" min="1" max="52" step="1" inputmode="numeric" data-deduction-inline-battery-count value="' + esc(draft.batteryPlan === 'fixed-7' ? '7' : draft.batteryPlan === 'fixed-2' ? '2' : String(draft.batteryCount || 3)) + '"' + (draft.batteryPlan !== 'manual' ? ' readonly' : '') + disabled + '></label>', 'Fixed weekly schedule or Finance-set weekly payments') + card('manual', field('manual', draft.amounts.manual), 'One-off amount · reason required') + '</div>' +
     '<div class="deduction-settlement-strip"><div><span>Gross commission</span><strong>' + esc(deductionMoney(summary.grossCents)) + '</strong></div><span class="deduction-equation-sign" aria-hidden="true">−</span><div><span>Applied deductions</span><strong>' + esc(enabled ? deductionMoney(summary.approvedCents) : '—') + '</strong><small>' + esc(enabled ? deductionMoney(summary.pendingCents) + ' pending / scheduled, not deducted' : 'Requires one rider and a complete register') + '</small></div><span class="deduction-equation-sign" aria-hidden="true">=</span><div class="commission-net-total' + (summary.netCents < 0 ? ' is-negative' : '') + '"><span>Net commission</span><strong>' + esc(enabled ? deductionMoney(summary.netCents) : '—') + '</strong></div></div>' +
     (summary.legacyCount ? '<p class="deduction-legacy-note">' + summary.legacyCount + ' legacy applied payment(s) use their original due date for this report.</p>' : '') +
     '<footer class="deduction-inline-actions"><button type="button" data-deduction-history-open>History</button><div><strong data-deduction-inline-preview>Request preview: —</strong><span data-deduction-inline-message>' + esc(enabled ? 'Choose one or more types. Creating a request does not reduce net commission.' : error || 'Waiting for the deduction register.') + '</span></div><strong class="deduction-inline-total">Total Deducted: ' + esc(enabled ? deductionMoney(summary.approvedCents) : '—') + '</strong><button type="button" data-deduction-inline-create' + (enabled && draft.selected.length ? '' : ' disabled') + '>Review deduction request</button></footer></section>';
@@ -134,13 +134,15 @@ function deductionUpdateInline(summary) {
   const draft = deductionDrafts.get(summary.dataset.deductionTable); if (!draft) return;
   const choices = [...summary.querySelectorAll('[data-deduction-inline-type]:checked')]; draft.selected = choices.map(input => input.value);
   draft.batteryPlan = summary.querySelector('[data-deduction-inline-battery-plan]')?.value || 'fixed-2';
+  draft.batteryCount = Number(summary.querySelector('[data-deduction-inline-battery-count]')?.value) || 0;
   summary.querySelectorAll('[data-deduction-inline-amount]').forEach(input => { draft.amounts[input.dataset.deductionInlineAmount] = input.value; });
   summary.querySelectorAll('.deduction-choice-card').forEach(card => card.classList.toggle('is-selected', Boolean(card.querySelector('[data-deduction-inline-type]:checked'))));
   let total = 0, valid = Boolean(choices.length);
   for (const type of draft.selected) {
     const amount = Number(draft.amounts[type]);
     if (!(amount > 0) || amount > 1000000 || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.00001) valid = false;
-    const count = type === 'insurance' ? 2 : type === 'battery-tester' ? draft.batteryPlan === 'fixed-7' ? 7 : draft.batteryPlan === 'fixed-2' ? 2 : 1 : 1;
+    const count = type === 'insurance' ? 2 : type === 'battery-tester' ? draft.batteryPlan === 'fixed-7' ? 7 : draft.batteryPlan === 'fixed-2' ? 2 : draft.batteryCount : 1;
+    if (!Number.isInteger(count) || count < 1 || count > 52) valid = false;
     total += Math.round((amount || 0) * 100) * count;
   }
   const button = summary.querySelector('[data-deduction-inline-create]'); if (button) button.disabled = !valid || !deductionState.loaded;
@@ -178,15 +180,16 @@ function deductionCreateBatch(id, selectedTypes, drafts = {}) {
   const gross = candidates.reduce((sum, row) => sum + numberValue(row.commission), 0), monday = deductionNextMonday(periodEnd), today = deductionToday();
   const lineMarkup = types.map(type => {
     const plan = type === 'battery-tester' ? drafts[type]?.pricingMode || 'fixed-2' : type === 'epf' ? 'fixed-epf' : 'manual';
-    const count = type === 'insurance' ? 2 : type === 'battery-tester' ? plan === 'fixed-7' ? 7 : plan === 'fixed-2' ? 2 : 1 : 1;
+    const count = type === 'insurance' ? 2 : type === 'battery-tester' ? plan === 'fixed-7' ? 7 : plan === 'fixed-2' ? 2 : Math.max(1, Math.min(52, Number(drafts[type]?.installmentCount) || 3)) : 1;
     const amount = type === 'epf' ? '25.00' : type === 'battery-tester' && plan !== 'manual' ? plan === 'fixed-7' ? '40.00' : '50.00' : drafts[type]?.amount || '';
     const fixedSchedule = type === 'insurance' || type === 'battery-tester' && plan !== 'manual', subtype = { epf: 'EPF', insurance: 'insurance', 'battery-tester': 'battery tester' }[type];
     return '<fieldset class="deduction-line" data-deduction-line="' + type + '"><legend>' + esc(deductionTypes[type]) + '</legend><div class="deduction-line-fields">' +
-      (type === 'battery-tester' ? '<label>Payment plan<select data-line-plan><option value="fixed-2"' + (plan === 'fixed-2' ? ' selected' : '') + '>2 × RM50 · RM100 total</option><option value="fixed-7"' + (plan === 'fixed-7' ? ' selected' : '') + '>7 × RM40 · RM280 total</option><option value="manual"' + (plan === 'manual' ? ' selected' : '') + '>Manual · one-off</option></select></label>' : '') +
+      (type === 'battery-tester' ? '<label>Payment plan<select data-line-plan><option value="fixed-2"' + (plan === 'fixed-2' ? ' selected' : '') + '>2 × RM50 · RM100 total</option><option value="fixed-7"' + (plan === 'fixed-7' ? ' selected' : '') + '>7 × RM40 · RM280 total</option><option value="manual"' + (plan === 'manual' ? ' selected' : '') + '>Manual · set amount and payments</option></select></label>' : '') +
       '<label>' + (type === 'epf' ? 'Fixed hold (RM)' : 'Amount per payment (RM)') + '<input data-line-amount type="number" min="0.01" max="1000000" step="0.01" value="' + esc(amount) + '"' + (type === 'epf' || type === 'battery-tester' && plan !== 'manual' ? ' readonly' : '') + ' required></label>' +
       '<label>' + (type === 'epf' ? 'Payment / hold date' : count > 1 ? 'First scheduled payment' : 'Payment date') + '<input data-line-date type="date" value="' + esc(fixedSchedule ? monday : today) + '"' + (fixedSchedule ? ' readonly' : ' max="' + today + '"') + ' required></label>' +
+      (type === 'battery-tester' ? '<label>Payments<input data-line-count type="number" min="1" max="52" step="1" value="' + count + '"' + (plan !== 'manual' ? ' readonly' : '') + ' required></label>' : '') +
       (subtype ? '<input data-line-subtype type="hidden" value="' + subtype + '">' : '<label>Reason category<select data-line-subtype><option value="accident">Accident</option><option value="ganti rugi lost item">Ganti rugi lost item</option><option value="repair accident">Repair accident</option><option value="other">Other</option></select></label>') +
-      '<input type="hidden" data-line-count value="' + count + '"></div><p class="deduction-line-rule" data-line-rule></p><label class="deduction-line-reason">Reason / remarks<textarea data-line-reason maxlength="2000" rows="2" required placeholder="Why is this deduction being requested?"></textarea></label></fieldset>';
+      (type === 'battery-tester' ? '' : '<input type="hidden" data-line-count value="' + count + '">') + '</div><p class="deduction-line-rule" data-line-rule></p><label class="deduction-line-reason">Reason / remarks<textarea data-line-reason maxlength="2000" rows="2" required placeholder="Why is this deduction being requested?"></textarea></label></fieldset>';
   }).join('');
   body.innerHTML = '<form class="deduction-batch-form"><div class="deduction-request-context"><div><span>Rider</span><strong>' + esc(rider.rider) + '</strong></div><div><span>Commission period</span><strong>' + esc(periodStart + ' — ' + periodEnd) + '</strong></div><div><span>Filtered gross commission</span><strong>' + esc(formatMoney(gross)) + '</strong></div><div><span>Initial status</span><strong>Pending approval</strong></div></div><p class="deduction-note">Each selected type becomes its own auditable record. Only an applied payment reduces net commission.</p><label class="deduction-maker-field">Created by (self-declared)<input name="createdBy" maxlength="200" autocomplete="name" required placeholder="Finance staff name"></label>' +
     (types.includes('epf') ? '<div class="deduction-eligibility" role="status" data-deduction-eligibility>Checking the rider’s complete weekly commission…</div>' : '') + '<div class="deduction-lines">' + lineMarkup + '</div><div class="deduction-submit-bar"><div><strong data-deduction-request-total></strong><p role="alert" data-deduction-error></p></div><button type="submit"' + (types.includes('epf') ? ' disabled' : '') + '>Save ' + types.length + ' pending deduction' + (types.length === 1 ? '' : 's') + '</button></div></form>';
@@ -203,8 +206,8 @@ function deductionCreateBatch(id, selectedTypes, drafts = {}) {
   };
   form.querySelectorAll('[data-line-plan]').forEach(select => { select.onchange = () => {
     const line = select.closest('[data-deduction-line]'), amount = line.querySelector('[data-line-amount]'), count = line.querySelector('[data-line-count]'), date = line.querySelector('[data-line-date]'), manual = select.value === 'manual';
-    amount.value = manual ? '' : select.value === 'fixed-7' ? '40.00' : '50.00'; amount.readOnly = !manual; count.value = manual ? '1' : select.value === 'fixed-7' ? '7' : '2'; date.value = manual ? today : monday; date.readOnly = !manual;
-    if (manual) date.max = today; else date.removeAttribute('max'); updateLines();
+    amount.value = manual ? '' : select.value === 'fixed-7' ? '40.00' : '50.00'; amount.readOnly = !manual; count.value = manual ? '3' : select.value === 'fixed-7' ? '7' : '2'; count.readOnly = !manual; date.value = manual ? today : monday; date.readOnly = !manual;
+    date.removeAttribute('max'); updateLines();
   }; });
   form.addEventListener('input', updateLines); form.addEventListener('change', updateLines); updateLines();
   if (types.includes('epf')) {
@@ -367,7 +370,7 @@ document.addEventListener('change', event => {
   if (event.target.matches?.('[data-deduction-history-status], [data-deduction-history-type], [data-deduction-history-due], [data-deduction-history-month]')) return deductionHistoryRender();
   const summary = event.target.closest?.('.deduction-workspace'); if (!summary) return;
   if (event.target.matches('[data-deduction-inline-battery-plan]')) {
-    const amount = summary.querySelector('[data-deduction-inline-amount="battery-tester"]'); amount.value = event.target.value === 'manual' ? '' : event.target.value === 'fixed-7' ? '40.00' : '50.00'; amount.readOnly = event.target.value !== 'manual'; if (!amount.readOnly) amount.focus();
+    const amount = summary.querySelector('[data-deduction-inline-amount="battery-tester"]'), count = summary.querySelector('[data-deduction-inline-battery-count]'); amount.value = event.target.value === 'manual' ? '' : event.target.value === 'fixed-7' ? '40.00' : '50.00'; amount.readOnly = event.target.value !== 'manual'; count.value = event.target.value === 'manual' ? '3' : event.target.value === 'fixed-7' ? '7' : '2'; count.readOnly = event.target.value !== 'manual'; if (!amount.readOnly) amount.focus();
   } deductionUpdateInline(summary);
 });
 document.addEventListener('click', async event => {
@@ -384,7 +387,7 @@ document.addEventListener('click', async event => {
   if (!summary) return deductionCreateBatch(id, [button.dataset.deductionCreate || 'manual']);
   deductionUpdateInline(summary); if (button.disabled) return;
   const draft = deductionDrafts.get(id), drafts = {};
-  draft.selected.forEach(type => { drafts[type] = { amount: draft.amounts[type], pricingMode: type === 'battery-tester' ? draft.batteryPlan : type === 'epf' ? 'fixed-epf' : 'manual' }; }); return deductionCreateBatch(id, draft.selected, drafts);
+  draft.selected.forEach(type => { drafts[type] = { amount: draft.amounts[type], pricingMode: type === 'battery-tester' ? draft.batteryPlan : type === 'epf' ? 'fixed-epf' : 'manual', ...(type === 'battery-tester' ? { installmentCount: draft.batteryCount } : {}) }; }); return deductionCreateBatch(id, draft.selected, drafts);
 }, true);
 document.addEventListener('input', event => {
   if (event.target.matches?.('[data-deduction-history-search]')) deductionHistoryRender();

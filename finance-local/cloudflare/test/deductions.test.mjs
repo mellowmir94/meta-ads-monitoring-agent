@@ -37,7 +37,10 @@ test('validates cents, required fields, subtype, dates and weekly EPF qualificat
   assert.equal(batteryTwo.scheduledAmountCents, 10000);
   const batterySeven = validateDeduction({ ...base, type: 'battery-tester', subtype: 'battery tester', pricingMode: 'fixed-7', amount: '40', installmentCount: '7' });
   assert.equal(batterySeven.scheduledAmountCents, 28000);
-  assert.equal(validateDeduction({ ...base, type: 'battery-tester', subtype: 'battery tester', pricingMode: 'manual', amount: '63.50', installmentCount: '1', deductionDate: '2026-09-15' }).scheduledAmountCents, 6350);
+  const batteryManual = validateDeduction({ ...base, type: 'battery-tester', subtype: 'battery tester', pricingMode: 'manual', amount: '63.50', installmentCount: '3', deductionDate: '2026-09-15' });
+  assert.equal(batteryManual.installmentCount, 3);
+  assert.equal(batteryManual.scheduledAmountCents, 19050);
+  assert.throws(() => validateDeduction({ ...base, type: 'battery-tester', subtype: 'battery tester', pricingMode: 'manual', amount: '63.50', installmentCount: '0', deductionDate: '2026-09-15' }));
   assert.throws(() => validateDeduction({ ...base, installmentCount: '7' }));
   assert.throws(() => validateDeduction({ ...base, type: 'battery-tester', subtype: 'battery tester', pricingMode: 'fixed-2', amount: '40', installmentCount: '2' }));
   assert.throws(() => validateDeduction({ ...base, type: 'battery-tester', subtype: 'battery tester', pricingMode: 'fixed-7', amount: '40', installmentCount: '3' }));
@@ -168,7 +171,7 @@ test('Commission Rider uses the green rider-level deduction form and has no tool
   assert.match(dashboardHtml, /data-deduction-inline-battery-plan/);
   assert.match(dashboardHtml, /2 × RM50/);
   assert.match(dashboardHtml, /7 × RM40/);
-  assert.match(dashboardHtml, /Manual · one-off/);
+  assert.match(dashboardHtml, /Manual · set amount and payments/);
   assert.match(dashboardHtml, />Review deduction request<\/button>/);
   assert.match(dashboardHtml, /type="checkbox"[^>]+data-deduction-inline-type/);
   assert.match(dashboardHtml, /deductionCreateBatch/);

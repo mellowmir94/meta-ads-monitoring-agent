@@ -42,11 +42,11 @@ export function validateDeduction(input) {
   if (!Number.isSafeInteger(amountCents) || amountCents <= 0 || amountCents > 100000000) throw new Error('Enter an amount between RM0.01 and RM1,000,000.');
   const installmentCount = Number(input.installmentCount || 1);
   const pricingMode = type === 'battery-tester' ? required(input.pricingMode, 'Battery Tester plan') : type === 'epf' ? 'fixed-epf' : 'manual';
-  const batteryPlans = { 'fixed-2': { count: 2, amountCents: 5000 }, 'fixed-7': { count: 7, amountCents: 4000 }, manual: { count: 1, amountCents } };
-  if (type === 'battery-tester' && !batteryPlans[pricingMode]) throw new Error('Choose 2 × RM50, 7 × RM40, or Manual for Battery Tester.');
-  if (type === 'battery-tester' && (installmentCount !== batteryPlans[pricingMode].count || amountCents !== batteryPlans[pricingMode].amountCents)) throw new Error(pricingMode === 'fixed-2' ? 'The 2-payment Battery Tester plan is RM50 per payment.' : pricingMode === 'fixed-7' ? 'The 7-payment Battery Tester plan is RM40 per payment.' : 'Manual Battery Tester is a one-off Finance-entered amount.');
-  const allowedInstallments = type === 'insurance' ? [2] : type === 'battery-tester' ? [batteryPlans[pricingMode].count] : [1];
-  if (!Number.isInteger(installmentCount) || !allowedInstallments.includes(installmentCount)) throw new Error(type === 'insurance' ? 'Insurance requires 2 weekly deductions.' : type === 'battery-tester' ? 'Battery Tester requires 2 or 7 weekly deductions.' : 'This deduction type is a single deduction.');
+  const batteryPlans = { 'fixed-2': { count: 2, amountCents: 5000 }, 'fixed-7': { count: 7, amountCents: 4000 } };
+  if (type === 'battery-tester' && !['fixed-2', 'fixed-7', 'manual'].includes(pricingMode)) throw new Error('Choose 2 × RM50, 7 × RM40, or Manual for Battery Tester.');
+  if (type === 'battery-tester' && pricingMode !== 'manual' && (installmentCount !== batteryPlans[pricingMode].count || amountCents !== batteryPlans[pricingMode].amountCents)) throw new Error(pricingMode === 'fixed-2' ? 'The 2-payment Battery Tester plan is RM50 per payment.' : 'The 7-payment Battery Tester plan is RM40 per payment.');
+  const validBatteryInstallments = pricingMode === 'manual' ? installmentCount >= 1 && installmentCount <= 52 : installmentCount === batteryPlans[pricingMode]?.count;
+  if (!Number.isInteger(installmentCount) || (type === 'insurance' && installmentCount !== 2) || (type === 'battery-tester' && !validBatteryInstallments) || (type !== 'insurance' && type !== 'battery-tester' && installmentCount !== 1)) throw new Error(type === 'insurance' ? 'Insurance requires 2 weekly deductions.' : type === 'battery-tester' && pricingMode === 'manual' ? 'Manual Battery Tester requires 1 to 52 weekly payments.' : type === 'battery-tester' ? 'Battery Tester requires the selected fixed plan schedule.' : 'This deduction type is a single deduction.');
   const orderId = String(input.orderId || '').trim();
   if (orderId.length > 100) throw new Error('Order ID is too long.');
   const periodStart = input.periodStart ? date(input.periodStart, 'Period start') : '';
