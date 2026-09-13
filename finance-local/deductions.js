@@ -73,10 +73,8 @@ function deductionMatches(record, row) {
   const day = formatGrafanaTimestamp(row.created_at).slice(0, 10); return Boolean(day && record.periodStart && day >= record.periodStart && day <= record.periodEnd);
 }
 function deductionFilterRows(tableId, dataRows) {
-  const type = auditViews.tables[tableId]?.deductionFilter; if (!type) return dataRows;
-  if (!deductionState.loaded) return [];
-  const records = deductionState.records.filter(record => record.type === type && !['rejected', 'cancelled', 'reversed'].includes(deductionStatus(record)));
-  return dataRows.filter(row => records.some(record => deductionMatches(record, row)));
+  // Retired compatibility seam: a stale saved template must never hide Finance rows.
+  return dataRows;
 }
 function deductionRows(id, ignoreDeduction = false) {
   const identity = auditIdentity(id); if (!identity) return [];

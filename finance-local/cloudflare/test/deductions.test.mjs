@@ -102,19 +102,26 @@ test('gateway rejects cross-origin and non-JSON mutations', async () => {
   assert.equal((await deductionsApi(new Request('https://app/api/deductions/create', { method: 'POST', headers: { origin: 'https://evil', 'content-type': 'application/json' } }), { DEDUCTIONS: {} }, actor)).status, 403);
   assert.equal((await deductionsApi(new Request('https://app/api/deductions/create', { method: 'POST', headers: { origin: 'https://app', 'content-type': 'text/plain' } }), { DEDUCTIONS: {} }, actor)).status, 403);
 });
-test('deduction filters only match linked rider records and retain independent table scope', () => {
+test('retired deduction filters cannot hide rows in any Finance table', () => {
   const source = readFileSync(new URL('../../deductions.js', import.meta.url), 'utf8');
   const context = vm.createContext({ document: { addEventListener() {} }, auditViews: { tables: { main: { deductionFilter: 'insurance' }, copy: {} } }, formatGrafanaTimestamp: value => value });
   vm.runInContext(source + '\nglobalThis.registerState = deductionState;', context);
   context.registerState.loaded = true;
   context.registerState.records = [{ ...validateDeduction(base), id: 'a' }];
   const rows = [{ rider_name: 'Rider A', order_id: '123' }, { rider_name: 'Rider B', order_id: '123' }, { rider_name: 'Rider A', order_id: '456' }];
-  assert.equal(context.deductionFilterRows('main', rows).length, 1);
+  assert.equal(context.deductionFilterRows('main', rows).length, 3);
   assert.equal(context.deductionFilterRows('copy', rows).length, 3);
   context.registerState.records[0].status = context.registerState.records[0].approvalStatus = 'cancelled';
-  assert.equal(context.deductionFilterRows('main', rows).length, 0);
+  assert.equal(context.deductionFilterRows('main', rows).length, 3);
   context.registerState.records = [{ ...validateDeduction({ ...base, orderId: '', periodStart: '2026-09-01', periodEnd: '2026-09-07' }) }];
-  assert.equal(context.deductionFilterRows('main', [{ rider_name: 'Rider A', created_at: '2026-09-07 23:59:59' }, { rider_name: 'Rider A', created_at: '2026-09-08 00:00:00' }]).length, 1);
+  assert.equal(context.deductionFilterRows('main', [{ rider_name: 'Rider A', created_at: '2026-09-07 23:59:59' }, { rider_name: 'Rider A', created_at: '2026-09-08 00:00:00' }]).length, 2);
+});
+
+test('multiple rider names only disable deduction controls and never filter Commission Rider rows', () => {
+  assert.doesNotMatch(dashboardHtml, /return panel\.id === "commission-main" && typeof deductionFilterRows/);
+  assert.doesNotMatch(dashboardHtml, /output = deductionFilterRows\(tableId, output\)/);
+  assert.match(dashboardHtml, /More than 1 rider_name found\. Filter to one rider before creating a deduction\./);
+  assert.match(dashboardHtml, /data-deduction-inline-create[^>]*disabled/);
 });
 test('only applied installments reduce rider commission; pending and approved schedules do not', () => {
   const source = readFileSync(new URL('../../deductions.js', import.meta.url), 'utf8');

@@ -9479,7 +9479,8 @@
         const columns = visibleTableColumns(panel);
         const byKey = new Map(columns.map((column) => [column.key, column]));
         const output = applyTableHeaderFilters(tableId, filteredRows(panel), columns.map((column) => column.key), (row, key) => primaryTableValue(panel, byKey.get(key), row), exceptColumnKey);
-        return panel.id === "commission-main" && typeof deductionFilterRows === "function" ? deductionFilterRows(tableId, output) : output;
+        // Deduction eligibility never alters the rows in a Finance table.
+        return output;
       }
 
       function grafanaFilteredTableRows(panel, table, exceptColumnKey = "", tableId = tableFilterId(panel.id, table.key)) {
@@ -11553,7 +11554,6 @@
           const query = search.toLowerCase().trim();
           output = output.filter((row) => columns.some((column) => String(getValue(row, column.key)).toLowerCase().includes(query)));
         }
-        if (panel.id === "commission-main" && !table && typeof deductionFilterRows === "function") output = deductionFilterRows(tableId, output);
         if (sort) {
           const column = columns.find((item) => item.key === sort.key);
           if (column) output = [...output].sort((a, b) => {
@@ -15302,10 +15302,8 @@ function deductionMatches(record, row) {
   const day = formatGrafanaTimestamp(row.created_at).slice(0, 10); return Boolean(day && record.periodStart && day >= record.periodStart && day <= record.periodEnd);
 }
 function deductionFilterRows(tableId, dataRows) {
-  const type = auditViews.tables[tableId]?.deductionFilter; if (!type) return dataRows;
-  if (!deductionState.loaded) return [];
-  const records = deductionState.records.filter(record => record.type === type && !['rejected', 'cancelled', 'reversed'].includes(deductionStatus(record)));
-  return dataRows.filter(row => records.some(record => deductionMatches(record, row)));
+  // Retired compatibility seam: a stale saved template must never hide Finance rows.
+  return dataRows;
 }
 function deductionRows(id, ignoreDeduction = false) {
   const identity = auditIdentity(id); if (!identity) return [];
