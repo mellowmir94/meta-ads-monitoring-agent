@@ -15725,9 +15725,9 @@ function deductionPaymentMatchesCommissionRange(option, periodStart = '', period
   return Boolean(start && end && (!periodStart || end >= periodStart) && (!periodEnd || start <= periodEnd));
 }
 function deductionHistorySelectedPayment(group, type, today = deductionToday(), timing = '', periodStart = '', periodEnd = '') {
-  const options = deductionHistoryPaymentOptions(group, today).filter(option => option.record.type === type && deductionPaymentMatchesCommissionRange(option, periodStart, periodEnd)), selected = deductionHistoryPaymentSelections.get(group.id + '|' + type);
+  const allOptions = deductionHistoryPaymentOptions(group, today).filter(option => option.record.type === type), options = allOptions.filter(option => deductionPaymentMatchesCommissionRange(option, periodStart, periodEnd)), selected = deductionHistoryPaymentSelections.get(group.id + '|' + type);
   const queueState = timing === 'complete' ? 'sent' : timing;
-  return options.find(option => option.key === selected) || options.find(option => option.state === queueState) || options.find(option => option.state === 'ready') || options.find(option => option.state === 'upcoming') || options[0] || null;
+  return allOptions.find(option => option.key === selected) || options.find(option => option.state === queueState) || options.find(option => option.state === 'ready') || options.find(option => option.state === 'upcoming') || allOptions.find(option => option.state === queueState) || allOptions.find(option => option.state === 'ready') || allOptions.find(option => option.state === 'upcoming') || allOptions[0] || null;
 }
 function deductionHistoryPaymentCell(group, type, today = deductionToday(), timing = '', periodStart = '', periodEnd = '') {
   const options = deductionHistoryPaymentOptions(group, today).filter(option => option.record.type === type), selected = deductionHistorySelectedPayment(group, type, today, timing, periodStart, periodEnd);
@@ -16179,15 +16179,6 @@ document.addEventListener('change', event => {
     if (!groupId || !type) return;
     deductionHistoryPaymentSelections.set(groupId + '|' + type, paymentSelector.value);
     const group = deductionHistoryGroups(deductionState.records).find(item => item.id === groupId), option = deductionHistoryPaymentOptions(group || { records: [] }).find(item => item.key === paymentSelector.value);
-    const range = option && (deductionInstallmentSettlement(option.record, option.item, option.index) || deductionWeekBounds(option.item.dueDate));
-    if (range?.start && range?.end) {
-      const view = deductionHistoryEnsure(), start = view?.querySelector('[data-deduction-history-period-start]'), end = view?.querySelector('[data-deduction-history-period-end]');
-      if (start) start.value = range.start;
-      if (end) end.value = range.end;
-      deductionHistoryRangeSetDraft(range.start, range.end);
-      deductionHistoryRangePicker.open = false;
-      deductionHistoryRenderRangePicker(view);
-    }
     if (option && option.state !== 'upcoming') void Promise.allSettled([ensureFinanceExportBundle('pdf'), deductionPrefetchPaymentStatement(option.record, option.index)]);
     return deductionHistoryRender();
   }
