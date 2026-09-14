@@ -177,6 +177,8 @@ test('one History row combines its selected due payments into one PDF', async ()
   assert.ok(payload.footerRows.some(row => row[0] === 'INSURANCE — PAYMENT 1 OF 2' && row[2] === '- RM 19.44'));
   assert.ok(payload.footerRows.some(row => row[0] === 'OBD / BATTERY TESTER — PAYMENT 1 OF 2' && row[2] === '- RM 50.00'));
   assert.ok(payload.footerRows.some(row => row[0] === 'TOTAL DEDUCTED' && row[2] === '- RM 69.44'));
+  assert.match(payload.period, /Insurance · Payment 1 of 2 · Deduction date: 14\/09\/2026/);
+  assert.match(payload.period, /OBD \/ Battery Tester · Payment 1 of 2 · Deduction date: 14\/09\/2026/);
 });
 test('History filters each deduction column by its own payment status', () => {
   const api = runtime();
@@ -245,6 +247,7 @@ test('selected payment PDF refreshes its own Commission Rider week and exports o
   assert.match(requestUrl, /to=2026-09-13/);
   assert.equal(payload.rows.length, 1);
   assert.equal(payload.filename, 'Rider_A_payment-4');
+  assert.match(payload.period, /EPF · Payment 1 of 4 · Deduction date: 18\/09\/2026/);
   assert.ok(!payload.footerRows.some(row => row[0] === 'SELECTED DEDUCTION DATE'));
   assert.ok(!payload.footerRows.some(row => row[0] === 'COMMISSION PERIOD'));
   assert.ok(payload.footerRows.some(row => row[0] === 'EPF — PAYMENT 1 OF 4' && row[1] === '18/09/2026' && row[2] === '- RM 25.00'));
