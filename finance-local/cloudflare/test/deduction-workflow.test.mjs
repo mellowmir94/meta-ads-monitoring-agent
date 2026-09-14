@@ -139,12 +139,13 @@ test('History payment progress follows schedule dates and marks an active paymen
   const second = api.deductionGroupScheduleProgress([schedule], '2026-09-21');
   assert.equal(second.label, '2/2 payment'); assert.equal(second.ready, true);
 });
-test('History timing filter keeps a full request when one of its payments is upcoming', () => {
+test('History payment schedule filter keeps a full request when one of its payments matches', () => {
   const api = runtime();
   const request = { records: [record({ installmentCount: 2, installments: [{ index: 0, dueDate: '2026-09-14', status: 'applied' }, { index: 1, dueDate: '2026-09-21', status: 'applied' }] })] };
   assert.equal(api.deductionGroupMatchesTiming(request, 'current', '2026-09-15'), true);
   assert.equal(api.deductionGroupMatchesTiming(request, 'upcoming', '2026-09-15'), false);
   assert.equal(api.deductionGroupMatchesTiming(request, 'upcoming', '2026-09-12'), true);
+  assert.equal(api.deductionGroupMatchesTiming(request, 'complete', '2026-09-22'), true);
 });
 test('rider statement PDF allocates later EPF payments to their configured weeks', () => {
   const tableRows = [{ rider_name: 'Rider A', commission: 100 }];
