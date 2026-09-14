@@ -7,7 +7,7 @@ import { webcrypto } from 'node:crypto';
 const source = readFileSync(new URL('../../deductions.js', import.meta.url), 'utf8');
 function runtime(extra = {}) {
   const context = vm.createContext({
-    document: { addEventListener() {} }, crypto: webcrypto,
+    document: { addEventListener() {} }, crypto: webcrypto, URLSearchParams,
     formatMoney: value => 'RM ' + Number(value).toFixed(2), formatNumber: value => String(value),
     numberValue: value => Number(value || 0), formatGrafanaTimestamp: value => String(value || ''),
     auditQuickRange: () => ({ start: '2026-09-22T00:00:00Z' }),
@@ -15,7 +15,7 @@ function runtime(extra = {}) {
     auditCapture: () => ({ scope: { dates: { start: '2026-09-07', end: '2026-09-13' } } }),
     ...extra,
   });
-  vm.runInContext(source + '\nthis.api = { deductionState, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionFirstFourThursdayWeeks, deductionEpfSchedule, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionHistoryGroups, deductionHistoryStatementPayload, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
+  vm.runInContext(source + '\nthis.api = { deductionState, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionFirstFourThursdayWeeks, deductionEpfSchedule, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionHistoryGroups, deductionHistoryStatementPayload, deductionPaymentStatementPayload, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
   return context.api;
 }
 const rows = [{ rider_name: 'Rider A', created_at: '2026-09-07', commission: 300 }, { rider_name: 'Rider A', created_at: '2026-09-08', commission: 255 }];
@@ -165,6 +165,25 @@ test('History Rider PDF exports the entered Insurance amount once', () => {
   assert.ok(payload.footerRows.some(row => row[0] === 'INSURANCE (applied)' && row[1] === '- RM 19.44'));
   assert.ok(payload.footerRows.some(row => row[0] === 'APPLIED DEDUCTIONS' && row[1] === '- RM 19.44'));
   assert.equal(payload.summary.value, 'RM 80.56');
+});
+test('selected payment PDF refreshes its own Commission Rider week and exports one installment', async () => {
+  const columns = [{ key: 'rider_name', label: 'Rider', value: row => row.rider_name }, { key: 'quantity', label: 'Quantity', value: row => row.quantity }, { key: 'commission', label: 'Commission', value: row => row.commission }];
+  let requestUrl = '';
+  const api = runtime({
+    FINANCE_API_ENDPOINT: '/api/grafana/finance', panels: [{ id: 'commission-main', columns }], visibleTableColumns: panel => panel.columns,
+    financeGrafanaFilterParam: () => '{}', requestFinancePayload: async url => { requestUrl = url; return { response: { ok: true }, payload: { rows: [{ rider_name: 'Rider A', quantity: 1, commission: 300 }, { rider_name: 'Other', quantity: 1, commission: 999 }] } }; },
+    canonicalizeFinancePayloadRows: async (_panel, payload) => payload.rows,
+  });
+  const epf = record({ type: 'epf', amountCents: 2500, installmentCount: 4, installments: [{ index: 0, dueDate: '2026-09-18', status: 'applied', settlementPeriodStart: '2026-09-14', settlementPeriodEnd: '2026-09-20' }] });
+  const payload = await api.deductionPaymentStatementPayload(epf, 0);
+  assert.match(requestUrl, /from=2026-09-07/);
+  assert.match(requestUrl, /to=2026-09-13/);
+  assert.equal(payload.rows.length, 1);
+  assert.equal(payload.filename, 'Rider_A_payment-4');
+  assert.ok(payload.footerRows.some(row => row[0] === 'SELECTED DEDUCTION DATE' && row[2] === '18/09/2026'));
+  assert.ok(payload.footerRows.some(row => row[0] === 'COMMISSION PERIOD' && row[2] === '07/09/2026 – 13/09/2026'));
+  assert.ok(payload.footerRows.some(row => row[0] === 'EPF — PAYMENT 1 OF 4' && row[2] === '- RM 25.00'));
+  assert.ok(payload.footerRows.some(row => row[0] === 'NET COMMISSION' && row[2] === 'RM 275.00'));
 });
 test('same request payload retries keep idempotency ID; changed payload gets a new one', () => {
   const identify = runtime().deductionRequestIdentity(), first = identify({ rider: 'A', amount: 25 });

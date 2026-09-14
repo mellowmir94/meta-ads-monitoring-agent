@@ -6169,6 +6169,17 @@
 .deduction-calendar-note.is-warning { color: var(--warning); }
 .deduction-details-schedule-head { margin-top: 8px; }
 .deduction-detail-date { min-width: 140px !important; min-height: 32px !important; padding: 6px 8px !important; font-variant-numeric: tabular-nums; }
+.deduction-statement-date { display: grid; width: 100%; min-width: 142px; gap: 3px; padding: 7px 9px !important; border: 1px solid var(--line) !important; border-radius: 5px; background: var(--surface-muted, var(--surface)) !important; color: var(--text); text-align: left; font-variant-numeric: tabular-nums; }
+.deduction-statement-date strong { font-size: .74rem; }
+.deduction-statement-date small { color: var(--text-soft); font-size: .6rem; }
+.deduction-statement-date.is-selected { border-color: var(--success) !important; background: color-mix(in srgb, var(--success) 11%, var(--surface)) !important; box-shadow: inset 0 0 0 1px var(--success); }
+.deduction-payment-statement { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.25fr) auto; align-items: center; gap: 14px; margin: 12px 0 16px; padding: 13px 14px; border: 1px solid var(--deduction-border); border-radius: 6px; background: color-mix(in srgb, var(--success) 7%, var(--surface)); }
+.deduction-payment-statement-copy { display: grid; min-width: 0; gap: 4px; }
+.deduction-payment-statement-copy > span, .deduction-payment-statement-copy small { color: var(--text-soft); font-size: .65rem; line-height: 1.4; }
+.deduction-payment-statement-copy strong { color: var(--text); font-size: .78rem; font-variant-numeric: tabular-nums; }
+.deduction-payment-statement > button { white-space: nowrap; border-color: var(--success) !important; background: var(--success) !important; color: var(--surface) !important; font-weight: 750; }
+.deduction-payment-statement > p { grid-column: 1 / -1; margin: -4px 0 0; color: var(--text-soft); font-size: .66rem; }
+.deduction-payment-statement > p.is-error { color: var(--danger); }
 .deduction-workflow-dialog .deduction-submit-bar { position: sticky; bottom: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; margin: 18px 0 0; border-top: 1px solid var(--line); background: var(--surface); }
 .deduction-submit-bar strong { font-size: .78rem; color: var(--text); }
 .deduction-submit-bar [data-deduction-error] { font-size: .7rem; color: var(--danger); margin: 5px 0 0; line-height: 1.5; }
@@ -6228,6 +6239,8 @@
   .deduction-choice-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .deduction-history-view .deduction-history-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .deduction-history-view .deduction-history-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .deduction-payment-statement { grid-template-columns: 1fr; gap: 10px; }
+  .deduction-payment-statement > button { width: 100%; }
 }
 @media (max-width: 600px) {
   .deduction-workspace { padding: 14px; }
@@ -15408,6 +15421,13 @@ function deductionInstallmentSettlement(record, item, position = 0) {
   }
   return item?.settlementPeriodStart && item?.settlementPeriodEnd ? { start: item.settlementPeriodStart, end: item.settlementPeriodEnd } : null;
 }
+function deductionDateLabel(value) {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? match[3] + '/' + match[2] + '/' + match[1] : String(value || '—');
+}
+function deductionPeriodLabel(period) {
+  return period?.start && period?.end ? deductionDateLabel(period.start) + ' – ' + deductionDateLabel(period.end) : '—';
+}
 function deductionMatches(record, row) {
   if (['rejected', 'cancelled', 'reversed'].includes(deductionStatus(record)) || deductionRiderKey(row.rider_name) !== record.riderKey) return false;
   if (record.orderId) return String(row.order_id || '') === record.orderId;
@@ -15687,6 +15707,30 @@ function deductionHistoryStatementPayload(records) {
   const filename = rider.rider.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/, '').slice(0, 160) || 'Rider';
   return { ...payload, title: rider.rider, filename: filename + '-Commission-Statement', pdfFilename: filename + '.pdf', period: (start && end ? start + ' - ' + end : payload.period) + ' | saved deductions are applied immediately', summary: { label: 'Net Commission', value: deductionMoney(netCents) }, footerRows: [footer, ...typeRows, row('APPLIED DEDUCTIONS', '- ' + deductionMoney(appliedCents)), row('NET COMMISSION', deductionMoney(netCents))] };
 }
+async function deductionPaymentStatementPayload(record, index) {
+  const progress = deductionHistoryProgress(record), item = progress.items[index];
+  if (!item) throw new Error('This payment is no longer available. Refresh History and try again.');
+  if (item.status !== 'applied') throw new Error('Only saved, applied deductions can be downloaded.');
+  const period = deductionInstallmentSettlement(record, item, index) || deductionWeekBounds(item.dueDate);
+  if (!period?.start || !period?.end) throw new Error('This payment does not have a Commission Rider period. Edit the payment details first.');
+  const panel = panels?.find(panel => panel.id === 'commission-main');
+  if (!panel || typeof requestFinancePayload !== 'function' || typeof canonicalizeFinancePayloadRows !== 'function' || typeof visibleTableColumns !== 'function') throw new Error('Commission Rider export is not ready. Return to Commission Rider and try again.');
+  const params = new URLSearchParams({ panel: 'commission-main', scope: 'selection', part: 'primary', from: period.start + ' 00:00:00', to: period.end + ' 23:59:59', filters: typeof financeGrafanaFilterParam === 'function' ? financeGrafanaFilterParam('commission-main') : '{}', revision: 'commission-kpi-v9', refresh: '1' });
+  const { response, payload } = await requestFinancePayload(FINANCE_API_ENDPOINT + '?' + params.toString(), 'deduction-payment:' + record.id + ':' + index, true);
+  if (!response.ok) throw new Error(payload?.error || 'Grafana could not return Commission Rider data for this payment.');
+  if (payload?.truncated) throw new Error('The Commission Rider result is incomplete. Narrow dashboard filters before exporting this payment.');
+  const allRows = await canonicalizeFinancePayloadRows(panel, payload), riderKey = record.riderKey || deductionRiderKey(record.rider), rows = allRows.filter(row => deductionRiderKey(row.rider_name) === riderKey);
+  if (!rows.length) throw new Error('Grafana returned no Commission Rider rows for this rider and payment period.');
+  const columns = visibleTableColumns(panel).map(column => ({ key: column.key, label: column.label, value: row => row[column.key] }));
+  const commissionColumn = columns.find(column => String(column.key || '').trim().toLowerCase().replace(/[\s-]+/g, '_') === 'commission');
+  if (!commissionColumn) throw new Error('The Commission Rider table has no commission column.');
+  const quantityColumn = columns.find(column => String(column.key || '').trim().toLowerCase().replace(/[\s-]+/g, '_') === 'quantity');
+  const grossCents = Math.round(rows.reduce((sum, row) => sum + numberValue(commissionColumn.value(row)), 0) * 100), deductedCents = deductionStatementAmountForRecord(record, [item]), netCents = grossCents - deductedCents, commissionIndex = columns.indexOf(commissionColumn);
+  const footerRow = (label, value) => columns.map((_column, columnIndex) => columnIndex === 0 ? label : columnIndex === commissionIndex ? value : '');
+  const filteredTotal = columns.map(column => column === columns[0] ? 'Filtered total' : column === quantityColumn ? formatNumber(rows.reduce((sum, row) => sum + Number(row.quantity || 0), 0)) : column === commissionColumn ? deductionMoney(grossCents) : '');
+  const payment = Number.isInteger(Number(item.index)) ? Number(item.index) + 1 : index + 1, paymentCount = Number(record.installmentCount || progress.items.length || payment), type = (deductionTypes[record.type] || record.type || 'Deduction').toUpperCase(), filename = String(record.rider || 'Rider').trim().replace(/\s+/g, '_').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/, '').slice(0, 160) || 'Rider';
+  return { title: record.rider, panelTitle: 'Commission Rider', filename: filename + '_payment-' + paymentCount, pdfFilename: filename + '_payment-' + paymentCount + '.pdf', columns, rows, period: 'Selected deduction date: ' + deductionDateLabel(item.dueDate) + ' | Commission period: ' + deductionPeriodLabel(period) + ' | refreshed from Grafana', summary: { label: 'Net Commission', value: deductionMoney(netCents) }, footerRows: [filteredTotal, footerRow('SELECTED DEDUCTION DATE', deductionDateLabel(item.dueDate)), footerRow('COMMISSION PERIOD', deductionPeriodLabel(period)), footerRow(type + ' — PAYMENT ' + payment + ' OF ' + paymentCount, '- ' + deductionMoney(deductedCents)), footerRow('TOTAL DEDUCTED', '- ' + deductionMoney(deductedCents)), footerRow('NET COMMISSION', deductionMoney(netCents))] };
+}
 async function deductionHistoryExport(format) {
   await deductionLoad();
   if (!deductionState.loaded) throw new Error('Load the complete deduction register before exporting.');
@@ -15720,21 +15764,37 @@ function deductionActionDialog(recordId, action) {
     const planControl = isBattery ? '<label>Payment plan<select data-deduction-detail-plan disabled><option value="fixed-2"' + (record.pricingMode === 'fixed-2' ? ' selected' : '') + '>2 × RM50</option><option value="fixed-7"' + (record.pricingMode === 'fixed-7' ? ' selected' : '') + '>7 × RM40</option><option value="manual"' + (record.pricingMode === 'manual' ? ' selected' : '') + '>Manual</option></select></label>' : '';
     const detailControls = '<div class="deduction-line-fields deduction-detail-controls">' + planControl + '<label>' + (isSpecial ? 'Total deduction (RM)' : 'Amount per payment (RM)') + '<input type="number" min="0.01" max="1000000" step="0.01" value="' + displayedAmount.toFixed(2) + '" data-deduction-detail-amount readonly required></label><label>Payments<input type="number" min="1" max="52" step="1" value="' + Number(record.installmentCount) + '" data-deduction-detail-count readonly required></label></div>';
     const scheduleHead = '<div class="deduction-schedule-head deduction-details-schedule-head"><div><h4>' + (record.type === 'epf' ? 'Monthly EPF schedule' : 'Payment schedule') + '</h4><span>' + esc(deductionPlanLabel(record)) + ' · details are locked by default.</span></div><div><button type="button" data-deduction-detail-toggle aria-pressed="false">Edit details</button><button type="button" data-deduction-detail-save hidden>Save and lock</button></div></div><p class="deduction-calendar-note">Edit amount, manual payment count, dates, or remarks here in History. EPF and fixed-plan rules remain protected.</p><p class="deduction-feedback" data-deduction-detail-feedback hidden></p>';
-    body.innerHTML = context + (record.type === 'epf' && record.reportedWeeklyCommissionCents ? '<p class="deduction-eligibility">Recorded weekly commission ' + esc(deductionMoney(record.reportedWeeklyCommissionCents)) + ' · current filtered table at request time</p>' : '') + scheduleHead + detailControls + '<div class="deduction-audit-table"><table><thead><tr><th>Payment</th><th>Deduction date</th><th>Amount</th><th>Status</th><th>Commission week</th></tr></thead><tbody data-deduction-detail-rows></tbody></table></div><label class="deduction-line-reason">Reason / remarks <span>(optional)</span><textarea data-deduction-detail-reason maxlength="2000" rows="2" readonly placeholder="Add supporting notes if needed">' + esc(record.reason || '') + '</textarea></label><h4>Audit trail</h4><ol class="deduction-audit-list">' + (record.audit || []).map(item => '<li><div><strong>' + esc(item.action) + '</strong><span>' + esc(formatGrafanaTimestamp(item.at) || item.at) + '</span></div><p>' + esc(item.by || '—') + ' · ' + esc(item.reason || 'No additional remarks') + '</p>' + (item.amountCents != null ? '<small>' + esc(deductionMoney(item.amountCents)) + '</small>' : '') + '<details><summary>Full event details</summary><pre>' + esc(JSON.stringify(item, null, 2)) + '</pre></details></li>').join('') + '</ol>';
+    body.innerHTML = context + (record.type === 'epf' && record.reportedWeeklyCommissionCents ? '<p class="deduction-eligibility">Recorded weekly commission ' + esc(deductionMoney(record.reportedWeeklyCommissionCents)) + ' · current filtered table at request time</p>' : '') + scheduleHead + detailControls + '<div class="deduction-audit-table"><table><thead><tr><th>Payment</th><th>Deduction date</th><th>Amount</th><th>Status</th><th>Commission week</th></tr></thead><tbody data-deduction-detail-rows></tbody></table></div><section class="deduction-payment-statement" data-deduction-payment-statement aria-live="polite"></section><label class="deduction-line-reason">Reason / remarks <span>(optional)</span><textarea data-deduction-detail-reason maxlength="2000" rows="2" readonly placeholder="Add supporting notes if needed">' + esc(record.reason || '') + '</textarea></label><h4>Audit trail</h4><ol class="deduction-audit-list">' + (record.audit || []).map(item => '<li><div><strong>' + esc(item.action) + '</strong><span>' + esc(formatGrafanaTimestamp(item.at) || item.at) + '</span></div><p>' + esc(item.by || '—') + ' · ' + esc(item.reason || 'No additional remarks') + '</p>' + (item.amountCents != null ? '<small>' + esc(deductionMoney(item.amountCents)) + '</small>' : '') + '<details><summary>Full event details</summary><pre>' + esc(JSON.stringify(item, null, 2)) + '</pre></details></li>').join('') + '</ol>';
     if (editable) {
-      const toggle = body.querySelector('[data-deduction-detail-toggle]'), save = body.querySelector('[data-deduction-detail-save]'), rows = body.querySelector('[data-deduction-detail-rows]'), reasonInput = body.querySelector('[data-deduction-detail-reason]'), amountInput = body.querySelector('[data-deduction-detail-amount]'), countInput = body.querySelector('[data-deduction-detail-count]'), planInput = body.querySelector('[data-deduction-detail-plan]'), feedback = body.querySelector('[data-deduction-detail-feedback]'), identity = deductionRequestIdentity();
+      const toggle = body.querySelector('[data-deduction-detail-toggle]'), save = body.querySelector('[data-deduction-detail-save]'), rows = body.querySelector('[data-deduction-detail-rows]'), statement = body.querySelector('[data-deduction-payment-statement]'), reasonInput = body.querySelector('[data-deduction-detail-reason]'), amountInput = body.querySelector('[data-deduction-detail-amount]'), countInput = body.querySelector('[data-deduction-detail-count]'), planInput = body.querySelector('[data-deduction-detail-plan]'), feedback = body.querySelector('[data-deduction-detail-feedback]'), identity = deductionRequestIdentity();
       const dateInputs = () => [...rows.querySelectorAll('[data-deduction-detail-date]')];
+      const scheduleDates = () => { const inputs = dateInputs(); return inputs.length ? inputs.map(input => input.value) : [...rows.querySelectorAll('[data-deduction-payment-select]')].map(button => button.dataset.deductionPaymentDate); };
       const perPaymentCents = () => { const cents = Math.round(Number(amountInput.value || 0) * 100), count = Number(countInput.value); return isSpecial ? cents / count : cents; };
+      let selectedIndex = 0;
+      const renderStatement = () => {
+        const dates = scheduleDates(), index = Math.max(0, Math.min(selectedIndex, dates.length - 1)), dueDate = dates[index], item = progress.items[index] || { index, status: 'applied' }, settlement = deductionInstallmentSettlement(record, { ...item, dueDate }, index) || deductionWeekBounds(dueDate), payment = index + 1, paymentCount = Math.max(1, Number(countInput.value) || dates.length), amount = deductionStatementAmountForRecord({ ...record, installmentCount: paymentCount, amountCents: Math.round(perPaymentCents()) }, [{ ...item, dueDate, amountCents: Math.round(perPaymentCents()) }]);
+        selectedIndex = index;
+        rows.querySelectorAll('[data-deduction-payment-select]').forEach(button => { const active = Number(button.dataset.deductionPaymentSelect) === index; button.classList.toggle('is-selected', active); button.setAttribute('aria-pressed', String(active)); });
+        statement.innerHTML = '<div class="deduction-payment-statement-copy"><span>Selected payment</span><strong>Payment ' + payment + '/' + paymentCount + '</strong><small>Deduction date: ' + esc(deductionDateLabel(dueDate)) + ' · Commission period: ' + esc(deductionPeriodLabel(settlement)) + '</small></div><div class="deduction-payment-statement-copy"><span>Amount deducted</span><strong>− ' + esc(deductionMoney(amount)) + '</strong><small>' + esc(deductionTypes[record.type] || record.type) + ' · one payment only</small></div><button type="button" data-deduction-payment-download' + (toggle.getAttribute('aria-pressed') === 'true' ? ' disabled' : '') + '>Download weekly PDF</button><p data-deduction-payment-feedback></p>';
+        statement.querySelector('[data-deduction-payment-download]').onclick = async event => {
+          const button = event.currentTarget, message = statement.querySelector('[data-deduction-payment-feedback]'); button.disabled = true; message.textContent = 'Refreshing Commission Rider data from Grafana…';
+          try { await ensureFinanceExportBundle('pdf'); await downloadPdfTable(await deductionPaymentStatementPayload(record, selectedIndex)); message.textContent = 'Weekly PDF downloaded with this payment only.'; }
+          catch (error) { message.textContent = error.message; message.classList.add('is-error'); }
+          finally { button.disabled = toggle.getAttribute('aria-pressed') === 'true'; }
+        };
+      };
       const syncRows = preferredDates => {
-        const count = Math.max(1, Math.min(52, Number(countInput.value) || 1)), existing = preferredDates || dateInputs().map(input => input.value), dates = existing.slice(0, count);
+        const count = Math.max(1, Math.min(52, Number(countInput.value) || 1)), existing = preferredDates || scheduleDates(), dates = existing.slice(0, count);
         while (dates.length < count) dates.push(deductionAddDays(dates.at(-1) || record.deductionDate || deductionToday(), 7));
         const cents = perPaymentCents(), locked = toggle.getAttribute('aria-pressed') !== 'true';
-        rows.innerHTML = dates.map((dueDate, index) => { const item = progress.items[index], settlement = item?.settlementPeriodStart ? item.settlementPeriodStart + ' — ' + item.settlementPeriodEnd : record.periodStart + ' — ' + record.periodEnd; return '<tr><td>' + (index + 1) + '</td><td><input class="deduction-detail-date" type="date" data-deduction-detail-date value="' + esc(dueDate) + '"' + (locked ? ' readonly' : '') + ' required></td><td>' + esc(Number.isInteger(cents) && cents > 0 ? deductionMoney(cents) : '—') + '</td><td>' + esc(item?.status || 'applied') + '</td><td>' + esc(settlement) + '</td></tr>'; }).join('');
+        rows.innerHTML = dates.map((dueDate, index) => { const item = progress.items[index], settlement = deductionInstallmentSettlement(record, { ...item, dueDate }, index) || { start: record.periodStart, end: record.periodEnd }, dateControl = locked ? '<button type="button" class="deduction-statement-date" data-deduction-payment-select="' + index + '" data-deduction-payment-date="' + esc(dueDate) + '"><strong>' + esc(deductionDateLabel(dueDate)) + '</strong><small>Select statement</small></button>' : '<input class="deduction-detail-date" type="date" data-deduction-detail-date value="' + esc(dueDate) + '" required>'; return '<tr><td>Payment ' + (index + 1) + '/' + count + '</td><td>' + dateControl + '</td><td>' + esc(Number.isInteger(cents) && cents > 0 ? deductionMoney(cents) : '—') + '</td><td>' + esc(item?.status || 'applied') + '</td><td>' + esc(deductionPeriodLabel(settlement)) + '</td></tr>'; }).join('');
+        rows.querySelectorAll('[data-deduction-payment-select]').forEach(button => { button.onclick = () => { selectedIndex = Number(button.dataset.deductionPaymentSelect); renderStatement(); }; });
+        renderStatement();
       };
       syncRows(progress.items.map(item => item.dueDate));
-      const snapshot = () => ({ dates: dateInputs().map(input => input.value), reason: reasonInput.value, amount: amountInput.value, count: countInput.value, plan: planInput?.value || record.pricingMode });
+      const snapshot = () => ({ dates: scheduleDates(), reason: reasonInput.value, amount: amountInput.value, count: countInput.value, plan: planInput?.value || record.pricingMode });
       let saving = false, original = snapshot();
-      const lock = locked => { dateInputs().forEach(input => { input.readOnly = locked; }); reasonInput.readOnly = locked; planInput && (planInput.disabled = locked); amountInput.readOnly = locked || record.type === 'epf' || isBattery && planInput.value !== 'manual'; countInput.readOnly = locked || record.type === 'epf' || record.type === 'insurance' || isBattery && planInput.value !== 'manual'; toggle.setAttribute('aria-pressed', String(!locked)); toggle.textContent = locked ? 'Edit details' : 'Cancel edit'; save.hidden = locked; };
+      const lock = locked => { reasonInput.readOnly = locked; planInput && (planInput.disabled = locked); amountInput.readOnly = locked || record.type === 'epf' || isBattery && planInput.value !== 'manual'; countInput.readOnly = locked || record.type === 'epf' || record.type === 'insurance' || isBattery && planInput.value !== 'manual'; toggle.setAttribute('aria-pressed', String(!locked)); toggle.textContent = locked ? 'Edit details' : 'Cancel edit'; save.hidden = locked; syncRows(); };
       toggle.onclick = () => { const editing = toggle.getAttribute('aria-pressed') === 'true'; if (editing) { amountInput.value = original.amount; countInput.value = original.count; if (planInput) planInput.value = original.plan; reasonInput.value = original.reason; syncRows(original.dates); lock(true); } else { original = snapshot(); lock(false); } };
       planInput?.addEventListener('change', () => { if (planInput.value === 'fixed-2') { amountInput.value = '50.00'; countInput.value = '2'; } else if (planInput.value === 'fixed-7') { amountInput.value = '40.00'; countInput.value = '7'; } else if (Number(countInput.value) < 1) countInput.value = '3'; lock(false); syncRows(); });
       amountInput.addEventListener('input', () => syncRows()); countInput.addEventListener('input', () => syncRows());
