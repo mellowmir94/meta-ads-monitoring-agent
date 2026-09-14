@@ -351,7 +351,7 @@ test('deduction history is a dedicated Commission Rider view launched from the g
   assert.match(dashboardHtml, />Upcoming<\/option>/);
   assert.match(dashboardHtml, />Completed<\/option>/);
   assert.doesNotMatch(dashboardHtml, /<th>Next payment<\/th>/);
-  assert.match(dashboardHtml, /data-deduction-history-type-timing/);
+  assert.doesNotMatch(dashboardHtml, /data-deduction-history-type-timing/);
   assert.match(dashboardHtml, /data-deduction-history-type-payment-select/);
   assert.match(dashboardHtml, /data-deduction-history-batch-download/);
   assert.doesNotMatch(dashboardHtml, /data-deduction-history-payment-download/);

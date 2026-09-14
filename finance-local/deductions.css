@@ -158,8 +158,6 @@
 .deduction-history-table-wrap .deduction-overdue { color: var(--danger); }
 .deduction-history-table-wrap table { min-width: 1780px; }
 .deduction-type-heading { min-width: 230px; }
-.deduction-type-heading > span { display: block; margin-bottom: 6px; }
-.deduction-type-heading select { width: 100%; min-height: 28px; font-size: .62rem; font-weight: 700; }
 .deduction-export-check { width: 52px; min-width: 52px; text-align: center !important; }
 .deduction-export-check input { width: 17px; height: 17px; accent-color: var(--accent); }
 .deduction-row-controls { display: grid; justify-items: center; gap: 16px; }
