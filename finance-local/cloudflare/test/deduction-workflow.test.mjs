@@ -15,7 +15,7 @@ function runtime(extra = {}) {
     auditCapture: () => ({ scope: { dates: { start: '2026-09-07', end: '2026-09-13' } } }),
     ...extra,
   });
-  vm.runInContext(source + '\nthis.api = { deductionState, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionFirstFourThursdayWeeks, deductionEpfSchedule, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionHistoryGroups, deductionGroupScheduleProgress, deductionHistoryStatementPayload, deductionPaymentStatementPayload, deductionScheduleNotice, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
+  vm.runInContext(source + '\nthis.api = { deductionState, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionFirstFourThursdayWeeks, deductionEpfSchedule, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionHistoryGroups, deductionGroupScheduleProgress, deductionGroupMatchesTiming, deductionHistoryStatementPayload, deductionPaymentStatementPayload, deductionScheduleNotice, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
   return context.api;
 }
 const rows = [{ rider_name: 'Rider A', created_at: '2026-09-07', commission: 300 }, { rider_name: 'Rider A', created_at: '2026-09-08', commission: 255 }];
@@ -138,6 +138,13 @@ test('History payment progress follows schedule dates and marks an active paymen
   assert.equal(first.label, '1/2 payment'); assert.equal(first.ready, true);
   const second = api.deductionGroupScheduleProgress([schedule], '2026-09-21');
   assert.equal(second.label, '2/2 payment'); assert.equal(second.ready, true);
+});
+test('History timing filter keeps a full request when one of its payments is upcoming', () => {
+  const api = runtime();
+  const request = { records: [record({ installmentCount: 2, installments: [{ index: 0, dueDate: '2026-09-14', status: 'applied' }, { index: 1, dueDate: '2026-09-21', status: 'applied' }] })] };
+  assert.equal(api.deductionGroupMatchesTiming(request, 'current', '2026-09-15'), true);
+  assert.equal(api.deductionGroupMatchesTiming(request, 'upcoming', '2026-09-15'), false);
+  assert.equal(api.deductionGroupMatchesTiming(request, 'upcoming', '2026-09-12'), true);
 });
 test('rider statement PDF allocates later EPF payments to their configured weeks', () => {
   const tableRows = [{ rider_name: 'Rider A', commission: 100 }];
