@@ -154,10 +154,27 @@ test('Ready to download excludes payments already sent to rider', () => {
   assert.equal(api.deductionGroupMatchesTiming(sent, 'sent', '2026-09-15'), true);
   assert.equal(api.deductionGroupMatchesTiming(sent, 'complete', '2026-09-15'), true);
 });
-test('History exposes every payment option while preventing early PDF downloads', () => {
+test('History exposes every payment option while keeping future payments Upcoming', () => {
   const group = { records: [record({ installmentCount: 2, installments: [{ index: 0, dueDate: '2026-09-14', status: 'applied' }, { index: 1, dueDate: '2026-09-21', status: 'applied' }] })] };
   const options = runtime().deductionHistoryPaymentOptions(group, '2026-09-15');
   assert.deepEqual(options.map(option => [option.label, option.state]), [['Insurance · Payment 1/2', 'ready'], ['Insurance · Payment 2/2', 'upcoming']]);
+});
+test('History PDF includes an upcoming applied payment without sending it to the rider', async () => {
+  const columns = [{ key: 'rider_name', label: 'Rider', value: row => row.rider_name }, { key: 'quantity', label: 'Quantity', value: row => row.quantity }, { key: 'commission', label: 'Commission', value: row => row.commission }];
+  const api = runtime({
+    FINANCE_API_ENDPOINT: '/api/grafana/finance', panels: [{ id: 'commission-main', columns }], visibleTableColumns: panel => panel.columns,
+    financeGrafanaFilterParam: () => '{}', requestFinancePayload: async () => ({ response: { ok: true }, payload: { rows: [{ rider_name: 'Rider A', quantity: 1, commission: 300 }] } }),
+    canonicalizeFinancePayloadRows: async (_panel, payload) => payload.rows,
+  });
+  const group = { records: [record({ amountCents: 1944, installmentCount: 2, installments: [
+    { index: 0, dueDate: '2026-09-14', status: 'applied', settlementPeriodStart: '2026-09-07', settlementPeriodEnd: '2026-09-13' },
+    { index: 1, dueDate: '2026-09-21', status: 'applied', settlementPeriodStart: '2026-09-14', settlementPeriodEnd: '2026-09-20' },
+  ] })] };
+  const upcoming = api.deductionHistoryPaymentOptions(group, '2026-09-15')[1];
+  const payload = await api.deductionCombinedPaymentStatementPayload([upcoming], { start: '2026-09-14', end: '2026-09-20' });
+  assert.equal(upcoming.state, 'upcoming');
+  assert.ok(payload.footerRows.some(row => row[0] === 'INSURANCE — PAYMENT 2 OF 2' && row[2] === '- RM 19.44'));
+  assert.ok(payload.footerRows.some(row => row[0] === 'TOTAL DEDUCTED' && row[2] === '- RM 19.44'));
 });
 test('EPF payment 1 is ready for its opening RM25 statement before its scheduled date', () => {
   const group = { records: [record({ type: 'epf', amountCents: 2500, installmentCount: 4, installments: [
