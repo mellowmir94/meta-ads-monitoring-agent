@@ -260,6 +260,7 @@ test('deduction history is a dedicated Commission Rider view launched from the g
   assert.match(dashboardHtml, /data-deduction-history-select/);
   assert.match(dashboardHtml, /data-deduction-delete-batch/);
   assert.match(dashboardHtml, />Delete request<\/button>/);
+  assert.doesNotMatch(dashboardHtml, /cannot be deleted\. Keep it for the audit trail/);
   assert.match(dashboardHtml, /<th>EPF<\/th><th>Insurance<\/th><th>OBD \/ Battery Tester<\/th><th>Special Case<\/th>/);
   assert.match(dashboardHtml, /function deductionHistoryTypeCell/);
   assert.match(dashboardHtml, /function deductionHistoryGroups/);

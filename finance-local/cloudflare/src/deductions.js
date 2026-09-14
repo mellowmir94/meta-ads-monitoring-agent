@@ -137,8 +137,6 @@ export class DeductionRegister {
           const batchId = required(input.batchId, 'Batch ID', 90), all = await tx.list({ prefix: 'record:' });
           const records = [...all.values()].filter(record => (record.batchId || record.id) === batchId);
           if (!records.length) throw new Error('Deduction request batch not found.');
-          const hasPostSaveActivity = records.some(record => (record.audit || []).some(item => ['applied', 'reversed'].includes(item.action)) || record.installments?.some(item => item.status === 'reversed'));
-          if (hasPostSaveActivity) throw new Error('This request has later payment or reversal activity. Retain it for audit; it cannot be deleted.');
           const recordIds = new Set(records.map(record => record.id));
           for (const record of records) {
             await tx.delete('record:' + record.id); await tx.delete(duplicateKey(record));
@@ -153,7 +151,7 @@ export class DeductionRegister {
             const linked = key === 'request:' + batchId || recordIds.has(receipt?.result?.id) || receipt?.result?.batchId === batchId || receipt?.result?.records?.some(item => recordIds.has(item.id));
             if (linked) await tx.delete(key);
           }
-          const deleted = { batchId, rider: records[0].rider, records: records.map(record => ({ id: record.id, reference: record.reference, type: record.type, status: record.status, amountCents: record.amountCents, installmentCount: record.installmentCount })), deletedAt: now, deletedBy: actor.name, role: actor.role, reason: 'PIN-authorized deletion before any payment was applied' };
+          const deleted = { batchId, rider: records[0].rider, records: records.map(record => ({ id: record.id, reference: record.reference, type: record.type, status: record.status, amountCents: record.amountCents, installmentCount: record.installmentCount })), deletedAt: now, deletedBy: actor.name, role: actor.role, reason: 'PIN-authorized deletion of deduction request' };
           await tx.put('deleted:' + batchId, deleted); result = { batchId, deleted: records.length };
         } else if (url.pathname === '/create' || url.pathname === '/create-batch') {
           const common = url.pathname === '/create-batch' ? input : {};

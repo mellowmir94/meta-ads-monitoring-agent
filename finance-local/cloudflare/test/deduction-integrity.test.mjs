@@ -116,7 +116,7 @@ test('source row irregularities do not block a valid recorded EPF request', asyn
   const dates = setup([{ ...row, commission: 350, created_at: '2026-08-31 12:00:00' }]);
   assert.equal((await call(dates.env, '/create', epf)).status, 201);
 });
-test('PIN deletion removes an unmodified direct-applied batch, retains a tombstone and rejects later audit activity', async () => {
+test('PIN deletion removes deduction batches regardless of status and retains tombstones', async () => {
   const state = setup();
   const batch = await call(state.env, '/create-batch', { rider: base.rider, periodStart: base.periodStart, periodEnd: base.periodEnd, createdBy: base.createdBy, lines: [base, { ...base, type: 'manual', subtype: 'other' }] });
   assert.equal((await call(state.env, '/delete-batch', { batchId: batch.body.batchId, pin: '1111' })).status, 403);
@@ -127,8 +127,12 @@ test('PIN deletion removes an unmodified direct-applied batch, retains a tombsto
   const changedState = setup(), created = await call(changedState.env, '/create', base);
   await call(changedState.env, '/reverse', { recordId: created.body.id, reason: 'Correction after save' }, checker);
   const changedRecord = await changedState.storage.get('record:' + created.body.id);
-  const blocked = await call(changedState.env, '/delete-batch', { batchId: changedRecord.batchId, pin: '4321' });
-  assert.equal(blocked.status, 400); assert.match(blocked.body.error, /later payment or reversal activity/i);
+  const deletedChanged = await call(changedState.env, '/delete-batch', { batchId: changedRecord.batchId, pin: '4321' });
+  assert.equal(deletedChanged.status, 201); assert.equal(deletedChanged.body.deleted, 1);
+  assert.equal(await changedState.storage.get('record:' + created.body.id), undefined);
+  const changedTombstone = await changedState.storage.get('deleted:' + changedRecord.batchId);
+  assert.equal(changedTombstone.records.length, 1);
+  assert.match(changedTombstone.reason, /PIN-authorized deletion/i);
 });
 test('a saved request retry returns its receipt during upstream failure and cannot cross actions', async () => {
   const state = setup(); const requestId = crypto.randomUUID();
