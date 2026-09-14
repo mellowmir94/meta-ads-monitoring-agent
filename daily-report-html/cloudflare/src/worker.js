@@ -772,7 +772,10 @@ function prepareFinanceSql(rawSql, panelKey, window, dashboard = null, options =
   }
 
   if (panelKey === 'commission-main') {
-    sql = sql.replace(/cr\.rider_name,/, 'cr.rider_name,\n  cr.riderPosition AS rider_category,');
+    // Only extend a standalone SELECT-list projection. A loose substring
+    // replacement also matches COALESCE(cr.rider_name, ''), inserting an alias
+    // inside the function call and making the saved Grafana SQL invalid.
+    sql = sql.replace(/^(\s*)cr\.rider_name\s*,\s*$/im, '$1cr.rider_name,\n$1cr.riderPosition AS rider_category,');
   } else if (panelKey === 'daily-sales-branch-overview' || panelKey === 'daily-sales-hq-dealer-overview') {
     if (options.primary) {
       sql = sql.replace(/\bSELECT\s+(?:DISTINCT\s+)?/i, (match) => `${match}\n  created_at,\n  typeofpayment,\n  product_category,\n  stock_location,\n  `);
@@ -1106,7 +1109,12 @@ async function queryCommissionPrimaryBundle(env, window, options = {}) {
     countQuery ? runQuery(countQuery).catch(() => null) : Promise.resolve(null),
     totalQuery ? runQuery(totalQuery).catch(() => null) : Promise.resolve(null)
   ]);
-  if (!detailResponse.ok) throw Object.assign(new Error(`Grafana could not return Commission Rider data (HTTP ${detailResponse.status}).`), { status: detailResponse.status });
+  if (!detailResponse.ok) {
+    const failure = await detailResponse.clone().json().catch(() => null);
+    const failureMessage = String(failure && failure.results && failure.results.A && failure.results.A.error || '').slice(0, 300);
+    console.error('Commission Rider Grafana query failed.', JSON.stringify({ status: detailResponse.status, error: failureMessage }));
+    throw Object.assign(new Error(`Grafana could not return Commission Rider data (HTTP ${detailResponse.status}).`), { status: detailResponse.status });
+  }
   const payload = await detailResponse.json();
   const countPayload = countResponse && countResponse.ok ? await countResponse.json() : null;
   const totalPayload = totalResponse && totalResponse.ok ? await totalResponse.json() : null;

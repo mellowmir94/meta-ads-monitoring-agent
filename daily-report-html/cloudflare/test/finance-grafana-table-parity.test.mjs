@@ -212,6 +212,24 @@ WHERE cr.created_at >= TIMESTAMP_MILLIS(\${__from})
   assert.equal((sql.match(/\(/g) || []).length, (sql.match(/\)/g) || []).length);
 });
 
+test('Commission rider_category projection never corrupts an earlier rider_name expression', () => {
+  const rawSql = `WITH normalized AS (
+  SELECT TRIM(COALESCE(cr.rider_name, '')) AS clean_rider
+  FROM finance.commission_rider AS cr
+), detail AS (
+  SELECT
+    cr.order_id,
+    cr.rider_name,
+    cr.commission
+  FROM finance.commission_rider AS cr
+)
+SELECT * FROM detail`;
+  const sql = prepareFinanceSql(rawSql, 'commission-main', window, { templating: { list: [] } }, { primary: true });
+  assert.match(sql, /COALESCE\(cr\.rider_name, ''\)/);
+  assert.match(sql, /^\s*cr\.riderPosition AS rider_category,/m);
+  assert.doesNotMatch(sql, /COALESCE\(cr\.rider_name,\s*\n\s*cr\.riderPosition AS rider_category/);
+});
+
 test('Finance snapshots use stable canonical keys and part-specific freshness', () => {
   const refreshUrl = new URL('https://example.test/api/internal/finance-data?scope=grafana&panel=commission-main&refresh=1&part=primary');
   const normalUrl = new URL('https://example.test/api/internal/finance-data?panel=commission-main&part=primary&scope=grafana');
