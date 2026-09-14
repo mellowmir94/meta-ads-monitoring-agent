@@ -2209,6 +2209,15 @@
       font-weight: 800;
     }
     .nav-icon svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .dashboard-nav-overflow { position: relative; }
+    .dashboard-nav-overflow-trigger { justify-content: center; width: 40px; min-height: 34px; padding: 4px; color: var(--text-soft); font-size: 1.1rem; letter-spacing: .1em; line-height: 1; }
+    .dashboard-nav-overflow-trigger:hover, .dashboard-nav-overflow-trigger[aria-expanded="true"] { border-color: var(--line); background: var(--surface-muted); color: var(--text); }
+    .dashboard-nav-overflow-menu { position: absolute; z-index: 220; top: 0; left: calc(100% + 8px); display: none; width: 220px; padding: 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-strong); box-shadow: 0 16px 34px color-mix(in srgb, var(--text) 24%, transparent); }
+    .dashboard-nav-overflow.is-open .dashboard-nav-overflow-menu { display: grid; gap: 2px; }
+    .dashboard-nav-overflow-menu button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 7px 8px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--text); font: inherit; font-size: .72rem; font-weight: 620; text-align: left; }
+    .dashboard-nav-overflow-menu button:hover, .dashboard-nav-overflow-menu button:focus-visible { border-color: var(--line); background: var(--surface-muted); outline: none; }
+    .dashboard-nav-overflow-menu button.active { color: var(--accent-strong); }
+    .dashboard-nav-overflow-menu .nav-icon { flex-basis: 20px; width: 20px; height: 20px; }
     .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
     .nav-button.active,
     .nav-button[aria-selected="true"],
@@ -6348,13 +6357,18 @@
       <div class="brand"><span class="brand-mark" aria-label="Bateriku Ledger">BL</span><div><strong>Bateriku Ledger</strong><small>Finance Control</small></div></div>
       <nav class="nav" aria-label="Finance dashboards" role="tablist">
         <button class="nav-button" type="button" role="tab" data-tab="commission"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-commission"></use></svg></span>Commission Rider</button>
-        <button class="nav-button" type="button" role="tab" data-tab="reimbursement"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-reimbursement"></use></svg></span>Reimbursement</button>
-        <button class="nav-button" type="button" role="tab" data-tab="branch"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-branch"></use></svg></span>Branch Overview</button>
-        <button class="nav-button" type="button" role="tab" data-tab="hqdealer"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-hq"></use></svg></span>HQ &amp; Dealer Overview</button>
-        <button class="nav-button" type="button" role="tab" data-tab="jobbooking" data-optional-tab="jobbooking"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-booking"></use></svg></span>Job Booking</button>
-        <button class="nav-button" type="button" role="tab" data-tab="pendingjob" data-optional-tab="pendingjob"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-pending-job"></use></svg></span>Pending Job</button>
-        <button class="nav-button" type="button" role="tab" data-tab="pendingpayment" data-optional-tab="pendingpayment"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-payment"></use></svg></span>Pending Payment</button>
-        <button class="nav-button" type="button" role="tab" data-tab="quantity" data-optional-tab="quantity"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-quantity"></use></svg></span>Quantity by Pitstop</button>
+        <div class="dashboard-nav-overflow" id="dashboardNavOverflow">
+          <button class="nav-button dashboard-nav-overflow-trigger" type="button" data-dashboard-nav-more aria-expanded="false" aria-controls="dashboardNavOverflowMenu" title="Other Finance dashboards"><span aria-hidden="true">•••</span><span class="sr-only">Other Finance dashboards</span></button>
+          <div class="dashboard-nav-overflow-menu" id="dashboardNavOverflowMenu" role="menu" aria-label="Other Finance dashboards">
+            <button type="button" role="menuitem" data-tab="reimbursement"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-reimbursement"></use></svg></span>Reimbursement</button>
+            <button type="button" role="menuitem" data-tab="branch"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-branch"></use></svg></span>Branch Overview</button>
+            <button type="button" role="menuitem" data-tab="hqdealer"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-hq"></use></svg></span>HQ &amp; Dealer Overview</button>
+            <button type="button" role="menuitem" data-tab="jobbooking" data-optional-tab="jobbooking"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-booking"></use></svg></span>Job Booking</button>
+            <button type="button" role="menuitem" data-tab="pendingjob" data-optional-tab="pendingjob"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-pending-job"></use></svg></span>Pending Job</button>
+            <button type="button" role="menuitem" data-tab="pendingpayment" data-optional-tab="pendingpayment"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-payment"></use></svg></span>Pending Payment</button>
+            <button type="button" role="menuitem" data-tab="quantity" data-optional-tab="quantity"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-quantity"></use></svg></span>Quantity by Pitstop</button>
+          </div>
+        </div>
       </nav>
       <button class="sidebar-toggle sidebar-collapse" id="sidebarToggle" type="button" aria-controls="financeSidebar" aria-expanded="true" title="Hide sidebar">
         <span class="sidebar-toggle-icon" aria-hidden="true">&#171;</span>
@@ -9223,6 +9237,13 @@
         $("#activeDashboardDescription").textContent = active.description;
         if ($("#railDashboardTitle")) $("#railDashboardTitle").textContent = active.title;
         if ($("#dashboardSelector")) $("#dashboardSelector").value = active.id;
+      }
+
+      function setDashboardNavOverflow(open) {
+        const overflow = $("#dashboardNavOverflow"), trigger = overflow?.querySelector("[data-dashboard-nav-more]");
+        if (!overflow || !trigger) return;
+        overflow.classList.toggle("is-open", Boolean(open));
+        trigger.setAttribute("aria-expanded", String(Boolean(open)));
       }
 
       function syncRailChrome(panel) {
@@ -14473,12 +14494,18 @@
         if (trendZoom) { const panel = panels.find((item) => item.id === trendZoom.dataset.trendZoom); if (panel) { const pointCount = trendPointCount(panel); const zoom = chartState(panel).zoom; const current = Math.max(2, zoom.end - zoom.start + 1); const count = trendZoom.dataset.trendZoomValue === "in" ? Math.max(2, current - 1) : Math.min(pointCount, current + 1); zoom.end = Math.min(pointCount - 1, zoom.start + count - 1); render(); } return; }
         const trendReset = event.target.closest("[data-trend-reset]");
         if (trendReset) { const panel = panels.find((item) => item.id === trendReset.dataset.trendReset); if (panel) { chartState(panel).zoom = { start: 0, end: -1, yLow: 0, yHigh: 100 }; render(); } return; }
+        const dashboardNavMore = event.target.closest("[data-dashboard-nav-more]");
+        if (dashboardNavMore) {
+          setDashboardNavOverflow(dashboardNavMore.getAttribute("aria-expanded") !== "true");
+          return;
+        }
         const tabButton = event.target.closest("[data-tab]");
         if (tabButton) {
           if (document.body.classList.contains("arrange-finance-visuals")) setFinanceArrangeMode(false);
           state.openTableFilter = null;
           state.activeTab = tabButton.dataset.tab;
           localStorage.setItem(ACTIVE_TAB_KEY, state.activeTab);
+          setDashboardNavOverflow(false);
           render();
           if (LOCAL_PREVIEW) setStatus("Local layout preview", "The browser sample is being used only to verify layout and interactions.");
           else await loadActiveTabData();
@@ -14886,6 +14913,13 @@
         $("#logoutButton").disabled = true;
         try { await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }); }
         finally { location.replace("/login"); }
+      });
+
+      document.addEventListener("pointerdown", (event) => {
+        if (!event.target.closest("#dashboardNavOverflow")) setDashboardNavOverflow(false);
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") setDashboardNavOverflow(false);
       });
 
       async function maintainConcurrencyLease() {
