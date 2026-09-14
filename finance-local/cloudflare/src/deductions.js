@@ -86,9 +86,13 @@ export class DeductionRegister {
     const records = await this.storage.transaction(async tx => {
       const page = await tx.list({ prefix: 'record:', limit: 101, ...(after ? { startAfter: after } : {}) }); let upgraded = 0;
       for (const [key, record] of page) {
-        if (record.status !== 'pending') continue;
-        const at = this.now().toISOString(); record.status = record.approvalStatus = 'approved'; record.approvedBy = record.createdBy || actor.name; record.approvedAt = at;
-        record.audit = [...(record.audit || []), { action: 'proceeded', at, by: record.createdBy || actor.name, role: 'finance', identityVerified: false, amountCents: record.amountCents, reason: 'Converted from the retired pending approval workflow' }];
+        const scheduled = (record.installments || []).filter(item => item.status === 'scheduled');
+        if (!['pending', 'approved'].includes(record.status)) continue;
+        const at = this.now().toISOString(), appliedBy = record.createdBy || actor.name;
+        record.installments = (record.installments || []).map(item => item.status === 'scheduled' ? { ...item, status: 'applied', appliedAt: at, appliedBy, paymentDate: at.slice(0, 10), settlementPeriodStart: record.periodStart, settlementPeriodEnd: record.periodEnd, ...(record.type === 'epf' ? { epfContributionMonth: nextMonth(at.slice(0, 10)) } : {}) } : item);
+        record.status = record.approvalStatus = 'applied'; record.approvedBy = appliedBy; record.approvedAt ||= at;
+        if (record.type === 'epf') record.epfContributionMonth = nextMonth(at.slice(0, 10));
+        record.audit = [...(record.audit || []), { action: 'automatically-applied', at, by: appliedBy, role: 'finance', identityVerified: false, amountCents: scheduled.reduce((sum, item) => sum + Number(item.amountCents ?? record.amountCents ?? 0), 0), reason: 'Converted to the direct-apply Finance workflow' }];
         await tx.put(key, record); upgraded += 1;
       }
       if (upgraded) await tx.put('counter:revision', Number(await tx.get('counter:revision') || 0) + 1);
@@ -133,7 +137,8 @@ export class DeductionRegister {
           const batchId = required(input.batchId, 'Batch ID', 90), all = await tx.list({ prefix: 'record:' });
           const records = [...all.values()].filter(record => (record.batchId || record.id) === batchId);
           if (!records.length) throw new Error('Deduction request batch not found.');
-          if (records.some(record => record.installments?.some(item => item.status === 'applied' || item.status === 'reversed' || item.appliedAt))) throw new Error('This request has applied payment history. Reverse or retain it for audit; it cannot be deleted.');
+          const hasPostSaveActivity = records.some(record => (record.audit || []).some(item => ['applied', 'reversed'].includes(item.action)) || record.installments?.some(item => item.status === 'reversed'));
+          if (hasPostSaveActivity) throw new Error('This request has later payment or reversal activity. Retain it for audit; it cannot be deleted.');
           const recordIds = new Set(records.map(record => record.id));
           for (const record of records) {
             await tx.delete('record:' + record.id); await tx.delete(duplicateKey(record));
@@ -167,23 +172,24 @@ export class DeductionRegister {
               for (const record of previous.values()) {
                 if (record.type === 'epf' && record.riderKey === data.riderKey && record.periodStart === data.periodStart && record.periodEnd === data.periodEnd && !inactive(record)) throw new Error(`An EPF deduction already exists for this rider and commission week (${record.reference || record.id}).`);
               }
-              const bucket = 'epf:' + encodeURIComponent(data.riderKey) + ':' + data.deductionDate.slice(0, 7);
-              const active = [...previous.values()].filter(record => record.type === 'epf' && record.riderKey === data.riderKey && !inactive(record) && epfHoldMonth(record) === data.deductionDate.slice(0, 7)).map(record => record.id);
+              const paymentMonth = now.slice(0, 7), bucket = 'epf:' + encodeURIComponent(data.riderKey) + ':' + paymentMonth;
+              const active = [...previous.values()].filter(record => record.type === 'epf' && record.riderKey === data.riderKey && !inactive(record) && epfHoldMonth(record) === paymentMonth).map(record => record.id);
               if (active.length >= 4) throw new Error('This rider already has four active EPF deductions for this month.');
               await tx.put(bucket, [...active, `${input.requestId}-${index + 1}`]);
               await tx.put(epfWeekKey(data), `${input.requestId}-${index + 1}`);
             }
             const counter = Number(await tx.get('counter:reference') || 0) + 1; await tx.put('counter:reference', counter);
             const id = `${input.requestId}-${index + 1}`; const reference = `DED-${now.slice(0, 7).replace('-', '')}-${String(counter).padStart(6, '0')}`;
-            const record = { ...data, status: 'approved', approvalStatus: 'approved', approvedBy: data.createdBy, approvedAt: now, id, batchId: input.requestId, reference, createdAt: now, creatorSession: actor.sessionId, audit: [{ action: 'created-and-proceeded', at: now, by: data.createdBy, role: actor.role, identityVerified: false, selfDeclared: true, amountCents: data.amountCents, ...(data.type === 'epf' ? { recordedWeeklyCommissionCents: data.reportedWeeklyCommissionCents } : {}), reason: data.reason || 'Finance proceeded with active deduction schedule' }] };
-            await tx.put('record:' + id, record); await tx.put(duplicateKey(data), id); created.push({ id, reference, type: data.type, status: 'approved' });
+            const installments = data.installments.map(item => ({ ...item, status: 'applied', appliedAt: now, appliedBy: data.createdBy, paymentDate: now.slice(0, 10), settlementPeriodStart: data.periodStart, settlementPeriodEnd: data.periodEnd, ...(data.type === 'epf' ? { epfContributionMonth: nextMonth(now.slice(0, 10)) } : {}) }));
+            const record = { ...data, installments, ...(data.type === 'epf' ? { epfContributionMonth: nextMonth(now.slice(0, 10)) } : {}), status: 'applied', approvalStatus: 'applied', approvedBy: data.createdBy, approvedAt: now, id, batchId: input.requestId, reference, createdAt: now, creatorSession: actor.sessionId, audit: [{ action: 'created-and-applied', at: now, by: data.createdBy, role: actor.role, identityVerified: false, selfDeclared: true, amountCents: data.scheduledAmountCents, ...(data.type === 'epf' ? { recordedWeeklyCommissionCents: data.reportedWeeklyCommissionCents } : {}), reason: data.reason || 'Finance saved and applied this deduction' }] };
+            await tx.put('record:' + id, record); await tx.put(duplicateKey(data), id); created.push({ id, reference, type: data.type, status: 'applied' });
           }
-          result = { batchId: input.requestId, records: created, id: created[0].id, reference: created[0].reference, approvalStatus: 'approved' };
+          result = { batchId: input.requestId, records: created, id: created[0].id, reference: created[0].reference, approvalStatus: 'applied' };
         } else {
           const record = await tx.get('record:' + required(input.recordId, 'Record ID', 90));
           if (!record) throw new Error('Deduction record not found.');
           const reason = String(input.reason || '').trim(); const checker = checkerRoles.has(actor.role);
-          const alreadyProceeded = url.pathname === '/approve' && record.status === 'approved';
+          const alreadyProceeded = url.pathname === '/approve' && ['approved', 'applied'].includes(record.status);
           if (!alreadyProceeded && ['/approve', '/reject', '/reverse'].includes(url.pathname) && !checker) throw new Error('Authorized Finance checker access is required.');
           if (!alreadyProceeded && ['/approve', '/reject'].includes(url.pathname) && record.creatorSession === actor.sessionId) throw new Error('Maker-checker rule: the creator cannot approve or reject their own request.');
           if (url.pathname === '/approve') {

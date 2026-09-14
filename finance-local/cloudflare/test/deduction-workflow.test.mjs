@@ -88,12 +88,13 @@ test('rider statement PDF keeps all filtered table rows and subtracts only appli
   const api = runtime({ financeTableExportPayload: () => ({ title: 'Line Item Audit', panelTitle: 'Commission Rider', filename: 'Commission', columns, rows: tableRows, footer: ['Filtered total', 'RM 555.00'], period: '2026-09-07 - 2026-09-13' }) });
   const payload = api.deductionHistoryStatementPayload([
     record({ batchId: 'batch-one' }),
-    record({ id: 'epf', batchId: 'batch-one', type: 'epf', amountCents: 2500, status: 'approved', installments: [{ index: 0, dueDate: '2026-09-14', status: 'scheduled' }] }),
+    record({ id: 'epf', batchId: 'batch-one', type: 'epf', amountCents: 2500, status: 'applied', installments: [{ index: 0, dueDate: '2026-09-14', status: 'applied', settlementPeriodStart: '2026-09-07', settlementPeriodEnd: '2026-09-13' }] }),
   ]);
-  assert.equal(payload.rows.length, 2); assert.equal(payload.summary.value, 'RM 543.00');
-  assert.deepEqual(Array.from(payload.footerRows.at(-1)), ['NET COMMISSION', 'RM 543.00']);
-  assert.ok(payload.footerRows.some(row => row[0] === 'EPF (scheduled)' && row[1] === '- RM 25.00'));
-  assert.ok(payload.footerRows.some(row => row[0] === 'SCHEDULED DEDUCTIONS' && row[1] === 'RM 37.00'));
+  assert.equal(payload.rows.length, 2); assert.equal(payload.summary.value, 'RM 518.00');
+  assert.deepEqual(Array.from(payload.footerRows.at(-1)), ['NET COMMISSION', 'RM 518.00']);
+  assert.ok(payload.footerRows.some(row => row[0] === 'EPF (applied)' && row[1] === '- RM 25.00'));
+  assert.ok(payload.footerRows.some(row => row[0] === 'APPLIED DEDUCTIONS' && row[1] === '- RM 37.00'));
+  assert.equal(payload.footerRows.some(row => row[0].includes('SCHEDULED')), false);
 });
 test('same request payload retries keep idempotency ID; changed payload gets a new one', () => {
   const identify = runtime().deductionRequestIdentity(), first = identify({ rider: 'A', amount: 25 });

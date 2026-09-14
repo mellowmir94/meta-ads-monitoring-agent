@@ -65,8 +65,9 @@ test('EPF creation does not depend on Grafana but keeps the recorded RM300 and f
   const unavailable = setup(); delete unavailable.env.GRAFANA_PROXY;
   const created = await call(unavailable.env, '/create', { ...epf, weeklyCommission: '350' });
   assert.equal(created.status, 201);
-  assert.equal((await call(unavailable.env, '/approve', { recordId: created.body.id }, checker)).status, 201);
-  assert.equal((await unavailable.storage.get('record:' + created.body.id)).status, 'approved');
+  const record = await unavailable.storage.get('record:' + created.body.id);
+  assert.equal(record.status, 'applied');
+  assert.equal(record.installments[0].status, 'applied');
   assert.equal((await call(setup().env, '/create', { ...epf, weeklyCommission: '299.99' })).status, 400);
   assert.equal((await call(setup().env, '/create', { ...epf, periodStart: '2026-09-08' })).status, 400);
 });
@@ -79,40 +80,28 @@ test('same rider week cannot be duplicated by changing hold date or month, inclu
   for (const key of [...state.storage.data.keys()]) if (key.startsWith('epf-week:')) state.storage.data.delete(key);
   assert.equal((await call(state.env, '/create', { ...epf, deductionDate: '2026-11-01' })).status, 400);
 });
-test('application requires explicit installment, non-future payment date and an independent earned commission week', async () => {
+test('creation applies every installment immediately to the selected earned commission week', async () => {
   const state = setup(); const created = await call(state.env, '/create', base);
   assert.equal(created.status, 201);
-  await call(state.env, '/approve', { recordId: created.body.id }, checker);
-  assert.equal((await call(state.env, '/apply', { recordId: created.body.id }, checker)).status, 400);
-  assert.equal((await call(state.env, '/apply', { recordId: created.body.id, installmentIndex: 0, paymentDate: '2026-10-01' }, checker)).status, 400);
-  assert.equal((await call(state.env, '/apply', { recordId: created.body.id, installmentIndex: 1, paymentDate: '2026-09-20' }, checker)).status, 400);
-  const applied = await call(state.env, '/apply', { recordId: created.body.id, installmentIndex: 0, paymentDate: '2026-09-22' }, checker);
-  assert.equal(applied.status, 201);
   const record = await state.storage.get('record:' + created.body.id);
-  assert.equal(record.installments[0].paymentDate, '2026-09-22');
-  assert.equal(record.installments[0].settlementPeriodStart, '2026-09-07');
-  assert.equal(record.installments[0].settlementPeriodEnd, '2026-09-13');
-  assert.equal(record.audit.at(-1).paymentDate, '2026-09-22');
-  assert.equal((await call(state.env, '/apply', { recordId: created.body.id, installmentIndex: 0, paymentDate: '2026-09-22' }, checker)).status, 400);
-  assert.equal((await call(state.env, '/apply', { recordId: created.body.id, installmentIndex: 1, paymentDate: '2026-09-22', settlementPeriodStart: '', settlementPeriodEnd: '' }, checker)).status, 400);
-  assert.equal((await call(state.env, '/apply', { recordId: created.body.id, installmentIndex: 1, paymentDate: '2026-09-22', settlementPeriodStart: '2026-09-08', settlementPeriodEnd: '2026-09-14' }, checker)).status, 400);
+  assert.equal(record.status, 'applied');
+  assert.equal(record.installments.every(item => item.status === 'applied'), true);
+  assert.equal(record.installments.every(item => item.paymentDate === '2026-09-23'), true);
+  assert.equal(record.installments.every(item => item.settlementPeriodStart === '2026-09-07' && item.settlementPeriodEnd === '2026-09-13'), true);
+  assert.equal(record.audit.at(-1).action, 'created-and-applied');
 });
-test('reversing a partially applied plan cancels its unapplied remainder and preserves application history', async () => {
+test('reversing a direct-applied plan reverses its full installment breakdown', async () => {
   const state = setup(); const created = await call(state.env, '/create', base);
-  await call(state.env, '/approve', { recordId: created.body.id }, checker);
-  await call(state.env, '/apply', { recordId: created.body.id, installmentIndex: 0, paymentDate: '2026-09-22' }, checker);
   const reversed = await call(state.env, '/reverse', { recordId: created.body.id, reason: 'Wrong policy; cancel remaining payments' }, checker);
   assert.equal(reversed.status, 201);
   const record = await state.storage.get('record:' + created.body.id);
-  assert.deepEqual(record.installments.map(item => item.status), ['reversed', 'cancelled']);
+  assert.deepEqual(record.installments.map(item => item.status), ['reversed', 'reversed']);
   assert.ok(record.installments[0].appliedAt);
-  assert.equal(record.audit.filter(entry => entry.action === 'applied').length, 1);
-  assert.equal(record.reversal.amountCents, 5000);
+  assert.equal(record.audit.filter(entry => entry.action === 'created-and-applied').length, 1);
+  assert.equal(record.reversal.amountCents, 10000);
 });
-test('partial reversal targets one applied installment without losing other applied or scheduled entries', async () => {
+test('partial reversal targets one installment without losing the other applied installment', async () => {
   const state = setup(); const created = await call(state.env, '/create', base);
-  await call(state.env, '/approve', { recordId: created.body.id }, checker);
-  for (const installmentIndex of [0, 1]) await call(state.env, '/apply', { recordId: created.body.id, installmentIndex, paymentDate: '2026-09-22' }, checker);
   assert.equal((await call(state.env, '/reverse', { recordId: created.body.id, installmentIndex: 0, reason: 'First installment returned' }, checker)).status, 201);
   const record = await state.storage.get('record:' + created.body.id);
   assert.deepEqual(record.installments.map(item => item.status), ['reversed', 'applied']);
@@ -127,7 +116,7 @@ test('source row irregularities do not block a valid recorded EPF request', asyn
   const dates = setup([{ ...row, commission: 350, created_at: '2026-08-31 12:00:00' }]);
   assert.equal((await call(dates.env, '/create', epf)).status, 201);
 });
-test('PIN deletion removes an unapplied batch, retains a tombstone and rejects applied history', async () => {
+test('PIN deletion removes an unmodified direct-applied batch, retains a tombstone and rejects later audit activity', async () => {
   const state = setup();
   const batch = await call(state.env, '/create-batch', { rider: base.rider, periodStart: base.periodStart, periodEnd: base.periodEnd, createdBy: base.createdBy, lines: [base, { ...base, type: 'manual', subtype: 'other' }] });
   assert.equal((await call(state.env, '/delete-batch', { batchId: batch.body.batchId, pin: '1111' })).status, 403);
@@ -135,12 +124,11 @@ test('PIN deletion removes an unapplied batch, retains a tombstone and rejects a
   assert.equal(deleted.status, 201); assert.equal(deleted.body.deleted, 2);
   assert.equal([...state.storage.data.keys()].filter(key => key.startsWith('record:')).length, 0);
   assert.equal((await state.storage.get('deleted:' + batch.body.batchId)).records.length, 2);
-  const appliedState = setup(), created = await call(appliedState.env, '/create', base);
-  await call(appliedState.env, '/approve', { recordId: created.body.id }, checker);
-  await call(appliedState.env, '/apply', { recordId: created.body.id, installmentIndex: 0, paymentDate: '2026-09-22' }, checker);
-  const appliedRecord = await appliedState.storage.get('record:' + created.body.id);
-  const blocked = await call(appliedState.env, '/delete-batch', { batchId: appliedRecord.batchId, pin: '4321' });
-  assert.equal(blocked.status, 400); assert.match(blocked.body.error, /applied payment history/i);
+  const changedState = setup(), created = await call(changedState.env, '/create', base);
+  await call(changedState.env, '/reverse', { recordId: created.body.id, reason: 'Correction after save' }, checker);
+  const changedRecord = await changedState.storage.get('record:' + created.body.id);
+  const blocked = await call(changedState.env, '/delete-batch', { batchId: changedRecord.batchId, pin: '4321' });
+  assert.equal(blocked.status, 400); assert.match(blocked.body.error, /later payment or reversal activity/i);
 });
 test('a saved request retry returns its receipt during upstream failure and cannot cross actions', async () => {
   const state = setup(); const requestId = crypto.randomUUID();
@@ -152,16 +140,14 @@ test('a saved request retry returns its receipt during upstream failure and cann
 });
 test('R2 snapshots contain every record, audit, index and receipt and restore deterministically into an empty store', async () => {
   const state = setup(); const created = await call(state.env, '/create', base);
-  await call(state.env, '/approve', { recordId: created.body.id }, checker);
-  await call(state.env, '/apply', { recordId: created.body.id, installmentIndex: 0, paymentDate: '2026-09-22' }, checker);
-  assert.equal(state.backups.length, 3);
+  assert.equal(state.backups.length, 1);
   const latest = state.backups.at(-1).body;
   const validated = await validateDeductionSnapshot(latest);
   assert.deepEqual(validated, new Map([...state.storage.data].sort(([a], [b]) => a.localeCompare(b))));
   assert.ok(validated.get('record:' + created.body.id).creatorSession);
   assert.ok([...validated.keys()].some(key => key.startsWith('request:')));
   const restored = new MemoryStorage();
-  assert.deepEqual(await restoreDeductionSnapshot(restored, latest), { revision: 3, records: 1, entries: validated.size });
+  assert.deepEqual(await restoreDeductionSnapshot(restored, latest), { revision: 1, records: 1, entries: validated.size });
   assert.deepEqual(await createDeductionSnapshot(restored, latest.createdAt), latest);
   await assert.rejects(restoreDeductionSnapshot(restored, latest), /empty/);
   const corrupt = structuredClone(latest); corrupt.entries.find(([key]) => key.startsWith('record:'))[1].amountCents = 1;
@@ -186,7 +172,7 @@ test('EPF uniqueness remains atomic when same-week requests use different dates 
   assert.equal(results.filter(result => result.status === 201).length, 1);
   assert.equal(results.filter(result => result.status === 400).length, 1);
 });
-test('the actual EPF payment month enforces its own four-hold cap and next-month allocation', async () => {
+test('direct-applied EPF uses the save month for its four-hold cap and next-month allocation', async () => {
   const state = setup();
   state.env.GRAFANA_PROXY.fetch = async request => {
     const query = new URL(request.url).searchParams;
@@ -194,23 +180,19 @@ test('the actual EPF payment month enforces its own four-hold cap and next-month
     return Response.json({ ok: true, source: 'Grafana Finance', panel: 'commission-main', part: 'primary', rows, rowCount: 1, from: query.get('from') + ' 00:00:00', to: query.get('to') + ' 23:59:59', truncated: false });
   };
   const weeks = [['2026-07-27', '2026-08-02'], ['2026-08-03', '2026-08-09'], ['2026-08-10', '2026-08-16'], ['2026-08-17', '2026-08-23'], ['2026-08-24', '2026-08-30']];
-  const ids = [];
+  const ids = [], outcomes = [];
   for (let index = 0; index < weeks.length; index += 1) {
     const [periodStart, periodEnd] = weeks[index];
     const created = await call(state.env, '/create', { ...epf, periodStart, periodEnd, deductionDate: index === 4 ? '2026-08-31' : '2026-09-14' });
-    assert.equal(created.status, 201); ids.push(created.body.id);
+    outcomes.push(created); if (created.status === 201) ids.push(created.body.id);
   }
-  await call(state.env, '/approve', { recordId: ids[4] }, checker);
-  const apply = { recordId: ids[4], installmentIndex: 0, paymentDate: '2026-09-22', settlementPeriodStart: weeks[4][0], settlementPeriodEnd: weeks[4][1] };
-  const blocked = await call(state.env, '/apply', apply, checker);
-  assert.equal(blocked.status, 400);
-  assert.match(blocked.body.error, /four.*actual payment month/);
-  await call(state.env, '/cancel', { recordId: ids[0], reason: 'Duplicate hold removed' });
-  assert.equal((await call(state.env, '/apply', apply, checker)).status, 201);
-  const record = await state.storage.get('record:' + ids[4]);
+  assert.equal(outcomes.filter(result => result.status === 201).length, 4);
+  assert.equal(outcomes.at(-1).status, 400);
+  assert.match(outcomes.at(-1).body.error, /four.*month/i);
+  const record = await state.storage.get('record:' + ids[0]);
   assert.equal(record.epfContributionMonth, '2026-10');
   assert.equal(record.installments[0].epfContributionMonth, '2026-10');
-  assert.equal(record.installments[0].settlementPeriodStart, '2026-08-24');
+  assert.equal(record.installments[0].settlementPeriodStart, weeks[0][0]);
 });
 test('a qualifying row in the final fractional second of Sunday is included', async () => {
   const state = setup([{ rider_name: 'Rider A', commission: 300, created_at: '2026-09-13T23:59:59.999Z' }]);
@@ -225,14 +207,13 @@ test('a complete backup and restore retain more than one thousand storage keys',
   const restored = new MemoryStorage(); await restoreDeductionSnapshot(restored, snapshot);
   assert.equal(restored.data.size, state.storage.data.size);
 });
-test('EPF applies only to its recorded earning week, while payment may occur later', async () => {
+test('EPF is applied directly to its recorded earning week', async () => {
   const state = setup(); const created = await call(state.env, '/create', epf);
-  await call(state.env, '/approve', { recordId: created.body.id }, checker);
-  const payment = { recordId: created.body.id, installmentIndex: 0, paymentDate: '2026-09-22' };
-  const differentWeek = await call(state.env, '/apply', { ...payment, settlementPeriodStart: '2026-09-14', settlementPeriodEnd: '2026-09-20' }, checker);
-  assert.equal(differentWeek.status, 400);
-  assert.match(differentWeek.body.error, /recorded earning commission week/);
-  assert.equal((await call(state.env, '/apply', { ...payment, settlementPeriodStart: '2026-09-07', settlementPeriodEnd: '2026-09-13' }, checker)).status, 201);
+  const record = await state.storage.get('record:' + created.body.id);
+  assert.equal(record.status, 'applied');
+  assert.equal(record.installments[0].settlementPeriodStart, '2026-09-07');
+  assert.equal(record.installments[0].settlementPeriodEnd, '2026-09-13');
+  assert.equal(record.installments[0].paymentDate, '2026-09-23');
 });
 
 export { MemoryStorage, setup, call, base, epf, actor, checker };
