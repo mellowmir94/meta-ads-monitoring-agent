@@ -35,10 +35,11 @@ test('EPF requires the exact full week and next contribution month handles year 
   assert.equal(api.deductionFullWeek('2026-09-08', '2026-09-13'), false);
   assert.equal(api.deductionNextMonth('2026-12-31'), '2027-01');
 });
-test('EPF auto-schedules the first four Thursdays and moves a Wednesday-holiday week to Friday', () => {
-  const api = runtime(), schedule = api.deductionEpfSchedule('2026-09', new Set(['2026-09-16']));
-  assert.deepEqual(Array.from(schedule, item => item.dueDate), ['2026-09-03', '2026-09-10', '2026-09-18', '2026-09-24']);
-  assert.equal(schedule[2].shifted, true);
+test('EPF starts in the current week, shifts only the holiday week, and continues across months', () => {
+  const api = runtime(), schedule = api.deductionEpfSchedule('2026-09-14', new Set(['2026-09-16']));
+  assert.deepEqual(Array.from(schedule, item => item.dueDate), ['2026-09-18', '2026-09-24', '2026-10-01', '2026-10-08']);
+  assert.equal(schedule[0].shifted, true);
+  assert.equal(schedule[1].shifted, false);
   assert.equal(schedule.length, 4);
 });
 test('settlement defaults follow earned commission week, not payment or due date', () => {

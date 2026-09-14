@@ -22,20 +22,10 @@ const date = (value, label) => {
 const addDays = (value, days) => { const next = new Date(value + 'T00:00:00Z'); next.setUTCDate(next.getUTCDate() + days); return next.toISOString().slice(0, 10); };
 const nextMonth = value => { const next = new Date(value + 'T00:00:00Z'); next.setUTCMonth(next.getUTCMonth() + 1, 1); return next.toISOString().slice(0, 7); };
 const weekBounds = value => { const current = new Date(value + 'T00:00:00Z'); const start = addDays(value, -((current.getUTCDay() + 6) % 7)); return { start, end: addDays(start, 6) }; };
-const firstFourThursdayWeeks = month => {
-  if (!/^\d{4}-\d{2}$/.test(month)) throw new Error('EPF schedule month must be valid.');
-  const first = `${month}-01`, firstDate = new Date(first + 'T00:00:00Z');
-  if (!Number.isFinite(firstDate.getTime()) || firstDate.toISOString().slice(0, 7) !== month) throw new Error('EPF schedule month must be valid.');
-  const day = firstDate.getUTCDay(), firstThursday = addDays(first, (4 - day + 7) % 7);
-  return Array.from({ length: 4 }, (_, index) => weekBounds(addDays(firstThursday, index * 7)));
-};
 const validateEpfScheduleDates = (values, month) => {
+  if (!/^\d{4}-\d{2}$/.test(month) || !Number.isFinite(Date.parse(`${month}-01`))) throw new Error('EPF schedule month must be valid.');
   if (!Array.isArray(values) || values.length !== 4) throw new Error('EPF requires four weekly deduction dates.');
-  const weeks = firstFourThursdayWeeks(month), dates = values.map((value, index) => {
-    const parsed = date(value, `EPF week ${index + 1} deduction date`);
-    if (parsed.slice(0, 7) !== month || !weeks[index] || parsed < weeks[index].start || parsed > weeks[index].end) throw new Error(`EPF week ${index + 1} must stay within ${weeks[index].start} to ${weeks[index].end}.`);
-    return parsed;
-  });
+  const dates = values.map((value, index) => date(value, `EPF payment ${index + 1} deduction date`));
   if (new Set(dates).size !== 4 || dates.some((value, index) => index && value <= dates[index - 1])) throw new Error('EPF deduction dates must be unique and chronological.');
   return dates;
 };
@@ -93,7 +83,7 @@ export function validateDeduction(input) {
     scheduledAmountCents: amountCents * installmentCount, installments,
     reportedWeeklyCommissionCents: type === 'epf' ? Math.round(Number(input.weeklyCommission) * 100) : null, weeklyCommissionVerified: false,
     grossCommissionCents: Math.max(0, Math.round(Number(input.grossCommission || 0) * 100)),
-    reason: optional(input.reason, 'Reason / remarks'), deductionDate: type === 'epf' ? installmentDates[0] : deductionDate, epfScheduleMonth, epfContributionMonth: type === 'epf' ? nextMonth(installmentDates[0]) : null,
+    reason: optional(input.reason, 'Reason / remarks'), deductionDate: type === 'epf' ? installmentDates[0] : deductionDate, epfScheduleMonth, epfContributionMonth: type === 'epf' ? nextMonth(`${epfScheduleMonth}-01`) : null,
     createdBy, source: 'finance-manual', identityVerified: false, status: 'approved', approvalStatus: 'approved', approvedBy: createdBy, approvedAt: null,
     eligibility: type === 'epf' ? 'Filtered weekly commission of at least RM300 was recorded when Finance created the request.' : 'Active Finance deduction schedule.'
   };
@@ -202,7 +192,7 @@ export class DeductionRegister {
             const id = `${input.requestId}-${index + 1}`; const reference = `DED-${now.slice(0, 7).replace('-', '')}-${String(counter).padStart(6, '0')}`;
             const installments = data.installments.map(item => {
               const settlement = data.type === 'epf' ? weekBounds(item.dueDate) : { start: data.periodStart, end: data.periodEnd };
-              return { ...item, status: 'applied', appliedAt: now, appliedBy: data.createdBy, paymentDate: data.type === 'epf' ? item.dueDate : now.slice(0, 10), settlementPeriodStart: settlement.start, settlementPeriodEnd: settlement.end, ...(data.type === 'epf' ? { epfContributionMonth: nextMonth(item.dueDate) } : {}) };
+              return { ...item, status: 'applied', appliedAt: now, appliedBy: data.createdBy, paymentDate: data.type === 'epf' ? item.dueDate : now.slice(0, 10), settlementPeriodStart: settlement.start, settlementPeriodEnd: settlement.end, ...(data.type === 'epf' ? { epfContributionMonth: data.epfContributionMonth } : {}) };
             });
             const record = { ...data, installments, status: 'applied', approvalStatus: 'applied', approvedBy: data.createdBy, approvedAt: now, id, batchId: input.requestId, reference, createdAt: now, creatorSession: actor.sessionId, audit: [{ action: 'created-and-applied', at: now, by: data.createdBy, role: actor.role, identityVerified: false, selfDeclared: true, amountCents: data.scheduledAmountCents, ...(data.type === 'epf' ? { recordedWeeklyCommissionCents: data.reportedWeeklyCommissionCents, installmentDates: data.installments.map(item => item.dueDate) } : {}), reason: data.reason || 'Finance saved and applied this deduction' }] };
             await tx.put('record:' + id, record); await tx.put(duplicateKey(data), id); created.push({ id, reference, type: data.type, status: 'applied' });
@@ -221,9 +211,9 @@ export class DeductionRegister {
             const previousDates = record.installments.map(item => item.dueDate), oldDuplicateKey = duplicateKey(record);
             record.installments = record.installments.map((item, index) => {
               const dueDate = installmentDates[index], settlement = weekBounds(dueDate);
-              return { ...item, dueDate, ...(item.status === 'applied' ? { paymentDate: dueDate, settlementPeriodStart: settlement.start, settlementPeriodEnd: settlement.end, epfContributionMonth: nextMonth(dueDate) } : {}) };
+              return { ...item, dueDate, ...(item.status === 'applied' ? { paymentDate: dueDate, settlementPeriodStart: settlement.start, settlementPeriodEnd: settlement.end, epfContributionMonth: record.epfContributionMonth || nextMonth(`${scheduleMonth}-01`) } : {}) };
             });
-            record.deductionDate = installmentDates[0]; record.epfScheduleMonth = scheduleMonth; record.epfContributionMonth = nextMonth(installmentDates[0]);
+            record.deductionDate = installmentDates[0]; record.epfScheduleMonth = scheduleMonth; record.epfContributionMonth = nextMonth(`${scheduleMonth}-01`);
             record.audit.push({ action: 'schedule-updated', at: now, by: actor.name, role: actor.role, identityVerified: true, amountCents: record.scheduledAmountCents, previousDates, installmentDates, reason: reason || 'Finance updated and locked the EPF deduction dates' });
             await tx.delete(oldDuplicateKey); await tx.put(duplicateKey(record), record.id);
             result = { id: record.id, reference: record.reference, status: record.status, approvalStatus: record.status, installmentDates };

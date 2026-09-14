@@ -4,7 +4,7 @@ The green Commission Deduction Formula works only when the current Line Item Aud
 
 Rules:
 
-- EPF: one plan per rider/month, RM25 across the first four Thursday weeks (RM100 total). A fifth Thursday is never included. If the preceding Wednesday is a national public holiday on Malaysia's official government calendar, that week's default moves to Friday. Finance can unlock the four dates in Details, edit within each of the first four week slots, then save and lock; every change is audited. The selected commission period must be a full Monday–Sunday week with at least RM300 recorded commission.
+- EPF: one plan per rider/month, RM25 across four deductions (RM100 total) beginning in the current operating week, or the selected commission week when it is in the future. Thursday is the default. If the preceding Wednesday is a national public holiday on Malaysia's official government calendar, only that week's default moves to Friday; later dates return to Thursday. Finance can unlock the four dates in the request or Details, move them across weeks or calendar months, then save and lock; dates must remain unique and chronological and every change is audited. The selected commission period must be a full Monday–Sunday week with at least RM300 recorded commission.
 - Insurance: Finance enters the amount per payment; exactly two weekly payments are scheduled.
 - OBD / Battery Tester: choose two weekly payments at RM50 each, seven weekly payments at RM40 each, or let Finance set the total and number of weekly payments.
 - Special Case: Finance sets the total and number of weekly payments.

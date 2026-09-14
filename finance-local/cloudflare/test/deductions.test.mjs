@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 const base = { rider: 'Rider A', orderId: '123', type: 'insurance', subtype: 'insurance', amount: '12.35', installmentCount: '2', reason: 'Policy renewal', deductionDate: '2026-09-14', createdBy: 'Finance A' };
-const epfSchedule = ['2026-09-03', '2026-09-10', '2026-09-17', '2026-09-24'];
+const epfSchedule = ['2026-09-18', '2026-09-24', '2026-10-01', '2026-10-08'];
 const epfInput = { ...base, type: 'epf', subtype: 'EPF', amount: '25', installmentCount: '4', periodStart: '2026-08-31', periodEnd: '2026-09-06', deductionDate: epfSchedule[0], epfScheduleMonth: '2026-09', installmentDates: epfSchedule, weeklyCommission: '300' };
 const dashboardHtml = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
 const workerSource = readFileSync(new URL('../src/worker.js', import.meta.url), 'utf8');
@@ -74,6 +74,8 @@ test('validates cents, required fields, subtype, dates and weekly EPF qualificat
 test('worker exposes the Malaysia government holiday calendar for EPF scheduling', () => {
   assert.match(workerSource, /\/api\/public-holidays/);
   assert.match(workerSource, /https:\/\/www\.malaysia\.gov\.my\/calendar/);
+  assert.match(workerSource, /`\$\{year\}-09-16`/);
+  assert.match(workerSource, /new Set\(\[\.\.\.fixedDates, \.\.\.dates\]\)/);
 });
 test('one rider request can create independent EPF and Insurance records atomically', async () => {
   const register = new DeductionRegister({ storage: new MemoryStorage() });
@@ -182,7 +184,7 @@ test('only applied installments reduce rider commission; scheduled installments 
   insurance.status = insurance.approvalStatus = 'approved'; insurance.installments[0].status = 'applied';
   const scheduled = validateDeduction({ ...base, amount: '99', deductionDate: '2026-09-07' });
   const epf = validateDeduction({ ...epfInput, orderId: '', periodStart: '2026-09-07', periodEnd: '2026-09-13', weeklyCommission: '350' });
-  epf.status = epf.approvalStatus = 'applied'; epf.installments.forEach(item => { item.status = 'applied'; item.settlementPeriodStart = item.dueDate === '2026-09-10' ? '2026-09-07' : '2026-01-01'; item.settlementPeriodEnd = item.dueDate === '2026-09-10' ? '2026-09-13' : '2026-01-07'; });
+  epf.status = epf.approvalStatus = 'applied'; epf.installments.forEach((item, index) => { item.status = 'applied'; item.settlementPeriodStart = index === 0 ? '2026-09-07' : '2026-01-01'; item.settlementPeriodEnd = index === 0 ? '2026-09-13' : '2026-01-07'; });
   context.registerState.records = [insurance, scheduled, epf];
   const rows = [{ rider_name: 'Rider A', created_at: '2026-09-10 10:00:00', commission: 350 }];
   const result = context.deductionSummaryForRows(rows, { start: '2026-09-07 00:00:00', end: '2026-09-13 23:59:59' });

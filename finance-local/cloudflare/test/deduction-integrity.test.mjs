@@ -18,7 +18,7 @@ const fixedNow = () => new Date('2026-09-23T12:00:00.000Z');
 const actor = { sessionId: 'maker-session', name: 'Finance Maker', role: 'maker' };
 const checker = { sessionId: 'checker-session', name: 'Finance Checker', role: 'checker' };
 const base = { rider: 'Rider A', periodStart: '2026-09-07', periodEnd: '2026-09-13', type: 'insurance', subtype: 'insurance', amount: '50', installmentCount: 2, deductionDate: '2026-09-14', createdBy: 'Self-declared Finance', reason: 'Policy repayment' };
-const epfSchedule = ['2026-09-03', '2026-09-10', '2026-09-17', '2026-09-24'];
+const epfSchedule = ['2026-09-18', '2026-09-24', '2026-10-01', '2026-10-08'];
 const epf = { ...base, type: 'epf', subtype: 'EPF', amount: '25', installmentCount: 4, deductionDate: epfSchedule[0], epfScheduleMonth: '2026-09', installmentDates: epfSchedule, weeklyCommission: '999999' };
 function setup(rows = [{ rider_name: 'Rider A', commission: 350, created_at: '2026-09-10 12:00:00', order_id: '1' }]) {
   const storage = new MemoryStorage();
@@ -193,9 +193,9 @@ test('direct-applied EPF creates one four-week monthly plan and blocks a second 
   assert.deepEqual(record.installments.map(item => item.dueDate), epfSchedule);
   assert.equal(record.epfContributionMonth, '2026-10');
   assert.equal(record.installments[0].epfContributionMonth, '2026-10');
-  assert.equal(record.installments[0].settlementPeriodStart, '2026-08-31');
+  assert.equal(record.installments[0].settlementPeriodStart, '2026-09-14');
 });
-test('Finance can unlock and save four EPF dates while week five remains unavailable', async () => {
+test('Finance can unlock and save four chronological EPF dates across calendar months', async () => {
   const state = setup(), created = await call(state.env, '/create', epf);
   const editedDates = ['2026-09-04', '2026-09-11', '2026-09-18', '2026-09-25'];
   const updated = await call(state.env, '/update-schedule', { recordId: created.body.id, installmentDates: editedDates });
@@ -204,8 +204,11 @@ test('Finance can unlock and save four EPF dates while week five remains unavail
   assert.deepEqual(record.installments.map(item => item.dueDate), editedDates);
   assert.deepEqual(record.installments.map(item => item.paymentDate), editedDates);
   assert.equal(record.audit.at(-1).action, 'schedule-updated');
-  const fifthWeek = await call(state.env, '/update-schedule', { recordId: created.body.id, installmentDates: ['2026-09-04', '2026-09-11', '2026-09-18', '2026-09-30'] });
-  assert.equal(fifthWeek.status, 400); assert.match(fifthWeek.body.error, /week 4.*2026-09-21 to 2026-09-27/i);
+  const monthlyEdit = ['2026-09-18', '2026-10-02', '2026-10-16', '2026-11-06'];
+  const moved = await call(state.env, '/update-schedule', { recordId: created.body.id, installmentDates: monthlyEdit });
+  assert.equal(moved.status, 201); assert.deepEqual(moved.body.installmentDates, monthlyEdit);
+  const outOfOrder = await call(state.env, '/update-schedule', { recordId: created.body.id, installmentDates: ['2026-10-02', '2026-09-18', '2026-10-16', '2026-11-06'] });
+  assert.equal(outOfOrder.status, 400); assert.match(outOfOrder.body.error, /chronological/i);
 });
 test('a qualifying row in the final fractional second of Sunday is included', async () => {
   const state = setup([{ rider_name: 'Rider A', commission: 300, created_at: '2026-09-13T23:59:59.999Z' }]);
@@ -224,7 +227,7 @@ test('EPF is applied across its four monthly schedule weeks', async () => {
   const state = setup(); const created = await call(state.env, '/create', epf);
   const record = await state.storage.get('record:' + created.body.id);
   assert.equal(record.status, 'applied');
-  assert.deepEqual(record.installments.map(item => item.settlementPeriodStart), ['2026-08-31', '2026-09-07', '2026-09-14', '2026-09-21']);
+  assert.deepEqual(record.installments.map(item => item.settlementPeriodStart), ['2026-09-14', '2026-09-21', '2026-09-28', '2026-10-05']);
   assert.deepEqual(record.installments.map(item => item.paymentDate), epfSchedule);
 });
 
