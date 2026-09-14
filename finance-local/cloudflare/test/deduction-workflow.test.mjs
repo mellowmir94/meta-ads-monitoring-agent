@@ -15,7 +15,7 @@ function runtime(extra = {}) {
     auditCapture: () => ({ scope: { dates: { start: '2026-09-07', end: '2026-09-13' } } }),
     ...extra,
   });
-  vm.runInContext(source + '\nthis.api = { deductionState, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionFirstFourThursdayWeeks, deductionEpfSchedule, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionHistoryGroups, deductionGroupScheduleProgress, deductionGroupMatchesTiming, deductionGroupMatchesTypePaymentFilters, deductionHistoryPaymentOptions, deductionHistoryDownloadOptions, deductionHistoryStatementPayload, deductionPaymentStatementPayload, deductionCombinedPaymentStatementPayload, deductionPrefetchPaymentStatement, deductionScheduleNotice, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
+  vm.runInContext(source + '\nthis.api = { deductionState, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionFirstFourThursdayWeeks, deductionEpfSchedule, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionHistoryGroups, deductionGroupScheduleProgress, deductionGroupMatchesTiming, deductionGroupMatchesTypePaymentFilters, deductionHistoryPaymentOptions, deductionHistorySelectedPayment, deductionHistoryDownloadOptions, deductionRecordMatchesCommissionRange, deductionHistoryStatementPayload, deductionPaymentStatementPayload, deductionCombinedPaymentStatementPayload, deductionPrefetchPaymentStatement, deductionScheduleNotice, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
   return context.api;
 }
 const rows = [{ rider_name: 'Rider A', created_at: '2026-09-07', commission: 300 }, { rider_name: 'Rider A', created_at: '2026-09-08', commission: 255 }];
@@ -196,6 +196,16 @@ test('History filters each deduction column by its own payment status', () => {
   assert.equal(api.deductionGroupMatchesTypePaymentFilters(group, { 'battery-tester': 'ready' }, '2026-09-15'), false);
   assert.equal(api.deductionGroupMatchesTypePaymentFilters(group, { 'battery-tester': 'upcoming' }, '2026-09-15'), true);
   assert.equal(api.deductionGroupMatchesTypePaymentFilters(group, { epf: 'ready' }, '2026-09-15'), false);
+});
+test('History selects payment 2 from the matching Commission Rider table range', () => {
+  const api = runtime();
+  const recordWithTwoWeeks = record({ installmentCount: 2, installments: [
+    { index: 0, dueDate: '2026-09-14', status: 'applied', settlementPeriodStart: '2026-09-07', settlementPeriodEnd: '2026-09-13' },
+    { index: 1, dueDate: '2026-09-21', status: 'applied', settlementPeriodStart: '2026-09-14', settlementPeriodEnd: '2026-09-20' },
+  ] });
+  const group = { id: 'range-batch', records: [recordWithTwoWeeks] };
+  assert.equal(api.deductionRecordMatchesCommissionRange(recordWithTwoWeeks, '2026-09-14', '2026-09-20'), true);
+  assert.equal(api.deductionHistorySelectedPayment(group, 'insurance', '2026-09-30', '', '2026-09-14', '2026-09-20').index, 1);
 });
 test('rider statement PDF allocates later EPF payments to their configured weeks', () => {
   const tableRows = [{ rider_name: 'Rider A', commission: 100 }];

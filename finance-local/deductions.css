@@ -123,7 +123,8 @@
 .deduction-audit-list li span, .deduction-audit-list li p, .deduction-audit-list li small { color: var(--text-soft); }
 .deduction-audit-list summary { cursor: pointer; margin-top: 8px; color: var(--text-soft); }
 .deduction-audit-list pre { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-soft); font-size: .68rem; }
-.deduction-history-view .deduction-history-toolbar { display: grid; grid-template-columns: minmax(200px, 2fr) repeat(4, minmax(130px, 1fr)); gap: 12px; }
+.deduction-history-view .deduction-history-toolbar { display: grid; grid-template-columns: minmax(200px, 2fr) repeat(6, minmax(130px, 1fr)) auto; gap: 12px; align-items: end; }
+.deduction-history-range-sync { min-height: 36px; white-space: nowrap; }
 .deduction-history-view .deduction-history-kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .deduction-history-view [data-deduction-history-feedback] { font-size: .75rem; color: var(--text-soft); margin-bottom: 14px; }
 .deduction-history-table-wrap td > small { display: block; margin-top: 4px; color: var(--text-soft); font-size: .66rem; }

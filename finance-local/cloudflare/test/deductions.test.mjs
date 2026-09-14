@@ -366,6 +366,8 @@ test('deduction history is a dedicated Commission Rider view launched from the g
   assert.doesNotMatch(dashboardHtml, /cannot be deleted\. Keep it for the audit trail/);
   assert.match(dashboardHtml, /function deductionHistoryTypeHeader/);
   assert.match(dashboardHtml, /state\.activeTab === 'commission'/);
+  assert.match(dashboardHtml, /data-deduction-history-period-start/);
+  assert.match(dashboardHtml, /data-deduction-history-use-commission-range/);
   assert.match(dashboardHtml, /<th>Download PDF<\/th><th>Commission period<\/th>/);
   assert.match(dashboardHtml, /function deductionHistoryDownloadCell/);
   assert.match(dashboardHtml, /noticeLabel = selected \? \(selected\.state === 'ready' \? 'Ongoing'/);
