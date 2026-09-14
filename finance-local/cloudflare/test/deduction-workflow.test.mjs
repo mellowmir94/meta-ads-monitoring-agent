@@ -41,7 +41,7 @@ test('settlement defaults follow earned commission week, not payment or due date
   assert.equal(api.deductionDefaultSettlement(record(), 1).start, '2026-09-14');
   assert.equal(api.deductionDefaultSettlement(record(), 1).end, '2026-09-20');
 });
-test('only applied installments reduce the selected commission period and pending stays separate', () => {
+test('only applied installments reduce the selected commission period and scheduled amounts stay separate', () => {
   const api = runtime(); api.deductionState.loaded = true; api.deductionState.records = [record()];
   const summary = api.deductionSummaryForRows(rows, { start: '2026-09-07', end: '2026-09-13' });
   assert.equal(summary.grossCents, 55500); assert.equal(summary.approvedCents, 1200); assert.equal(summary.netCents, 54300);
@@ -88,12 +88,12 @@ test('rider statement PDF keeps all filtered table rows and subtracts only appli
   const api = runtime({ financeTableExportPayload: () => ({ title: 'Line Item Audit', panelTitle: 'Commission Rider', filename: 'Commission', columns, rows: tableRows, footer: ['Filtered total', 'RM 555.00'], period: '2026-09-07 - 2026-09-13' }) });
   const payload = api.deductionHistoryStatementPayload([
     record({ batchId: 'batch-one' }),
-    record({ id: 'epf', batchId: 'batch-one', type: 'epf', amountCents: 2500, status: 'pending', installments: [{ index: 0, dueDate: '2026-09-14', status: 'scheduled' }] }),
+    record({ id: 'epf', batchId: 'batch-one', type: 'epf', amountCents: 2500, status: 'approved', installments: [{ index: 0, dueDate: '2026-09-14', status: 'scheduled' }] }),
   ]);
   assert.equal(payload.rows.length, 2); assert.equal(payload.summary.value, 'RM 543.00');
   assert.deepEqual(Array.from(payload.footerRows.at(-1)), ['NET COMMISSION', 'RM 543.00']);
-  assert.ok(payload.footerRows.some(row => row[0] === 'EPF (pending)' && row[1] === '- RM 25.00'));
-  assert.ok(payload.footerRows.some(row => row[0] === 'PENDING DEDUCTIONS' && row[1] === 'RM 37.00'));
+  assert.ok(payload.footerRows.some(row => row[0] === 'EPF (scheduled)' && row[1] === '- RM 25.00'));
+  assert.ok(payload.footerRows.some(row => row[0] === 'SCHEDULED DEDUCTIONS' && row[1] === 'RM 37.00'));
 });
 test('same request payload retries keep idempotency ID; changed payload gets a new one', () => {
   const identify = runtime().deductionRequestIdentity(), first = identify({ rider: 'A', amount: 25 });

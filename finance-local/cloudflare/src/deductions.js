@@ -73,8 +73,8 @@ export function validateDeduction(input) {
     reportedWeeklyCommissionCents: type === 'epf' ? Math.round(Number(input.weeklyCommission) * 100) : null, weeklyCommissionVerified: false,
     grossCommissionCents: Math.max(0, Math.round(Number(input.grossCommission || 0) * 100)),
     reason: optional(input.reason, 'Reason / remarks'), deductionDate, epfContributionMonth: type === 'epf' ? nextMonth(deductionDate) : null,
-    createdBy, source: 'finance-manual', identityVerified: false, status: 'pending', approvalStatus: 'pending', approvedBy: null, approvedAt: null,
-    eligibility: type === 'epf' ? 'Filtered weekly commission of at least RM300 was recorded when Finance created the request.' : 'Pending checker review.'
+    createdBy, source: 'finance-manual', identityVerified: false, status: 'approved', approvalStatus: 'approved', approvedBy: createdBy, approvedAt: null,
+    eligibility: type === 'epf' ? 'Filtered weekly commission of at least RM300 was recorded when Finance created the request.' : 'Active Finance deduction schedule.'
   };
 }
 
@@ -83,9 +83,19 @@ export class DeductionRegister {
   async list(url, actor) {
     const after = url.searchParams.get('after');
     if (after && !/^record:[a-z0-9-]+$/i.test(after)) return reply({ error: 'Invalid cursor.' }, 400);
-    const records = await this.storage.list({ prefix: 'record:', limit: 101, ...(after ? { startAfter: after } : {}) });
+    const records = await this.storage.transaction(async tx => {
+      const page = await tx.list({ prefix: 'record:', limit: 101, ...(after ? { startAfter: after } : {}) }); let upgraded = 0;
+      for (const [key, record] of page) {
+        if (record.status !== 'pending') continue;
+        const at = this.now().toISOString(); record.status = record.approvalStatus = 'approved'; record.approvedBy = record.createdBy || actor.name; record.approvedAt = at;
+        record.audit = [...(record.audit || []), { action: 'proceeded', at, by: record.createdBy || actor.name, role: 'finance', identityVerified: false, amountCents: record.amountCents, reason: 'Converted from the retired pending approval workflow' }];
+        await tx.put(key, record); upgraded += 1;
+      }
+      if (upgraded) await tx.put('counter:revision', Number(await tx.get('counter:revision') || 0) + 1);
+      return page;
+    });
     const entries = [...records].slice(0, 100);
-    return reply({ records: entries.map(([, record]) => publicRecord(record)), next: records.size > 100 ? entries.at(-1)[0] : null, actor, approvalAvailable: checkerRoles.has(actor.role) });
+    return reply({ records: entries.map(([, record]) => publicRecord(record)), next: records.size > 100 ? entries.at(-1)[0] : null, actor, approvalAvailable: false });
   }
   async fetch(request) {
     try {
@@ -165,26 +175,31 @@ export class DeductionRegister {
             }
             const counter = Number(await tx.get('counter:reference') || 0) + 1; await tx.put('counter:reference', counter);
             const id = `${input.requestId}-${index + 1}`; const reference = `DED-${now.slice(0, 7).replace('-', '')}-${String(counter).padStart(6, '0')}`;
-            const record = { ...data, id, batchId: input.requestId, reference, createdAt: now, creatorSession: actor.sessionId, audit: [{ action: 'created', at: now, by: data.createdBy, role: actor.role, identityVerified: false, selfDeclared: true, amountCents: data.amountCents, ...(data.type === 'epf' ? { recordedWeeklyCommissionCents: data.reportedWeeklyCommissionCents } : {}), reason: data.reason }] };
-            await tx.put('record:' + id, record); await tx.put(duplicateKey(data), id); created.push({ id, reference, type: data.type, status: 'pending' });
+            const record = { ...data, status: 'approved', approvalStatus: 'approved', approvedBy: data.createdBy, approvedAt: now, id, batchId: input.requestId, reference, createdAt: now, creatorSession: actor.sessionId, audit: [{ action: 'created-and-proceeded', at: now, by: data.createdBy, role: actor.role, identityVerified: false, selfDeclared: true, amountCents: data.amountCents, ...(data.type === 'epf' ? { recordedWeeklyCommissionCents: data.reportedWeeklyCommissionCents } : {}), reason: data.reason || 'Finance proceeded with active deduction schedule' }] };
+            await tx.put('record:' + id, record); await tx.put(duplicateKey(data), id); created.push({ id, reference, type: data.type, status: 'approved' });
           }
-          result = { batchId: input.requestId, records: created, id: created[0].id, reference: created[0].reference, approvalStatus: 'pending' };
+          result = { batchId: input.requestId, records: created, id: created[0].id, reference: created[0].reference, approvalStatus: 'approved' };
         } else {
           const record = await tx.get('record:' + required(input.recordId, 'Record ID', 90));
           if (!record) throw new Error('Deduction record not found.');
           const reason = String(input.reason || '').trim(); const checker = checkerRoles.has(actor.role);
-          if (['/approve', '/reject', '/apply', '/reverse'].includes(url.pathname) && !checker) throw new Error('Authorized Finance checker access is required.');
-          if (['/approve', '/reject'].includes(url.pathname) && record.creatorSession === actor.sessionId) throw new Error('Maker-checker rule: the creator cannot approve or reject their own request.');
+          const alreadyProceeded = url.pathname === '/approve' && record.status === 'approved';
+          if (!alreadyProceeded && ['/approve', '/reject', '/reverse'].includes(url.pathname) && !checker) throw new Error('Authorized Finance checker access is required.');
+          if (!alreadyProceeded && ['/approve', '/reject'].includes(url.pathname) && record.creatorSession === actor.sessionId) throw new Error('Maker-checker rule: the creator cannot approve or reject their own request.');
           if (url.pathname === '/approve') {
-            if (record.status !== 'pending') throw new Error('Only pending deductions can be approved.');
+            if (alreadyProceeded) { result = { id: record.id, reference: record.reference, status: record.status, approvalStatus: record.status }; }
+            else if (record.status !== 'pending') throw new Error('Only active deduction schedules can be confirmed.');
+            if (result) { /* Compatibility no-op for records already proceeded by Finance. */ }
+            else {
             record.status = record.approvalStatus = 'approved'; record.approvedBy = actor.name; record.approvedAt = now;
             record.audit.push({ action: 'approved', at: now, by: actor.name, role: actor.role, identityVerified: true, amountCents: record.amountCents, ...(record.type === 'epf' ? { recordedWeeklyCommissionCents: record.reportedWeeklyCommissionCents } : {}), reason: reason || 'Approved' });
+            }
           } else if (url.pathname === '/reject') {
             if (record.status !== 'pending') throw new Error('Only pending deductions can be rejected.');
             record.status = record.approvalStatus = 'rejected'; record.rejectedBy = actor.name; record.rejectedAt = now;
             record.audit.push({ action: 'rejected', at: now, by: actor.name, role: actor.role, identityVerified: true, amountCents: record.amountCents, reason: required(reason, 'Rejection reason', 2000) });
           } else if (url.pathname === '/cancel') {
-            if (record.status !== 'pending') throw new Error('Only pending deductions can be cancelled.');
+            if (!['pending', 'approved'].includes(record.status) || record.installments.some(item => item.status === 'applied' || item.status === 'reversed' || item.appliedAt)) throw new Error('Only an unapplied deduction schedule can be cancelled.');
             if (record.creatorSession !== actor.sessionId && !checker) throw new Error('Only the creator or an authorized checker can cancel this request.');
             record.status = record.approvalStatus = 'cancelled'; record.cancelledBy = actor.name; record.cancelledAt = now;
             record.audit.push({ action: 'cancelled', at: now, by: actor.name, role: actor.role, identityVerified: true, amountCents: record.amountCents, reason: required(reason, 'Cancellation reason', 2000) });

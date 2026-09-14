@@ -79,25 +79,39 @@ test('one rider request can create independent EPF and Insurance records atomica
   assert.equal(result.status, 201);
   assert.equal(result.body.records.length, 2);
   assert.deepEqual(result.body.records.map(record => record.type), ['epf', 'insurance']);
+  assert.equal(result.body.approvalStatus, 'approved');
+  assert.equal(result.body.records.every(record => record.status === 'approved'), true);
   assert.equal(result.body.records.every(record => /^DED-\d{6}-\d{6}$/.test(record.reference)), true);
   const listed = await (await register.fetch(new Request('https://local/', { headers: { 'x-deduction-session': 'session-a', 'x-deduction-user': 'Signed-in User', 'x-deduction-role': 'maker' } }))).json();
   assert.equal(listed.records.every(record => record.createdBy === 'Finance A'), true);
   assert.equal(listed.records.every(record => record.identityVerified === false), true);
 });
-test('maker-checker approval, installment application, reversal, cancellation, idempotency and month cap', async () => {
+test('loading History proceeds legacy pending records without changing their payment schedule', async () => {
+  const storage = new MemoryStorage();
+  const register = new DeductionRegister({ storage }, {}, { now: () => new Date('2026-09-23T12:00:00Z') });
+  const legacy = { ...validateDeduction(base), id: 'legacy-pending-1', reference: 'DED-202609-000001', status: 'pending', approvalStatus: 'pending', approvedBy: null, approvedAt: null, audit: [{ action: 'created', at: '2026-09-14T08:00:00Z', by: 'Finance A' }] };
+  await storage.put('record:' + legacy.id, legacy);
+  const listed = await (await register.fetch(new Request('https://local/', { headers: { 'x-deduction-session': 'session-a', 'x-deduction-user': 'Finance A', 'x-deduction-role': 'maker' } }))).json();
+  assert.equal(listed.records[0].status, 'approved');
+  assert.equal(listed.records[0].approvalStatus, 'approved');
+  assert.equal(listed.records[0].approvedBy, 'Finance A');
+  assert.deepEqual(listed.records[0].installments, legacy.installments);
+  assert.equal(listed.records[0].audit.at(-1).action, 'proceeded');
+});
+test('saved schedules proceed immediately, support installment application, reversal, cancellation, idempotency and month cap', async () => {
   const storage = new MemoryStorage(); const register = new DeductionRegister({ storage }, {}, { now: () => new Date('2026-09-23T12:00:00Z') });
   const input = { ...base, requestId: crypto.randomUUID() };
   const first = await post(register, input); assert.equal(first.status, 201);
   assert.deepEqual(await post(register, input), first);
   assert.equal((await post(register, { ...input, amount: '99' })).status, 400);
   const recordId = first.body.id;
-  assert.equal((await post(register, { requestId: crypto.randomUUID(), recordId }, '/approve', 'session-a', 'checker')).status, 400);
-  assert.equal((await post(register, { requestId: crypto.randomUUID(), recordId }, '/approve', 'session-b', 'checker')).status, 201);
-  assert.equal((await post(register, { requestId: crypto.randomUUID(), recordId, installmentIndex: 0, paymentDate: '2026-09-14', settlementPeriodStart: '2026-09-07', settlementPeriodEnd: '2026-09-13' }, '/apply', 'session-b', 'checker')).body.status, 'approved');
-  assert.equal((await post(register, { requestId: crypto.randomUUID(), recordId, installmentIndex: 1, paymentDate: '2026-09-21', settlementPeriodStart: '2026-09-14', settlementPeriodEnd: '2026-09-20' }, '/apply', 'session-b', 'checker')).body.status, 'applied');
+  assert.equal(first.body.approvalStatus, 'approved');
+  assert.equal((await post(register, { requestId: crypto.randomUUID(), recordId }, '/approve')).status, 201);
+  assert.equal((await post(register, { requestId: crypto.randomUUID(), recordId, installmentIndex: 0, paymentDate: '2026-09-14', settlementPeriodStart: '2026-09-07', settlementPeriodEnd: '2026-09-13' }, '/apply')).body.status, 'approved');
+  assert.equal((await post(register, { requestId: crypto.randomUUID(), recordId, installmentIndex: 1, paymentDate: '2026-09-21', settlementPeriodStart: '2026-09-14', settlementPeriodEnd: '2026-09-20' }, '/apply')).body.status, 'applied');
   assert.equal((await post(register, { requestId: crypto.randomUUID(), recordId, reason: 'Correction' }, '/reverse', 'session-b', 'checker')).body.status, 'reversed');
-  const pending = await post(register, { ...input, requestId: crypto.randomUUID(), amount: '13.35' });
-  const cancel = { requestId: crypto.randomUUID(), recordId: pending.body.id, reason: 'Incorrect reference; recreate' };
+  const scheduled = await post(register, { ...input, requestId: crypto.randomUUID(), amount: '13.35' });
+  const cancel = { requestId: crypto.randomUUID(), recordId: scheduled.body.id, reason: 'Incorrect reference; recreate' };
   assert.equal((await post(register, cancel, '/cancel', 'session-c')).status, 400);
   assert.equal((await post(register, cancel, '/cancel')).status, 201);
   const listRequest = new Request('https://local/', { headers: { 'x-deduction-session': 'session-a', 'x-deduction-user': 'Finance Maker', 'x-deduction-role': 'maker' } });
@@ -142,17 +156,17 @@ test('a single-rider Commission Rider filter renders every matching detail row b
   assert.match(dashboardHtml, /is-single-rider-scope/);
   assert.match(dashboardHtml, /\.ledger-card\.is-single-rider-scope \.table-wrap\s*\{\s*min-height: 320px;\s*max-height: min\(52vh, 520px\);/);
 });
-test('only applied installments reduce rider commission; pending and approved schedules do not', () => {
+test('only applied installments reduce rider commission; scheduled installments do not', () => {
   const source = readFileSync(new URL('../../deductions.js', import.meta.url), 'utf8');
   const context = vm.createContext({ document: { addEventListener() {} }, auditViews: { tables: {} }, auditCapture: () => ({ scope: { dates: { start: '2026-09-07', end: '2026-09-13' } } }), formatGrafanaTimestamp: value => String(value).replace('T', ' ').replace('Z', ''), numberValue: value => Number(value) || 0, formatNumber: value => Number(value).toLocaleString('en-US'), formatMoney: value => `RM ${Number(value).toFixed(2)}`, esc: value => String(value) });
   vm.runInContext(source + '\nglobalThis.registerState = deductionState;', context);
   context.registerState.loaded = true;
   const insurance = validateDeduction({ ...base, amount: '10', deductionDate: '2026-09-07' });
   insurance.status = insurance.approvalStatus = 'approved'; insurance.installments[0].status = 'applied';
-  const pending = validateDeduction({ ...base, amount: '99', deductionDate: '2026-09-07' });
+  const scheduled = validateDeduction({ ...base, amount: '99', deductionDate: '2026-09-07' });
   const epf = validateDeduction({ ...base, type: 'epf', subtype: 'EPF', amount: '25', installmentCount: '1', orderId: '', periodStart: '2026-09-07', periodEnd: '2026-09-13', deductionDate: '2026-09-11', weeklyCommission: '350' });
   epf.status = epf.approvalStatus = 'applied'; epf.installments[0].status = 'applied';
-  context.registerState.records = [insurance, pending, epf];
+  context.registerState.records = [insurance, scheduled, epf];
   const rows = [{ rider_name: 'Rider A', created_at: '2026-09-10 10:00:00', commission: 350 }];
   const result = context.deductionSummaryForRows(rows, { start: '2026-09-07 00:00:00', end: '2026-09-13 23:59:59' });
   assert.equal(result.amounts.insurance, 1000);
@@ -231,7 +245,8 @@ test('deduction history is a dedicated Commission Rider view launched from the g
   assert.match(dashboardHtml, /data-deduction-history-status/);
   assert.match(dashboardHtml, /data-deduction-history-type/);
   assert.match(dashboardHtml, /Applied deductions/);
-  assert.match(dashboardHtml, /Approved · not applied/);
+  assert.match(dashboardHtml, /Scheduled deductions/);
+  assert.match(dashboardHtml, /Active schedules/);
   assert.match(dashboardHtml, /data-deduction-history-export="pdf"/);
   assert.match(dashboardHtml, />Export checked Rider PDF<\/button>/);
   assert.match(dashboardHtml, /data-deduction-history-select/);
@@ -243,9 +258,9 @@ test('deduction history is a dedicated Commission Rider view launched from the g
   assert.match(dashboardHtml, /data-deduction-batch-id/);
   assert.match(dashboardHtml, /function deductionHistoryStatementPayload/);
   assert.match(dashboardHtml, /financeTableExportPayload\('commission-main'\)/);
-  assert.match(dashboardHtml, /PENDING DEDUCTIONS/);
+  assert.match(dashboardHtml, /SCHEDULED DEDUCTIONS/);
   assert.match(dashboardHtml, /only applied deductions reduce net commission/);
-  assert.match(dashboardHtml, /data-deduction-action="approve"/);
+  assert.doesNotMatch(dashboardHtml, /data-deduction-action="approve"/);
   assert.match(dashboardHtml, /data-deduction-action="apply"/);
   assert.match(dashboardHtml, /data-deduction-action="reverse"/);
   assert.match(dashboardHtml, /← Back to Commission Rider/);
