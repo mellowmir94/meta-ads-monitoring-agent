@@ -7672,13 +7672,12 @@
         window.setTimeout(callback, 180);
       }
 
-      async function loadActiveTabData(force = false, preloadCore = false) {
-        const candidatePanels = preloadCore ? [...new Map([...activeTabPanels(), ...panels.filter((panel) => CORE_FINANCE_PANEL_IDS.has(panel.id))].map((panel) => [panel.id, panel])).values()] : activeTabPanels();
-        const targets = candidatePanels.filter((panel) => force || !state.api.loaded[panel.id]);
+      async function loadActiveTabData(force = false) {
+        // Data is deliberately loaded only for the Finance page currently in
+        // view. This keeps a large Commission Rider table responsive and
+        // prevents hidden tabs from competing for the API and browser parser.
+        const targets = activeTabPanels().filter((panel) => force || !state.api.loaded[panel.id]);
         if (!targets.length) return;
-        const visibleIds = new Set(activeTabPanels().map((panel) => panel.id));
-        const foreground = targets.filter((panel) => visibleIds.has(panel.id));
-        const background = targets.filter((panel) => !visibleIds.has(panel.id));
         const loadPanel = async (panel) => {
           await loadGrafanaData(panel.id, force, { renderStart: false, renderEnd: false });
           if (activeTabPanels().some((item) => item.id === panel.id)) render();
@@ -7686,17 +7685,10 @@
             scheduleFinanceIdle(() => { void loadGrafanaSupplemental(panel); }, 1200);
           }
         };
-        foreground.forEach((panel) => { state.api.loading[panel.id] = true; delete state.api.errors[panel.id]; });
-        setStatus("Loading Grafana data", "Loading the active dashboard first; other Finance tabs will prepare in the background.");
+        targets.forEach((panel) => { state.api.loading[panel.id] = true; delete state.api.errors[panel.id]; });
+        setStatus("Loading Grafana data", "Loading only the Finance page currently open.");
         render();
-        // The active dashboard never waits for unrelated tabs or supplemental
-        // tables. At most two background tabs compete for network/parse time.
-        await Promise.all(foreground.map(loadPanel));
-        if (background.length) scheduleFinanceIdle(() => {
-          let next = 0;
-          const worker = async () => { while (next < background.length) await loadPanel(background[next++]); };
-          void Promise.all(Array.from({ length: Math.min(2, background.length) }, worker));
-        }, 1200);
+        await Promise.all(targets.map(loadPanel));
       }
 
       function numberValue(value) {
@@ -16025,7 +16017,9 @@ function deductionCancelDialog(recordId) { return deductionActionDialog(recordId
 function deductionMount() {
   deductionHistoryEnsure();
   const cards = [...document.querySelectorAll('#commission-main-ledger, .table-copy[data-audit-table]')];
-  if (cards.length && !deductionState.loaded && !deductionState.loading && !deductionState.error) void deductionLoad().then(() => render()).catch(() => render());
+  // The deduction register powers both the green Commission Rider form and
+  // Rider deduction history. Do not request it until Commission Rider opens.
+  if (state.activeTab === 'commission' && cards.length && !deductionState.loaded && !deductionState.loading && !deductionState.error) void deductionLoad().then(() => render()).catch(() => render());
   let changed = false;
   cards.forEach(card => {
     card.querySelector('.deduction-menu')?.remove(); card.querySelector('.deduction-filter-notice')?.remove();
@@ -16160,9 +16154,9 @@ function commissionPreviousPeriodTrend(panel, kpi) {
           // The native chart fallback still paints immediately if the bundle is
           // delayed or blocked, so this never gates filters or table rendering.
           ensureFinanceVChartBundle();
-          // Show the active tab first, then warm the other Finance tabs with
-          // bounded background loading. Optional tabs remain on demand.
-          void loadActiveTabData(false, true).finally(loadFinanceVChartWhenQuiet);
+          // Fetch only the open Finance page. Other tabs remain fully on
+          // demand, so their Grafana payloads cannot slow this first view.
+          void loadActiveTabData(false).finally(loadFinanceVChartWhenQuiet);
           void maintainConcurrencyLease();
           window.setInterval(maintainConcurrencyLease, 30_000);
         });

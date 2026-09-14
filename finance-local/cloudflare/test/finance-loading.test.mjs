@@ -12,7 +12,7 @@ function source(name) {
 function deferred() { let resolve; const promise = new Promise((done) => { resolve = done; }); return { promise, resolve }; }
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
-test('active dashboard renders before slow background tabs and supplemental requests', async () => {
+test('only the active dashboard loads; hidden tabs do not start API work', async () => {
   const panels = ['commission', 'reimbursement', 'branch', 'hq'].map((id) => ({ id }));
   const calls = [], idle = [], paints = [];
   const gates = new Map(panels.map((panel) => [panel.id, deferred()]));
@@ -22,28 +22,25 @@ test('active dashboard renders before slow background tabs and supplemental requ
     scheduleFinanceIdle: (fn) => idle.push(fn), loadGrafanaSupplemental: () => {},
     loadGrafanaData: async (id) => { calls.push(id); await gates.get(id).promise; state.api.loaded[id] = true; } });
   vm.runInContext(source('loadActiveTabData'), c);
-  const loading = c.loadActiveTabData(false, true);
+  const loading = c.loadActiveTabData(false);
   assert.deepEqual(calls, ['commission']);
   gates.get('commission').resolve();
   await loading;
   assert.ok(paints.includes(true));
+  assert.equal(state.api.loaded.reimbursement, undefined);
   assert.equal(state.api.loaded.branch, undefined);
+  assert.equal(state.api.loaded.hq, undefined);
   idle.splice(0).forEach((fn) => fn());
-  assert.deepEqual(calls, ['commission', 'reimbursement', 'branch']);
-  gates.get('reimbursement').resolve();
-  await tick();
-  assert.deepEqual(calls, ['commission', 'reimbursement', 'branch', 'hq']);
-  gates.get('branch').resolve(); gates.get('hq').resolve();
-  await tick();
+  assert.deepEqual(calls, ['commission']);
 });
 
-test('an optional active tab is not skipped by core background preload', async () => {
+test('an optional active tab loads when it is the current page', async () => {
   const panels = [{ id: 'core' }, { id: 'optional' }], calls = [];
   const c = vm.createContext({ panels, state: { api: { loaded: {}, loading: {}, errors: {} } }, CORE_FINANCE_PANEL_IDS: new Set(['core']),
     activeTabPanels: () => [panels[1]], setStatus: () => {}, render: () => {}, scheduleFinanceIdle: () => {},
     loadGrafanaData: async (id) => calls.push(id) });
   vm.runInContext(source('loadActiveTabData'), c);
-  await c.loadActiveTabData(false, true);
+  await c.loadActiveTabData(false);
   assert.deepEqual(calls, ['optional']);
 });
 

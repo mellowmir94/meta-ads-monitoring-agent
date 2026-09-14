@@ -673,7 +673,9 @@ function deductionCancelDialog(recordId) { return deductionActionDialog(recordId
 function deductionMount() {
   deductionHistoryEnsure();
   const cards = [...document.querySelectorAll('#commission-main-ledger, .table-copy[data-audit-table]')];
-  if (cards.length && !deductionState.loaded && !deductionState.loading && !deductionState.error) void deductionLoad().then(() => render()).catch(() => render());
+  // The deduction register powers both the green Commission Rider form and
+  // Rider deduction history. Do not request it until Commission Rider opens.
+  if (state.activeTab === 'commission' && cards.length && !deductionState.loaded && !deductionState.loading && !deductionState.error) void deductionLoad().then(() => render()).catch(() => render());
   let changed = false;
   cards.forEach(card => {
     card.querySelector('.deduction-menu')?.remove(); card.querySelector('.deduction-filter-notice')?.remove();
