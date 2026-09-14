@@ -364,6 +364,8 @@ test('deduction history is a dedicated Commission Rider view launched from the g
   assert.match(dashboardHtml, />Delete request<\/button>/);
   assert.doesNotMatch(dashboardHtml, /cannot be deleted\. Keep it for the audit trail/);
   assert.match(dashboardHtml, /function deductionHistoryTypeHeader/);
+  assert.match(dashboardHtml, /noticeLabel = selected \? \(selected\.state === 'ready' \? 'Ongoing'/);
+  assert.doesNotMatch(dashboardHtml, /noticeLabel = selected \?[\s\S]*?selected\.index \+ 1\) \+ '\/' \+ selected\.count/);
   assert.match(dashboardHtml, /function deductionHistoryTypeCell/);
   assert.match(dashboardHtml, /function deductionHistoryGroups/);
   assert.match(dashboardHtml, /data-deduction-batch-id/);
