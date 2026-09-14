@@ -153,8 +153,12 @@
 .deduction-history-status.mixed { color: var(--warning, #f0b429); }
 .deduction-history-progress > strong, .deduction-history-progress > small { display: block; }
 .deduction-history-progress > small { margin-top: 4px; color: var(--text-soft); font-size: .65rem; font-variant-numeric: tabular-nums; }
+.deduction-history-payment-picker { display: grid; gap: 5px; min-width: 220px; }
+.deduction-history-payment-picker > span { color: var(--text-soft); font-size: .62rem; font-weight: 750; text-transform: uppercase; letter-spacing: .04em; }
+.deduction-history-payment-picker select { width: 100%; min-height: 33px; font-size: .67rem; font-variant-numeric: tabular-nums; }
 .deduction-download-ready { display: inline-flex; margin-top: 8px; padding: 4px 6px; border: 1px solid color-mix(in srgb, var(--success) 55%, var(--line)); border-radius: 4px; background: color-mix(in srgb, var(--success) 14%, var(--surface)); color: var(--success); font-size: .62rem; font-weight: 750; }
 .deduction-download-ready.is-sent { background: color-mix(in srgb, var(--success) 22%, var(--surface)); }
+.deduction-download-ready.is-upcoming { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); color: var(--accent); }
 .deduction-history-progress button { display: block; margin-top: 8px; padding: 6px 8px; border: 1px solid var(--accent); border-radius: 4px; background: transparent; color: var(--accent); font: inherit; font-size: .65rem; font-weight: 750; white-space: nowrap; }
 .is-table-fullscreen .deduction-workspace .deduction-inline-actions { position: sticky; bottom: -20px; z-index: 2; margin-bottom: -20px; padding-bottom: 14px; background: var(--deduction-surface); }
 @media (max-width: 900px) {

@@ -345,6 +345,10 @@ test('deduction history is a dedicated Commission Rider view launched from the g
   assert.match(dashboardHtml, /data-deduction-history-search/);
   assert.match(dashboardHtml, /data-deduction-history-status/);
   assert.match(dashboardHtml, /data-deduction-history-type/);
+  assert.match(dashboardHtml, /Payment schedule/);
+  assert.match(dashboardHtml, /<th>Next payment<\/th>/);
+  assert.match(dashboardHtml, /data-deduction-history-payment-select/);
+  assert.match(dashboardHtml, /data-deduction-history-payment-download/);
   assert.match(dashboardHtml, /Applied deductions/);
   assert.match(dashboardHtml, /Total deducted/);
   assert.match(dashboardHtml, /Applied installments/);

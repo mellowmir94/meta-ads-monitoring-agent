@@ -7,6 +7,7 @@ const deductionStatus = record => record.status || record.approvalStatus || 'app
 const deductionDisplayStatus = value => ({ approved: 'applied', pending: 'applied' }[typeof value === 'string' ? value : deductionStatus(value)] || (typeof value === 'string' ? value : deductionStatus(value)));
 const deductionDrafts = new Map();
 const deductionHistorySelected = new Set();
+const deductionHistoryPaymentSelections = new Map();
 const deductionHolidayCache = new Map();
 const deductionStatementPayloadCache = new Map();
 const DEDUCTION_STATEMENT_PREFETCH_TTL_MS = 120000;
@@ -312,6 +313,23 @@ function deductionGroupMatchesTiming(group, timing, today = deductionToday()) {
   if (!timing) return true;
   return group.records.some(record => deductionScheduleNotice(record, today)?.state === timing);
 }
+function deductionHistoryPaymentOptions(group, today = deductionToday()) {
+  return group.records.flatMap(record => {
+    const progress = deductionHistoryProgress(record, today), count = progress.items.length;
+    return progress.items.map((item, index) => ({ record, item, index, count, key: record.id + '|' + index, label: (deductionTypes[record.type] || record.type) + ' · Payment ' + (index + 1) + '/' + count, amountCents: deductionInstallmentAmount(record, item), state: item.statementSentAt ? 'sent' : item.dueDate > today ? 'upcoming' : 'ready' }));
+  });
+}
+function deductionHistorySelectedPayment(group, today = deductionToday()) {
+  const options = deductionHistoryPaymentOptions(group, today), selected = deductionHistoryPaymentSelections.get(group.id);
+  return options.find(option => option.key === selected) || options.find(option => option.state === 'ready') || options.find(option => option.state === 'upcoming') || options[0] || null;
+}
+function deductionHistoryPaymentCell(group, today = deductionToday()) {
+  const options = deductionHistoryPaymentOptions(group, today), selected = deductionHistorySelectedPayment(group, today);
+  if (!selected) return '<strong>—</strong>';
+  const status = selected.state === 'sent' ? '✓ Sent to rider' : selected.state === 'ready' ? 'Ready to download' : 'Upcoming';
+  const action = selected.state === 'upcoming' ? '<small>Available on ' + esc(deductionDateLabel(selected.item.dueDate)) + '</small>' : '<button type="button" data-deduction-history-payment-download data-deduction-payment-key="' + esc(selected.key) + '">' + (selected.state === 'sent' ? 'Download again' : 'Download PDF') + '</button>';
+  return '<label class="deduction-history-payment-picker"><span>Selected payment</span><select data-deduction-history-payment-select>' + options.map(option => '<option value="' + esc(option.key) + '"' + (option.key === selected.key ? ' selected' : '') + '>' + esc(option.label + ' · ' + deductionDateLabel(option.item.dueDate) + ' · ' + deductionMoney(option.amountCents)) + '</option>').join('') + '</select></label><span class="deduction-download-ready ' + (selected.state === 'sent' ? 'is-sent' : selected.state === 'upcoming' ? 'is-upcoming' : '') + '">' + esc(status) + '</span>' + action;
+}
 function deductionFilteredHistory(records, filters, today = deductionToday()) {
   return records.filter(record => {
     if (filters.status && deductionStatus(record) !== filters.status || filters.type && record.type !== filters.type) return false;
@@ -368,7 +386,7 @@ function deductionHistoryEnsure() {
   let view = document.getElementById('deductionHistoryView');
   if (!view) {
     view = document.createElement('section'); view.id = 'deductionHistoryView'; view.className = 'deduction-history-view'; view.hidden = true;
-    view.innerHTML = '<header class="deduction-history-head"><div><p>Commission Rider</p><h2>Rider deduction history</h2><span>Every saved request is applied immediately. Each deduction has its own column and audit actions.</span></div><div class="deduction-history-head-actions"><button type="button" data-deduction-history-export="excel">Export Excel</button><button type="button" data-deduction-history-export="pdf" disabled>Export checked Rider PDF</button><button type="button" data-deduction-history-close>← Back to Commission Rider</button></div></header><div data-deduction-history-feedback role="status"></div><section class="deduction-history-kpis" data-deduction-history-kpis></section><div class="deduction-history-toolbar"><label>Search<input type="search" data-deduction-history-search placeholder="Rider, reference or reason"></label><label>Status<select data-deduction-history-status><option value="">All statuses</option>' + ['applied', 'rejected', 'cancelled', 'reversed'].map(value => '<option>' + value + '</option>').join('') + '</select></label><label>Deduction<select data-deduction-history-type><option value="">All types</option>' + Object.entries(deductionTypes).map(([value, label]) => '<option value="' + value + '">' + esc(label) + '</option>').join('') + '</select></label><label>Payment schedule<select data-deduction-history-timing><option value="">All payments</option><option value="current">Ready to download</option><option value="upcoming">Upcoming</option><option value="complete">Completed</option></select></label><label>EPF contribution month<input type="month" data-deduction-history-month></label></div><div class="deduction-history-table-wrap"><table><thead><tr><th class="deduction-export-check">PDF</th><th>Rider / batch</th><th>EPF</th><th>Insurance</th><th>OBD / Battery Tester</th><th>Special Case</th><th>Commission period</th><th>Payment progress</th><th>Applied</th><th>Remaining</th><th>Status</th><th>Created by</th></tr></thead><tbody data-deduction-history-body></tbody></table></div><p class="deduction-history-empty" data-deduction-history-empty hidden>No deductions match these filters.</p>';
+    view.innerHTML = '<header class="deduction-history-head"><div><p>Commission Rider</p><h2>Rider deduction history</h2><span>Every saved request is applied immediately. Each deduction has its own column and audit actions.</span></div><div class="deduction-history-head-actions"><button type="button" data-deduction-history-export="excel">Export Excel</button><button type="button" data-deduction-history-export="pdf" disabled>Export checked Rider PDF</button><button type="button" data-deduction-history-close>← Back to Commission Rider</button></div></header><div data-deduction-history-feedback role="status"></div><section class="deduction-history-kpis" data-deduction-history-kpis></section><div class="deduction-history-toolbar"><label>Search<input type="search" data-deduction-history-search placeholder="Rider, reference or reason"></label><label>Status<select data-deduction-history-status><option value="">All statuses</option>' + ['applied', 'rejected', 'cancelled', 'reversed'].map(value => '<option>' + value + '</option>').join('') + '</select></label><label>Deduction<select data-deduction-history-type><option value="">All types</option>' + Object.entries(deductionTypes).map(([value, label]) => '<option value="' + value + '">' + esc(label) + '</option>').join('') + '</select></label><label>Payment schedule<select data-deduction-history-timing><option value="">All payments</option><option value="current">Ready to download</option><option value="upcoming">Upcoming</option><option value="complete">Completed</option></select></label><label>EPF contribution month<input type="month" data-deduction-history-month></label></div><div class="deduction-history-table-wrap"><table><thead><tr><th class="deduction-export-check">PDF</th><th>Rider / batch</th><th>EPF</th><th>Insurance</th><th>OBD / Battery Tester</th><th>Special Case</th><th>Commission period</th><th>Next payment</th><th>Applied</th><th>Remaining</th><th>Status</th><th>Created by</th></tr></thead><tbody data-deduction-history-body></tbody></table></div><p class="deduction-history-empty" data-deduction-history-empty hidden>No deductions match these filters.</p>';
     commission.append(view);
   } return view;
 }
@@ -380,8 +398,8 @@ function deductionHistoryRender() {
   view.querySelector('[data-deduction-history-feedback]').textContent = deductionState.loaded ? groups.length + ' request' + (groups.length === 1 ? '' : 's') + ' shown, containing ' + shown.length + ' deduction record' + (shown.length === 1 ? '' : 's') + '. Totals follow the filters below.' : deductionState.error || 'Loading the complete deduction register…';
   view.querySelector('[data-deduction-history-kpis]').innerHTML = [['Total deducted', deductionMoney(totals.appliedCents)], ['Applied installments', formatNumber(totals.appliedInstallments)], ['Deduction records', formatNumber(totals.recordCount)], ['Remaining', deductionMoney(totals.remainingCents)], ['Reversed payments', deductionMoney(totals.reversedCents)]].map(([label, value]) => '<article><span>' + esc(label) + '</span><strong>' + esc(deductionState.loaded ? value : '—') + '</strong></article>').join('');
   view.querySelector('[data-deduction-history-body]').innerHTML = deductionState.loaded ? groups.map(group => {
-    const p = group.progress, schedule = deductionGroupScheduleProgress(group.records), sent = schedule?.record?.installments?.[schedule.notice.payment - 1]?.statementSentAt, progressCell = schedule ? '<strong>' + esc(schedule.label) + '</strong><small>' + esc(deductionDateLabel(schedule.notice.start) + (schedule.notice.end && schedule.notice.end !== schedule.notice.start ? ' – ' + deductionDateLabel(schedule.notice.end) : '')) + '</small>' + (sent ? '<span class="deduction-download-ready is-sent">✓ Sent to rider</span>' : schedule.ready ? '<span class="deduction-download-ready">Download ready</span><button type="button" data-deduction-progress-details="' + esc(schedule.record.id) + '">Open payment details</button>' : '<small>' + esc(schedule.notice.state === 'upcoming' ? 'Scheduled payment' : 'Schedule complete') + '</small>') : '<strong>—</strong>';
-    return '<tr data-deduction-batch-id="' + esc(group.id) + '"><td class="deduction-export-check"><div class="deduction-row-controls"><input type="checkbox" data-deduction-history-select aria-label="Select ' + esc(group.rider) + ' request for Rider PDF"' + (deductionHistorySelected.has(group.id) ? ' checked' : '') + '><button type="button" data-deduction-delete-batch aria-label="Delete ' + esc(group.rider) + ' deduction request" title="Delete request">×</button></div></td><td><strong>' + esc(group.rider) + '</strong><small>' + group.records.length + ' deductions in one request</small><small>' + esc(group.references.join(' | ')) + '</small></td>' + deductionHistoryTypeCell(group, 'epf', checker) + deductionHistoryTypeCell(group, 'insurance', checker) + deductionHistoryTypeCell(group, 'battery-tester', checker) + deductionHistoryTypeCell(group, 'manual', checker) + '<td>' + esc((group.periodStart || '-') + ' - ' + (group.periodEnd || '-')) + '</td><td class="deduction-history-progress">' + progressCell + '</td><td>' + esc(deductionMoney(p.appliedCents)) + '</td><td>' + esc(deductionMoney(p.remainingCents)) + '</td><td><span class="deduction-history-status ' + esc(group.status) + '">' + esc(deductionDisplayStatus(group.status)) + '</span></td><td>' + esc(group.createdBy || '-') + '<small>' + esc(formatGrafanaTimestamp(group.createdAt)) + '</small></td></tr>';
+    const p = group.progress, paymentCell = deductionHistoryPaymentCell(group);
+    return '<tr data-deduction-batch-id="' + esc(group.id) + '"><td class="deduction-export-check"><div class="deduction-row-controls"><input type="checkbox" data-deduction-history-select aria-label="Select ' + esc(group.rider) + ' request for Rider PDF"' + (deductionHistorySelected.has(group.id) ? ' checked' : '') + '><button type="button" data-deduction-delete-batch aria-label="Delete ' + esc(group.rider) + ' deduction request" title="Delete request">×</button></div></td><td><strong>' + esc(group.rider) + '</strong><small>' + group.records.length + ' deductions in one request</small><small>' + esc(group.references.join(' | ')) + '</small></td>' + deductionHistoryTypeCell(group, 'epf', checker) + deductionHistoryTypeCell(group, 'insurance', checker) + deductionHistoryTypeCell(group, 'battery-tester', checker) + deductionHistoryTypeCell(group, 'manual', checker) + '<td>' + esc((group.periodStart || '-') + ' - ' + (group.periodEnd || '-')) + '</td><td class="deduction-history-progress">' + paymentCell + '</td><td>' + esc(deductionMoney(p.appliedCents)) + '</td><td>' + esc(deductionMoney(p.remainingCents)) + '</td><td><span class="deduction-history-status ' + esc(group.status) + '">' + esc(deductionDisplayStatus(group.status)) + '</span></td><td>' + esc(group.createdBy || '-') + '<small>' + esc(formatGrafanaTimestamp(group.createdAt)) + '</small></td></tr>';
   }).join('') : '<tr><td colspan="12">History is unavailable until the full register loads. <button type="button" data-deduction-retry>Retry register</button></td></tr>';
   view.querySelector('[data-deduction-history-empty]').hidden = !deductionState.loaded || shown.length > 0;
 }
@@ -461,6 +479,27 @@ function deductionPrefetchPaymentStatement(record, index) {
 }
 async function deductionPaymentStatementPayload(record, index) {
   return deductionPrefetchPaymentStatement(record, index);
+}
+async function deductionHistoryDownloadPayment(groupId, paymentKey, button) {
+  const group = deductionHistoryGroups(deductionState.records).find(item => item.id === groupId), option = deductionHistoryPaymentOptions(group || { records: [] }).find(item => item.key === paymentKey);
+  if (!option) throw new Error('This payment is no longer available. Refresh History and try again.');
+  if (option.state === 'upcoming') throw new Error('This payment is not ready to download yet.');
+  button.disabled = true;
+  const view = deductionHistoryEnsure(), feedback = view?.querySelector('[data-deduction-history-feedback]');
+  if (feedback) feedback.textContent = 'Preparing ' + option.label + ' PDF…';
+  try {
+    const [, payload] = await Promise.all([ensureFinanceExportBundle('pdf'), deductionPaymentStatementPayload(option.record, option.index)]);
+    const downloaded = await downloadPdfTable(payload);
+    if (!downloaded) { if (feedback) feedback.textContent = 'PDF download was cancelled.'; return; }
+    const saved = await deductionRequest('/mark-sent', { recordId: option.record.id, installmentIndex: option.index, requestId: crypto.randomUUID() });
+    Object.assign(option.item, { statementSentAt: saved.statementSentAt, statementSentBy: saved.statementSentBy });
+    deductionHistoryRender();
+    const nextFeedback = deductionHistoryEnsure()?.querySelector('[data-deduction-history-feedback]');
+    if (nextFeedback) nextFeedback.textContent = option.label + ' PDF downloaded and marked sent to rider.';
+  } catch (error) {
+    if (feedback) feedback.textContent = error.message || 'The payment PDF could not be downloaded.';
+    throw error;
+  } finally { if (button.isConnected) button.disabled = false; }
 }
 async function deductionHistoryExport(format) {
   await deductionLoad();
@@ -620,6 +659,15 @@ function deductionMount() {
 }
 document.addEventListener('change', event => {
   if (event.target.matches?.('[data-deduction-history-status], [data-deduction-history-type], [data-deduction-history-due], [data-deduction-history-timing], [data-deduction-history-month]')) return deductionHistoryRender();
+  const paymentSelector = event.target.closest?.('[data-deduction-history-payment-select]');
+  if (paymentSelector) {
+    const groupId = paymentSelector.closest('[data-deduction-batch-id]')?.dataset.deductionBatchId;
+    if (!groupId) return;
+    deductionHistoryPaymentSelections.set(groupId, paymentSelector.value);
+    const group = deductionHistoryGroups(deductionState.records).find(item => item.id === groupId), option = deductionHistoryPaymentOptions(group || { records: [] }).find(item => item.key === paymentSelector.value);
+    if (option && option.state !== 'upcoming') void Promise.allSettled([ensureFinanceExportBundle('pdf'), deductionPrefetchPaymentStatement(option.record, option.index)]);
+    return deductionHistoryRender();
+  }
   const summary = event.target.closest?.('.deduction-workspace'); if (!summary) return;
   if (event.target.matches('[data-deduction-inline-battery-plan]')) {
     const amount = summary.querySelector('[data-deduction-inline-amount="battery-tester"]'), count = summary.querySelector('[data-deduction-inline-battery-count]'); amount.value = event.target.value === 'manual' ? '' : event.target.value === 'fixed-7' ? '40.00' : '50.00'; amount.readOnly = event.target.value !== 'manual'; count.value = event.target.value === 'manual' ? '3' : event.target.value === 'fixed-7' ? '7' : '2'; count.readOnly = event.target.value !== 'manual'; if (!amount.readOnly) amount.focus();
@@ -631,6 +679,8 @@ document.addEventListener('click', async event => {
   if (event.target.closest?.('[data-deduction-retry]')) { event.preventDefault(); try { await deductionLoad(); } catch {} render(); deductionHistoryRender(); return; }
   const exported = event.target.closest?.('[data-deduction-history-export]');
   if (exported) { event.preventDefault(); try { await deductionHistoryExport(exported.dataset.deductionHistoryExport); } catch (error) { deductionHistoryEnsure().querySelector('[data-deduction-history-feedback]').textContent = error.message; } return; }
+  const paymentDownload = event.target.closest?.('[data-deduction-history-payment-download]');
+  if (paymentDownload) { event.preventDefault(); try { await deductionHistoryDownloadPayment(paymentDownload.closest('[data-deduction-batch-id]')?.dataset.deductionBatchId, paymentDownload.dataset.deductionPaymentKey, paymentDownload); } catch {} return; }
   const deleteBatch = event.target.closest?.('[data-deduction-delete-batch]'); if (deleteBatch) { event.preventDefault(); return deductionDeleteBatchDialog(deleteBatch.closest('[data-deduction-batch-id]')?.dataset.deductionBatchId); }
   const paymentDetails = event.target.closest?.('[data-deduction-progress-details]'); if (paymentDetails) { event.preventDefault(); return deductionActionDialog(paymentDetails.dataset.deductionProgressDetails, 'view'); }
   const action = event.target.closest?.('[data-deduction-action]'); if (action) { event.preventDefault(); return deductionActionDialog(action.closest('[data-deduction-record-id]')?.dataset.deductionRecordId, action.dataset.deductionAction); }
