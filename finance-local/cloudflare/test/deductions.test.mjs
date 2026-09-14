@@ -40,7 +40,13 @@ test('validates cents, required fields, subtype, dates and weekly EPF qualificat
   const batteryManual = validateDeduction({ ...base, type: 'battery-tester', subtype: 'battery tester', pricingMode: 'manual', amount: '63.50', installmentCount: '3', deductionDate: '2026-09-15' });
   assert.equal(batteryManual.installmentCount, 3);
   assert.equal(batteryManual.scheduledAmountCents, 19050);
+  const specialManual = validateDeduction({ ...base, type: 'manual', subtype: 'accident', amount: '75.25', installmentCount: '4', deductionDate: '2026-09-15' });
+  assert.equal(specialManual.installmentCount, 4);
+  assert.equal(specialManual.scheduledAmountCents, 30100);
+  assert.deepEqual(specialManual.installments.map(item => item.dueDate), ['2026-09-15', '2026-09-22', '2026-09-29', '2026-10-06']);
   assert.throws(() => validateDeduction({ ...base, type: 'battery-tester', subtype: 'battery tester', pricingMode: 'manual', amount: '63.50', installmentCount: '0', deductionDate: '2026-09-15' }));
+  assert.throws(() => validateDeduction({ ...base, type: 'manual', subtype: 'other', installmentCount: '0', deductionDate: '2026-09-15' }));
+  assert.throws(() => validateDeduction({ ...base, type: 'manual', subtype: 'other', installmentCount: '53', deductionDate: '2026-09-15' }));
   assert.throws(() => validateDeduction({ ...base, installmentCount: '7' }));
   assert.throws(() => validateDeduction({ ...base, type: 'battery-tester', subtype: 'battery tester', pricingMode: 'fixed-2', amount: '40', installmentCount: '2' }));
   assert.throws(() => validateDeduction({ ...base, type: 'battery-tester', subtype: 'battery tester', pricingMode: 'fixed-7', amount: '40', installmentCount: '3' }));
@@ -172,6 +178,9 @@ test('Commission Rider uses the green rider-level deduction form and has no tool
   assert.match(dashboardHtml, /2 × RM50/);
   assert.match(dashboardHtml, /7 × RM40/);
   assert.match(dashboardHtml, /Manual · set amount and payments/);
+  assert.match(dashboardHtml, /aria-label="Special Case number of payments"/);
+  assert.match(dashboardHtml, /type === 'manual' \? draft\.manualCount/);
+  assert.match(dashboardHtml, /type === 'manual' \? \{ installmentCount: draft\.manualCount \}/);
   assert.match(dashboardHtml, />Review deduction request<\/button>/);
   assert.match(dashboardHtml, /type="checkbox"[^>]+data-deduction-inline-type/);
   assert.match(dashboardHtml, /deductionCreateBatch/);
