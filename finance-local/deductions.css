@@ -150,6 +150,10 @@
 .deduction-type-actions button { min-height: 29px; }
 .deduction-payment-breakdown { display: block; margin-top: 9px; color: var(--accent); font-size: .72rem; font-variant-numeric: tabular-nums; }
 .deduction-history-status.mixed { color: var(--warning, #f0b429); }
+.deduction-history-progress > strong, .deduction-history-progress > small { display: block; }
+.deduction-history-progress > small { margin-top: 4px; color: var(--text-soft); font-size: .65rem; font-variant-numeric: tabular-nums; }
+.deduction-download-ready { display: inline-flex; margin-top: 8px; padding: 4px 6px; border: 1px solid color-mix(in srgb, var(--success) 55%, var(--line)); border-radius: 4px; background: color-mix(in srgb, var(--success) 14%, var(--surface)); color: var(--success); font-size: .62rem; font-weight: 750; }
+.deduction-history-progress button { display: block; margin-top: 8px; padding: 6px 8px; border: 1px solid var(--accent); border-radius: 4px; background: transparent; color: var(--accent); font: inherit; font-size: .65rem; font-weight: 750; white-space: nowrap; }
 .is-table-fullscreen .deduction-workspace .deduction-inline-actions { position: sticky; bottom: -20px; z-index: 2; margin-bottom: -20px; padding-bottom: 14px; background: var(--deduction-surface); }
 @media (max-width: 900px) {
   .deduction-workspace .deduction-inline-actions { flex-wrap: wrap; }
