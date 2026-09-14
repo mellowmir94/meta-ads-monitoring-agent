@@ -9202,7 +9202,6 @@
               <div class="filter-menu-search"><input type="search" value="${esc(searchValue)}" placeholder="Search values" aria-label="Search ${esc(filter.label)} values" data-filter-menu-search-panel="${esc(panel.id)}" data-filter-menu-search-key="${esc(filter.key)}"></div>
               <div class="filter-menu-actions">
                 <span>${allSelected ? `All ${options.length} values selected` : noneSelected ? "0 values selected" : `${selected.length} selected`}</span>
-                <button class="filter-menu-action done" type="button" data-filter-menu-done-panel="${esc(panel.id)}" data-filter-menu-done-key="${esc(filter.key)}">Done</button>
               </div>
               <div class="filter-menu-options" role="listbox" aria-label="${esc(filter.label)} values" aria-multiselectable="true">
                 ${isLoading && !options.length ? '<div class="filter-menu-loading" aria-live="polite">Loading values…</div>' : ""}
@@ -9216,9 +9215,8 @@
         `;
       }
 
-      // Keep Grafana-style multi-selects responsive: checkbox clicks update the
-      // open menu in place and wait for Done before rebuilding charts/tables.
-      // This avoids a full chart/table render for every value selected.
+      // Keep Grafana-style multi-selects responsive while the menu is open.
+      // Selections commit automatically when the user leaves the filter.
       function updateFilterMenuSelection(panelId, key) {
         const trigger = document.getElementById(`${panelId}-${key}-trigger`);
         const menu = trigger?.closest(".filter-shell")?.querySelector("[data-filter-menu]");
@@ -9270,11 +9268,41 @@
         }
       }
 
+      function commitDashboardFilterSelection(panelId, key, { focusTrigger = false } = {}) {
+        const panel = panels.find((item) => item.id === panelId);
+        const openFilter = state.openFilter?.panelId === panelId && state.openFilter?.key === key ? state.openFilter : null;
+        const currentSelection = JSON.stringify(state.filters?.[panelId]?.[key] || []);
+        const filtersChanged = !openFilter || openFilter.initialSelection !== currentSelection;
+        if (panel) reconcileChartSelection(panel);
+        state.openFilter = null;
+        closeFilterMenuInPlace();
+        const grafanaScopePanels = new Set([
+          "commission-main",
+          "reimbursement-details",
+          "daily-sales-branch-overview",
+          "daily-sales-hq-dealer-overview"
+        ]);
+        if (filtersChanged && panel && grafanaScopePanels.has(panelId) && !LOCAL_PREVIEW) {
+          state.grafanaScopeHydrated[panelId] = true;
+          state.grafanaFilterDirty[panelId] = true;
+          setStatus("Loading filtered scope", `${panel.title} is being refreshed from Grafana.`);
+          void loadGrafanaData(panelId, true, { bypassCache: false });
+        }
+        deferFinanceRender(focusTrigger ? () => document.getElementById(`${panelId}-${key}-trigger`)?.focus() : undefined);
+      }
+
       function toggleFilterMenuInPlace(panelId, key) {
         const wasOpen = state.openFilter?.panelId === panelId && state.openFilter?.key === key;
+        if (wasOpen) {
+          commitDashboardFilterSelection(panelId, key, { focusTrigger: true });
+          return;
+        }
+        if (state.openFilter) {
+          const openFilter = state.openFilter;
+          commitDashboardFilterSelection(openFilter.panelId, openFilter.key);
+        }
         closeFilterMenuInPlace();
-        state.openFilter = wasOpen ? null : { panelId, key };
-        if (wasOpen) return;
+        state.openFilter = { panelId, key, initialSelection: JSON.stringify(state.filters?.[panelId]?.[key] || []) };
         const trigger = document.getElementById(`${panelId}-${key}-trigger`);
         const shell = trigger?.closest(".filter-shell");
         const menu = shell?.querySelector("[data-filter-menu]");
@@ -13743,6 +13771,12 @@
       document.addEventListener("touchcancel", () => { calendarTouch = null; });
 
       document.addEventListener("click", async (event) => {
+        const openFilterAtClick = state.openFilter;
+        if (openFilterAtClick) {
+          const openTrigger = document.getElementById(`${openFilterAtClick.panelId}-${openFilterAtClick.key}-trigger`);
+          const openShell = openTrigger?.closest(".filter-shell");
+          if (!openShell?.contains(event.target)) commitDashboardFilterSelection(openFilterAtClick.panelId, openFilterAtClick.key);
+        }
         const tableFullscreen = event.target.closest("[data-table-fullscreen]");
         if (tableFullscreen) { toggleTableFullscreen(tableFullscreen); return; }
         const duplicateTable = event.target.closest("[data-duplicate-table]");
@@ -14132,7 +14166,6 @@
           const selected = state.filters[panelId][key] || [];
           state.filters[panelId][key] = toggleAllFilterSelection(selected);
           state.pages[panelId] = 1;
-          state.openFilter = { panelId, key };
           updateFilterMenuSelection(panelId, key);
           return;
         }
@@ -14143,37 +14176,7 @@
           if (!state.filters[panelId]) state.filters[panelId] = {};
           state.filters[panelId][key] = ["__none__"];
           state.pages[panelId] = 1;
-          state.openFilter = { panelId, key };
           updateFilterMenuSelection(panelId, key);
-          return;
-        }
-        const filterMenuDone = event.target.closest("[data-filter-menu-done-panel]");
-        if (filterMenuDone) {
-          const panelId = filterMenuDone.dataset.filterMenuDonePanel;
-          const key = filterMenuDone.dataset.filterMenuDoneKey;
-          const panel = panels.find((item) => item.id === panelId);
-          if (panel) reconcileChartSelection(panel);
-          state.openFilter = null;
-          closeFilterMenuInPlace();
-          // Grafana variables are authoritative for the four live Finance
-          // tabs. Once a user confirms a variable selection, refresh that
-          // scope from the edge proxy so the KPIs, charts and rows all use
-          // the same server-side query (rather than only filtering rows in
-          // the browser). Table-column filters remain client-side and do not
-          // trigger this request.
-          const grafanaScopePanels = new Set([
-            "commission-main",
-            "reimbursement-details",
-            "daily-sales-branch-overview",
-            "daily-sales-hq-dealer-overview"
-          ]);
-          if (panel && grafanaScopePanels.has(panelId) && !LOCAL_PREVIEW) {
-            state.grafanaScopeHydrated[panelId] = true;
-            state.grafanaFilterDirty[panelId] = true;
-            setStatus("Loading filtered scope", `${panel.title} is being refreshed from Grafana.`);
-            void loadGrafanaData(panelId, true, { bypassCache: false });
-          }
-          deferFinanceRender(() => document.getElementById(`${panelId}-${key}-trigger`)?.focus());
           return;
         }
         const filterOption = event.target.closest("[data-filter-option-panel]");
@@ -14188,21 +14191,12 @@
           if (!state.filters[panelId]) state.filters[panelId] = {};
           state.filters[panelId][key] = nextSelected;
           state.pages[panelId] = 1;
-          state.openFilter = { panelId, key };
           updateFilterMenuSelection(panelId, key);
           return;
         }
-        if ((state.openFilter || state.timeRangeOpen) && !event.target.closest("[data-filter-shell]") && !event.target.closest("[data-filter-panel]") && !event.target.closest(".grafana-time-range")) {
-          const filtersChanged = Boolean(state.openFilter);
-          if (state.openFilter) {
-            const panel = panels.find((item) => item.id === state.openFilter.panelId);
-            if (panel) reconcileChartSelection(panel);
-          }
-          state.openFilter = null;
+        if (state.timeRangeOpen && !event.target.closest("[data-filter-panel]") && !event.target.closest(".grafana-time-range")) {
           state.timeRangeOpen = null;
-          closeFilterMenuInPlace();
           document.querySelectorAll("[data-time-range-popover]").forEach((popover) => { popover.hidden = true; });
-          if (filtersChanged) deferFinanceRender();
           return;
         }
         const heatCell = event.target.closest("[data-heat-panel]");
@@ -14541,11 +14535,7 @@
         }
         if (event.key === "Escape" && state.openFilter) {
           const { panelId, key } = state.openFilter;
-          const panel = panels.find((item) => item.id === panelId);
-          if (panel) reconcileChartSelection(panel);
-          state.openFilter = null;
-          closeFilterMenuInPlace();
-          deferFinanceRender(() => document.getElementById(`${panelId}-${key}-trigger`)?.focus());
+          commitDashboardFilterSelection(panelId, key, { focusTrigger: true });
           return;
         }
         if (event.key === "Escape" && state.timeRangeOpen) {
