@@ -232,7 +232,10 @@ test('deduction history is a dedicated Commission Rider view launched from the g
   assert.match(dashboardHtml, /Applied deductions/);
   assert.match(dashboardHtml, /Approved · not applied/);
   assert.match(dashboardHtml, /data-deduction-history-export="pdf"/);
-  assert.match(dashboardHtml, />Export Rider PDF<\/button>/);
+  assert.match(dashboardHtml, />Export checked Rider PDF<\/button>/);
+  assert.match(dashboardHtml, /data-deduction-history-select/);
+  assert.match(dashboardHtml, /<th>EPF<\/th><th>Insurance<\/th><th>OBD \/ Battery Tester<\/th><th>Special Case<\/th>/);
+  assert.match(dashboardHtml, /function deductionHistoryTypeCell/);
   assert.match(dashboardHtml, /function deductionHistoryGroups/);
   assert.match(dashboardHtml, /data-deduction-batch-id/);
   assert.match(dashboardHtml, /function deductionHistoryStatementPayload/);
@@ -244,4 +247,11 @@ test('deduction history is a dedicated Commission Rider view launched from the g
   assert.match(dashboardHtml, /data-deduction-action="reverse"/);
   assert.match(dashboardHtml, /← Back to Commission Rider/);
   assert.doesNotMatch(dashboardHtml, /data-deduction-register>History<\/button>/);
+});
+
+test('Special Case treats Finance input as the total and shows the per-payment split', () => {
+  assert.match(dashboardHtml, /total \? ' total amount' : ' amount per payment'/);
+  assert.match(dashboardHtml, /Total deduction \(RM\)/);
+  assert.match(dashboardHtml, /deductionMoney\(enteredCents \/ count\) \+ ' × ' \+ count/);
+  assert.match(dashboardHtml, /amount: type === 'manual' \? \(entered \/ count\)\.toFixed\(2\)/);
 });

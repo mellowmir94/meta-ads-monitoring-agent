@@ -103,15 +103,16 @@
 .deduction-history-table-wrap td > small { display: block; margin-top: 4px; color: var(--text-soft); font-size: .66rem; }
 .deduction-history-table-wrap td { max-width: 300px; overflow-wrap: anywhere; vertical-align: top; }
 .deduction-history-table-wrap .deduction-overdue { color: var(--danger); }
-.deduction-batch-lines, .deduction-batch-actions { display: grid; gap: 8px; min-width: 250px; }
-.deduction-batch-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: start; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
-.deduction-batch-line:last-child, .deduction-batch-action:last-child { padding-bottom: 0; border-bottom: 0; }
-.deduction-batch-line > div { min-width: 0; }
-.deduction-batch-line > div:last-child { display: grid; justify-items: end; gap: 5px; }
-.deduction-batch-line b { white-space: nowrap; font-size: .72rem; font-variant-numeric: tabular-nums; }
-.deduction-batch-action { display: grid; gap: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
-.deduction-batch-action > strong { font-size: .65rem; color: var(--text-soft); }
-.deduction-batch-action > div { display: flex; flex-wrap: wrap; gap: 5px; }
+.deduction-history-table-wrap table { min-width: 1780px; }
+.deduction-export-check { width: 52px; min-width: 52px; text-align: center !important; }
+.deduction-export-check input { width: 17px; height: 17px; accent-color: var(--accent); }
+.deduction-type-cell { min-width: 220px; }
+.deduction-type-cell > strong { display: block; font-size: .76rem; font-variant-numeric: tabular-nums; }
+.deduction-type-cell > .deduction-history-status { display: inline-flex; margin-top: 8px; }
+.deduction-type-cell.is-empty { color: var(--text-soft); text-align: center; }
+.deduction-type-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line); }
+.deduction-type-actions button { min-height: 29px; }
+.deduction-payment-breakdown { display: block; margin-top: 9px; color: var(--accent); font-size: .72rem; font-variant-numeric: tabular-nums; }
 .deduction-history-status.mixed { color: var(--warning, #f0b429); }
 .is-table-fullscreen .deduction-workspace .deduction-inline-actions { position: sticky; bottom: -20px; z-index: 2; margin-bottom: -20px; padding-bottom: 14px; background: var(--deduction-surface); }
 @media (max-width: 900px) {
@@ -144,5 +145,5 @@
   .deduction-workflow-dialog .deduction-submit-bar { flex-direction: column; align-items: stretch; gap: 10px; }
   .deduction-submit-bar button { width: 100%; }
   .deduction-history-view .deduction-history-toolbar, .deduction-history-view .deduction-history-kpis { grid-template-columns: 1fr; }
-  .deduction-batch-lines, .deduction-batch-actions { min-width: 210px; }
+  .deduction-type-cell { min-width: 200px; }
 }
