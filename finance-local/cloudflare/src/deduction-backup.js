@@ -16,7 +16,7 @@ export async function validateDeductionSnapshot(snapshot) {
   if (typeof checksumSha256 !== 'string' || checksumSha256 !== await digest(payload)) throw new Error('Deduction backup checksum mismatch.');
   const entries = new Map();
   for (const entry of snapshot.entries) {
-    if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string' || !/^(record:|request:|duplicate:|epf:|epf-week:|counter:)/.test(entry[0]) || entries.has(entry[0])) throw new Error('Deduction backup contains invalid or duplicate storage keys.');
+    if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string' || !/^(record:|request:|duplicate:|epf:|epf-week:|deleted:|counter:)/.test(entry[0]) || entries.has(entry[0])) throw new Error('Deduction backup contains invalid or duplicate storage keys.');
     entries.set(entry[0], entry[1]);
   }
   for (const [key, record] of entries) {
@@ -29,6 +29,7 @@ export async function validateDeductionSnapshot(snapshot) {
       if (typeof value !== 'string' || !entries.has('record:' + value)) throw new Error('Deduction backup has a broken index.');
     }
     if (key.startsWith('epf:') && (!Array.isArray(value) || value.some(id => !entries.has('record:' + id)))) throw new Error('Deduction backup has a broken monthly EPF index.');
+    if (key.startsWith('deleted:') && (!value || value.batchId !== key.slice(8) || !Array.isArray(value.records) || !value.records.length || !Number.isFinite(Date.parse(value.deletedAt)) || !value.deletedBy)) throw new Error('Deduction backup has an invalid deletion audit record.');
   }
   if (Number(entries.get('counter:revision') || 0) !== snapshot.revision) throw new Error('Deduction backup revision mismatch.');
   return entries;

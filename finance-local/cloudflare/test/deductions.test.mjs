@@ -10,6 +10,7 @@ class MemoryStorage {
   constructor() { this.data = new Map(); this.queue = Promise.resolve(); }
   async get(key) { return structuredClone(this.data.get(key)); }
   async put(key, value) { this.data.set(key, structuredClone(value)); }
+  async delete(key) { this.data.delete(key); }
   async list({ prefix, startAfter, limit }) { return new Map([...this.data].sort(([a],[b]) => a.localeCompare(b)).filter(([key]) => key.startsWith(prefix) && (!startAfter || key > startAfter)).slice(0, limit)); }
   transaction(fn) {
     const operation = this.queue.then(async () => { const before = structuredClone(this.data); try { return await fn(this); } catch (error) { this.data = before; throw error; } });
@@ -234,6 +235,8 @@ test('deduction history is a dedicated Commission Rider view launched from the g
   assert.match(dashboardHtml, /data-deduction-history-export="pdf"/);
   assert.match(dashboardHtml, />Export checked Rider PDF<\/button>/);
   assert.match(dashboardHtml, /data-deduction-history-select/);
+  assert.match(dashboardHtml, /data-deduction-delete-batch/);
+  assert.match(dashboardHtml, />Delete request<\/button>/);
   assert.match(dashboardHtml, /<th>EPF<\/th><th>Insurance<\/th><th>OBD \/ Battery Tester<\/th><th>Special Case<\/th>/);
   assert.match(dashboardHtml, /function deductionHistoryTypeCell/);
   assert.match(dashboardHtml, /function deductionHistoryGroups/);

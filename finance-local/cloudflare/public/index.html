@@ -6192,6 +6192,13 @@
 .deduction-history-table-wrap table { min-width: 1780px; }
 .deduction-export-check { width: 52px; min-width: 52px; text-align: center !important; }
 .deduction-export-check input { width: 17px; height: 17px; accent-color: var(--accent); }
+.deduction-row-controls { display: grid; justify-items: center; gap: 16px; }
+.deduction-row-controls button { display: grid; width: 30px; height: 30px; padding: 0; place-items: center; border: 1px solid color-mix(in srgb, var(--danger) 48%, var(--line)); border-radius: 5px; background: transparent; color: var(--danger); font-size: 1.25rem; line-height: 1; }
+.deduction-row-controls button:hover { background: var(--danger-soft); }
+.deduction-delete-form { grid-template-columns: 1fr; }
+.deduction-delete-warning { display: grid; gap: 4px; padding: 14px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-muted); }
+.deduction-delete-warning span { color: var(--text-soft); font-size: .72rem; }
+.deduction-danger-button { border-color: var(--danger) !important; background: var(--danger) !important; color: #fff !important; }
 .deduction-type-cell { min-width: 220px; }
 .deduction-type-cell > strong { display: block; font-size: .76rem; font-variant-numeric: tabular-nums; }
 .deduction-type-cell > .deduction-history-status { display: inline-flex; margin-top: 8px; }
@@ -15575,7 +15582,7 @@ function deductionHistoryRender() {
   view.querySelector('[data-deduction-history-kpis]').innerHTML = [['Applied deductions', deductionMoney(totals.appliedCents)], ['Approved · not applied', deductionMoney(totals.approvedCents)], ['Remaining scheduled', deductionMoney(totals.remainingCents)], ['Reversed payments', deductionMoney(totals.reversedCents)], ['Pending deductions', formatNumber(totals.pendingCount)]].map(([label, value]) => '<article><span>' + esc(label) + '</span><strong>' + esc(deductionState.loaded ? value : '—') + '</strong></article>').join('');
   view.querySelector('[data-deduction-history-body]').innerHTML = deductionState.loaded ? groups.map(group => {
     const p = group.progress;
-    return '<tr data-deduction-batch-id="' + esc(group.id) + '"><td class="deduction-export-check"><input type="checkbox" data-deduction-history-select aria-label="Select ' + esc(group.rider) + ' request for Rider PDF"' + (deductionHistorySelected.has(group.id) ? ' checked' : '') + '></td><td><strong>' + esc(group.rider) + '</strong><small>' + group.records.length + ' deductions in one request</small><small>' + esc(group.references.join(' | ')) + '</small></td>' + deductionHistoryTypeCell(group, 'epf', checker) + deductionHistoryTypeCell(group, 'insurance', checker) + deductionHistoryTypeCell(group, 'battery-tester', checker) + deductionHistoryTypeCell(group, 'manual', checker) + '<td>' + esc((group.periodStart || '-') + ' - ' + (group.periodEnd || '-')) + '</td><td><strong>' + p.paidCount + ' / ' + p.count + ' applied</strong><small' + (p.overdue ? ' class="deduction-overdue"' : '') + '>' + esc(p.nextDue ? (p.overdue ? 'Overdue: ' : 'Next: ') + p.nextDue : 'No scheduled payments') + '</small></td><td>' + esc(deductionMoney(p.appliedCents)) + '</td><td>' + esc(deductionMoney(p.remainingCents)) + '</td><td><span class="deduction-history-status ' + esc(group.status) + '">' + esc(group.status) + '</span></td><td>' + esc(group.createdBy || '-') + '<small>' + esc(formatGrafanaTimestamp(group.createdAt)) + '</small></td></tr>';
+    return '<tr data-deduction-batch-id="' + esc(group.id) + '"><td class="deduction-export-check"><div class="deduction-row-controls"><input type="checkbox" data-deduction-history-select aria-label="Select ' + esc(group.rider) + ' request for Rider PDF"' + (deductionHistorySelected.has(group.id) ? ' checked' : '') + '><button type="button" data-deduction-delete-batch aria-label="Delete ' + esc(group.rider) + ' deduction request" title="Delete request">×</button></div></td><td><strong>' + esc(group.rider) + '</strong><small>' + group.records.length + ' deductions in one request</small><small>' + esc(group.references.join(' | ')) + '</small></td>' + deductionHistoryTypeCell(group, 'epf', checker) + deductionHistoryTypeCell(group, 'insurance', checker) + deductionHistoryTypeCell(group, 'battery-tester', checker) + deductionHistoryTypeCell(group, 'manual', checker) + '<td>' + esc((group.periodStart || '-') + ' - ' + (group.periodEnd || '-')) + '</td><td><strong>' + p.paidCount + ' / ' + p.count + ' applied</strong><small' + (p.overdue ? ' class="deduction-overdue"' : '') + '>' + esc(p.nextDue ? (p.overdue ? 'Overdue: ' : 'Next: ') + p.nextDue : 'No scheduled payments') + '</small></td><td>' + esc(deductionMoney(p.appliedCents)) + '</td><td>' + esc(deductionMoney(p.remainingCents)) + '</td><td><span class="deduction-history-status ' + esc(group.status) + '">' + esc(group.status) + '</span></td><td>' + esc(group.createdBy || '-') + '<small>' + esc(formatGrafanaTimestamp(group.createdAt)) + '</small></td></tr>';
   }).join('') : '<tr><td colspan="12">History is unavailable until the full register loads. <button type="button" data-deduction-retry>Retry register</button></td></tr>';
   view.querySelector('[data-deduction-history-empty]').hidden = !deductionState.loaded || shown.length > 0;
 }
@@ -15675,6 +15682,24 @@ async function deductionHistoryOpen() {
   try { await deductionLoad(); } catch {} deductionHistoryRender(); view.scrollIntoView({ block: 'start' });
 }
 function deductionHistoryClose() { document.getElementById('tab-commission')?.classList.remove('deduction-history-active'); const view = document.getElementById('deductionHistoryView'); if (view) view.hidden = true; }
+function deductionDeleteBatchDialog(batchId) {
+  const group = deductionHistoryGroups(deductionState.records).find(item => item.id === batchId), dialog = deductionDialog('Delete deduction request'), body = dialog.querySelector('[data-deduction-body]');
+  if (!group) { body.innerHTML = '<div class="deduction-feedback is-error" role="alert">Deduction request batch not found. Refresh History and try again.</div>'; return; }
+  const applied = group.records.some(record => deductionInstallments(record).some(item => item.status === 'applied' || item.status === 'reversed' || item.appliedAt));
+  body.innerHTML = '<form class="deduction-form deduction-delete-form"><div class="deduction-delete-warning"><strong>' + esc(group.rider) + '</strong><span>' + group.records.length + ' deduction record' + (group.records.length === 1 ? '' : 's') + ' · ' + esc((group.periodStart || '—') + ' to ' + (group.periodEnd || '—')) + '</span></div>' + (applied ? '<div class="deduction-feedback is-error" role="alert">This request has applied payment history and cannot be deleted. Use reversal to preserve the audit trail.</div>' : '<p class="deduction-note">This permanently removes the entire request from active History. A deletion audit record remains in the protected backup.</p><label>4-digit deletion PIN<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" autocomplete="off" required placeholder="••••"></label><p class="deduction-wide" role="alert" data-deduction-error></p><div class="deduction-wide deduction-submit-bar"><span>This action cannot be undone.</span><button type="submit" class="deduction-danger-button">Delete request</button></div>') + '</form>';
+  if (applied) return;
+  const form = body.querySelector('form'), button = form.querySelector('[type="submit"]'), identity = deductionRequestIdentity(); let deleting = false;
+  form.onsubmit = async event => {
+    event.preventDefault(); if (deleting || !form.reportValidity()) return; const error = form.querySelector('[data-deduction-error]'), input = { batchId, pin: form.elements.pin.value };
+    deleting = true; button.disabled = true; error.textContent = 'Deleting request…';
+    try {
+      const result = await deductionRequest('/delete-batch', { ...input, requestId: identity({ batchId }) });
+      deductionHistorySelected.delete(batchId); deductionState.loaded = false; await deductionLoad(); deductionHistoryRender();
+      body.innerHTML = '<section class="deduction-save-success" role="status"><span class="deduction-status-pill">Deleted</span><h4>Deduction request removed</h4><p>' + esc(String(result.deleted || group.records.length)) + ' deduction record' + (Number(result.deleted || group.records.length) === 1 ? '' : 's') + ' removed from active History.</p><button type="button" data-deduction-done>Done</button></section>';
+      body.querySelector('[data-deduction-done]').onclick = () => dialog.close();
+    } catch (reason) { error.textContent = reason.message; deleting = false; button.disabled = false; form.elements.pin.select(); }
+  };
+}
 function deductionRegisterDialog() { return deductionHistoryOpen(); }
 function deductionCancelDialog(recordId) { return deductionActionDialog(recordId, 'cancel'); }
 function deductionMount() {
@@ -15704,6 +15729,7 @@ document.addEventListener('click', async event => {
   if (event.target.closest?.('[data-deduction-retry]')) { event.preventDefault(); try { await deductionLoad(); } catch {} render(); deductionHistoryRender(); return; }
   const exported = event.target.closest?.('[data-deduction-history-export]');
   if (exported) { event.preventDefault(); try { await deductionHistoryExport(exported.dataset.deductionHistoryExport); } catch (error) { deductionHistoryEnsure().querySelector('[data-deduction-history-feedback]').textContent = error.message; } return; }
+  const deleteBatch = event.target.closest?.('[data-deduction-delete-batch]'); if (deleteBatch) { event.preventDefault(); return deductionDeleteBatchDialog(deleteBatch.closest('[data-deduction-batch-id]')?.dataset.deductionBatchId); }
   const action = event.target.closest?.('[data-deduction-action]'); if (action) { event.preventDefault(); return deductionActionDialog(action.closest('[data-deduction-record-id]')?.dataset.deductionRecordId, action.dataset.deductionAction); }
   const button = event.target.closest?.('[data-deduction-inline-create], [data-deduction-create], [data-deduction-register]'); if (!button) return;
   event.preventDefault(); event.stopImmediatePropagation(); if (button.hasAttribute('data-deduction-register')) return deductionHistoryOpen();

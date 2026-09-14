@@ -7,6 +7,7 @@ class MemoryStorage {
   constructor() { this.data = new Map(); this.queue = Promise.resolve(); }
   async get(key) { return structuredClone(this.data.get(key)); }
   async put(key, value) { this.data.set(key, structuredClone(value)); }
+  async delete(key) { this.data.delete(key); }
   async list({ prefix = '', startAfter, limit } = {}) { return new Map([...this.data].sort(([a], [b]) => a.localeCompare(b)).filter(([key]) => key.startsWith(prefix) && (!startAfter || key > startAfter)).slice(0, limit)); }
   transaction(fn) {
     const operation = this.queue.then(async () => { const before = structuredClone(this.data); try { return await fn(this); } catch (error) { this.data = before; throw error; } });
@@ -24,6 +25,7 @@ function setup(rows = [{ rider_name: 'Rider A', commission: 350, created_at: '20
   const upstreamRequests = []; const backups = [];
   const env = {
     DEDUCTIONS: { idFromName: value => value, get: () => register },
+    DEDUCTION_DELETE_PIN: '4321',
     FINANCE_PROXY_SHARED_SECRET: 'test-only',
     GRAFANA_PROXY: { async fetch(request) {
       upstreamRequests.push(request);
@@ -124,6 +126,21 @@ test('source row irregularities do not block a valid recorded EPF request', asyn
   assert.equal((await call(duplicated.env, '/create', epf)).status, 201);
   const dates = setup([{ ...row, commission: 350, created_at: '2026-08-31 12:00:00' }]);
   assert.equal((await call(dates.env, '/create', epf)).status, 201);
+});
+test('PIN deletion removes an unapplied batch, retains a tombstone and rejects applied history', async () => {
+  const state = setup();
+  const batch = await call(state.env, '/create-batch', { rider: base.rider, periodStart: base.periodStart, periodEnd: base.periodEnd, createdBy: base.createdBy, lines: [base, { ...base, type: 'manual', subtype: 'other' }] });
+  assert.equal((await call(state.env, '/delete-batch', { batchId: batch.body.batchId, pin: '1111' })).status, 403);
+  const deleted = await call(state.env, '/delete-batch', { batchId: batch.body.batchId, pin: '4321' });
+  assert.equal(deleted.status, 201); assert.equal(deleted.body.deleted, 2);
+  assert.equal([...state.storage.data.keys()].filter(key => key.startsWith('record:')).length, 0);
+  assert.equal((await state.storage.get('deleted:' + batch.body.batchId)).records.length, 2);
+  const appliedState = setup(), created = await call(appliedState.env, '/create', base);
+  await call(appliedState.env, '/approve', { recordId: created.body.id }, checker);
+  await call(appliedState.env, '/apply', { recordId: created.body.id, installmentIndex: 0, paymentDate: '2026-09-22' }, checker);
+  const appliedRecord = await appliedState.storage.get('record:' + created.body.id);
+  const blocked = await call(appliedState.env, '/delete-batch', { batchId: appliedRecord.batchId, pin: '4321' });
+  assert.equal(blocked.status, 400); assert.match(blocked.body.error, /applied payment history/i);
 });
 test('a saved request retry returns its receipt during upstream failure and cannot cross actions', async () => {
   const state = setup(); const requestId = crypto.randomUUID();

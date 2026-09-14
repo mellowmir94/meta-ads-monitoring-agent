@@ -109,7 +109,7 @@ export class DeductionRegister {
         return reply({ found: true, result: prior.result });
       }
       if (!/^[a-z0-9-]{16,80}$/i.test(input.requestId || '')) return reply({ error: 'A valid request ID is required.' }, 400);
-      if (!['/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse'].includes(url.pathname)) return reply({ error: 'Deduction action not found.' }, 404);
+      if (!['/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/delete-batch'].includes(url.pathname)) return reply({ error: 'Deduction action not found.' }, 404);
       const signature = requestSignature(url.pathname, input);
       const result = await this.storage.transaction(async tx => {
         const prior = await tx.get('request:' + input.requestId);
@@ -118,7 +118,29 @@ export class DeductionRegister {
           return prior.result;
         }
         const now = this.now().toISOString(); let result;
-        if (url.pathname === '/create' || url.pathname === '/create-batch') {
+        if (url.pathname === '/delete-batch') {
+          if (request.headers.get('x-deduction-delete-authorized') !== '1') throw new Error('Delete PIN authorization is required.');
+          const batchId = required(input.batchId, 'Batch ID', 90), all = await tx.list({ prefix: 'record:' });
+          const records = [...all.values()].filter(record => (record.batchId || record.id) === batchId);
+          if (!records.length) throw new Error('Deduction request batch not found.');
+          if (records.some(record => record.installments?.some(item => item.status === 'applied' || item.status === 'reversed' || item.appliedAt))) throw new Error('This request has applied payment history. Reverse or retain it for audit; it cannot be deleted.');
+          const recordIds = new Set(records.map(record => record.id));
+          for (const record of records) {
+            await tx.delete('record:' + record.id); await tx.delete(duplicateKey(record));
+            if (record.type === 'epf') {
+              await tx.delete(epfWeekKey(record));
+              const bucket = 'epf:' + encodeURIComponent(record.riderKey) + ':' + epfHoldMonth(record), remaining = (await tx.get(bucket) || []).filter(id => id !== record.id);
+              if (remaining.length) await tx.put(bucket, remaining); else await tx.delete(bucket);
+            }
+          }
+          const receipts = await tx.list({ prefix: 'request:' });
+          for (const [key, receipt] of receipts) {
+            const linked = key === 'request:' + batchId || recordIds.has(receipt?.result?.id) || receipt?.result?.batchId === batchId || receipt?.result?.records?.some(item => recordIds.has(item.id));
+            if (linked) await tx.delete(key);
+          }
+          const deleted = { batchId, rider: records[0].rider, records: records.map(record => ({ id: record.id, reference: record.reference, type: record.type, status: record.status, amountCents: record.amountCents, installmentCount: record.installmentCount })), deletedAt: now, deletedBy: actor.name, role: actor.role, reason: 'PIN-authorized deletion before any payment was applied' };
+          await tx.put('deleted:' + batchId, deleted); result = { batchId, deleted: records.length };
+        } else if (url.pathname === '/create' || url.pathname === '/create-batch') {
           const common = url.pathname === '/create-batch' ? input : {};
           const lines = url.pathname === '/create-batch' ? input.lines : [input];
           if (!Array.isArray(lines) || !lines.length || lines.length > 4) throw new Error('Choose between one and four deduction types.');
@@ -225,7 +247,7 @@ export async function deductionsApi(request, env, actor, context) {
     if (request.headers.get('origin') !== url.origin || !request.headers.get('content-type')?.startsWith('application/json')) return reply({ error: 'Same-origin JSON request required.' }, 403);
   }
   const path = url.pathname.slice('/api/deductions'.length) || '/';
-  if (!['/', '/eligibility', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse'].includes(path)) return reply({ error: 'Deduction action not found.' }, 404);
+  if (!['/', '/eligibility', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/delete-batch'].includes(path)) return reply({ error: 'Deduction action not found.' }, 404);
   const readOnly = path === '/' || path === '/eligibility';
   if ((readOnly && request.method !== 'GET') || (!readOnly && request.method !== 'POST')) return reply({ error: 'Method not allowed.' }, 405);
   try {
@@ -235,8 +257,11 @@ export async function deductionsApi(request, env, actor, context) {
     // Remove every browser-supplied verification, including those nested in batch lines.
     const input = text ? JSON.parse(text, (key, value) => key === 'epfVerification' ? undefined : value) : undefined;
     if (request.method === 'POST' && (!input || typeof input !== 'object' || Array.isArray(input) || !/^[a-z0-9-]{16,80}$/i.test(input.requestId || ''))) return reply({ error: 'A valid deduction request with a request ID is required.' }, 400);
+    const deleteAuthorized = path === '/delete-batch' && typeof env.DEDUCTION_DELETE_PIN === 'string' && env.DEDUCTION_DELETE_PIN.length >= 4 && String(input.pin || '') === env.DEDUCTION_DELETE_PIN;
+    if (path === '/delete-batch' && !deleteAuthorized) return reply({ error: 'Incorrect deletion PIN.' }, 403);
+    if (input) delete input.pin;
     const stub = env.DEDUCTIONS.get(env.DEDUCTIONS.idFromName('finance-deductions-v1'));
-    const headers = { 'content-type': 'application/json', 'x-deduction-session': actor.sessionId, 'x-deduction-user': actor.name, 'x-deduction-role': actor.role, 'x-deduction-internal': '1' };
+    const headers = { 'content-type': 'application/json', 'x-deduction-session': actor.sessionId, 'x-deduction-user': actor.name, 'x-deduction-role': actor.role, 'x-deduction-internal': '1', ...(deleteAuthorized ? { 'x-deduction-delete-authorized': '1' } : {}) };
     let savedReceipt = null;
     if (input) {
       const receiptResponse = await stub.fetch(new Request('https://deductions.internal/receipt', { method: 'POST', headers, body: JSON.stringify({ path, input }) }));
