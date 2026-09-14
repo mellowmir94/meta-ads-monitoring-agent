@@ -541,15 +541,16 @@ function deductionHistoryStatementPayload(records) {
   const filename = rider.rider.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/, '').slice(0, 160) || 'Rider';
   return { ...payload, title: rider.rider, filename: filename + '-Commission-Statement', pdfFilename: filename + '.pdf', period: (start && end ? start + ' - ' + end : payload.period) + ' | saved deductions are applied immediately', summary: { label: 'Net Commission', value: deductionMoney(netCents) }, footerRows: [footer, ...typeRows, row('APPLIED DEDUCTIONS', '- ' + deductionMoney(appliedCents)), row('NET COMMISSION', deductionMoney(netCents))] };
 }
-function deductionPaymentStatementCacheKey(record, index) {
+function deductionPaymentStatementCacheKey(record, index, commissionRange = null) {
   const item = deductionHistoryProgress(record).items[index] || {};
-  return [record.id, index, item.dueDate, item.settlementPeriodStart, item.settlementPeriodEnd, record.amountCents, record.installmentCount, record.pricingMode, record.updatedAt].join('|');
+  return [record.id, index, item.dueDate, item.settlementPeriodStart, item.settlementPeriodEnd, commissionRange?.start || '', commissionRange?.end || '', record.amountCents, record.installmentCount, record.pricingMode, record.updatedAt].join('|');
 }
-async function deductionFreshPaymentStatementPayload(record, index) {
+async function deductionFreshPaymentStatementPayload(record, index, commissionRange = null) {
   const progress = deductionHistoryProgress(record), item = progress.items[index];
   if (!item) throw new Error('This payment is no longer available. Refresh History and try again.');
   if (item.status !== 'applied') throw new Error('Only saved, applied deductions can be downloaded.');
-  const period = deductionInstallmentSettlement(record, item, index) || deductionWeekBounds(item.dueDate);
+  const selectedRange = commissionRange?.start && commissionRange?.end ? { start: String(commissionRange.start).slice(0, 10), end: String(commissionRange.end).slice(0, 10) } : null;
+  const period = selectedRange || deductionInstallmentSettlement(record, item, index) || deductionWeekBounds(item.dueDate);
   if (!period?.start || !period?.end) throw new Error('This payment does not have a Commission Rider period. Edit the payment details first.');
   const panel = panels?.find(panel => panel.id === 'commission-main');
   if (!panel || typeof requestFinancePayload !== 'function' || typeof canonicalizeFinancePayloadRows !== 'function' || typeof visibleTableColumns !== 'function') throw new Error('Commission Rider export is not ready. Return to Commission Rider and try again.');
@@ -571,26 +572,28 @@ async function deductionFreshPaymentStatementPayload(record, index) {
   const payment = Number.isInteger(Number(item.index)) ? Number(item.index) + 1 : index + 1, paymentCount = Number(record.installmentCount || progress.items.length || payment), type = (deductionTypes[record.type] || record.type || 'Deduction').toUpperCase(), filename = String(record.rider || 'Rider').trim().replace(/\s+/g, '_').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/, '').slice(0, 160) || 'Rider';
   return { title: record.rider, panelTitle: 'Commission Rider', filename: filename + '_payment-' + paymentCount, pdfFilename: filename + '_payment-' + paymentCount + '.pdf', columns, rows, period: type + ' · Payment ' + payment + ' of ' + paymentCount + ' · Deduction date: ' + deductionDateLabel(item.dueDate) + ' · Commission period: ' + deductionPeriodLabel(period) + ' · refreshed from Grafana', summary: { label: 'Net Commission', value: deductionMoney(netCents) }, footerRows: [filteredTotal, paymentRow(type + ' — PAYMENT ' + payment + ' OF ' + paymentCount, deductionDateLabel(item.dueDate), '- ' + deductionMoney(deductedCents)), footerRow('TOTAL DEDUCTED', '- ' + deductionMoney(deductedCents)), footerRow('NET COMMISSION', deductionMoney(netCents))] };
 }
-function deductionPrefetchPaymentStatement(record, index) {
-  const key = deductionPaymentStatementCacheKey(record, index), existing = deductionStatementPayloadCache.get(key);
+function deductionPrefetchPaymentStatement(record, index, commissionRange = null) {
+  const key = deductionPaymentStatementCacheKey(record, index, commissionRange), existing = deductionStatementPayloadCache.get(key);
   if (existing && Date.now() - existing.loadedAt < DEDUCTION_STATEMENT_PREFETCH_TTL_MS) return existing.promise;
-  const entry = { loadedAt: Date.now(), promise: deductionFreshPaymentStatementPayload(record, index) };
+  const entry = { loadedAt: Date.now(), promise: deductionFreshPaymentStatementPayload(record, index, commissionRange) };
   deductionStatementPayloadCache.set(key, entry);
   entry.promise.catch(() => { if (deductionStatementPayloadCache.get(key) === entry) deductionStatementPayloadCache.delete(key); });
   return entry.promise;
 }
-async function deductionPaymentStatementPayload(record, index) {
-  return deductionPrefetchPaymentStatement(record, index);
+async function deductionPaymentStatementPayload(record, index, commissionRange = null) {
+  return deductionPrefetchPaymentStatement(record, index, commissionRange);
 }
-async function deductionCombinedPaymentStatementPayload(options) {
+async function deductionCombinedPaymentStatementPayload(options, commissionRange = null) {
   const payments = options.filter(option => option && option.state !== 'upcoming');
   if (!payments.length) throw new Error('No selected payment is ready to download yet.');
   const periods = payments.map(option => deductionInstallmentSettlement(option.record, option.item, option.index) || deductionWeekBounds(option.item.dueDate));
   const periodKeys = new Set(periods.map(period => (period?.start || '') + '|' + (period?.end || '')));
-  if (periodKeys.size !== 1 || !periods[0]?.start || !periods[0]?.end) throw new Error('Choose payments from the same Commission period before downloading one combined PDF.');
-  // One fresh Grafana request is enough because all included payments use the
-  // same Commission Rider week. Rebuild its footer with every selected type.
-  const payload = await deductionPaymentStatementPayload(payments[0].record, payments[0].index), columns = payload.columns || [];
+  const selectedRange = commissionRange?.start && commissionRange?.end ? { start: String(commissionRange.start).slice(0, 10), end: String(commissionRange.end).slice(0, 10) } : null;
+  if (!selectedRange && (periodKeys.size !== 1 || !periods[0]?.start || !periods[0]?.end)) throw new Error('Choose payments from the same Commission period before downloading one combined PDF.');
+  // The History date_range is the authoritative PDF table scope. Without it,
+  // preserve the single-payment-week behavior for direct payment downloads.
+  const pdfPeriod = selectedRange || periods[0];
+  const payload = await deductionPaymentStatementPayload(payments[0].record, payments[0].index, selectedRange), columns = payload.columns || [];
   const commissionColumn = columns.find(column => String(column.key || '').trim().toLowerCase().replace(/[\s-]+/g, '_') === 'commission');
   if (!commissionColumn) throw new Error('The Commission Rider table has no commission column.');
   const commissionIndex = columns.indexOf(commissionColumn), quantityColumn = columns.find(column => String(column.key || '').trim().toLowerCase().replace(/[\s-]+/g, '_') === 'quantity'), paymentDateColumnIndex = quantityColumn ? columns.indexOf(quantityColumn) : Math.max(1, commissionIndex - 1);
@@ -601,7 +604,7 @@ async function deductionCombinedPaymentStatementPayload(options) {
   const paymentRows = payments.map(option => paymentRow((deductionTypes[option.record.type] || option.record.type).toUpperCase() + ' — PAYMENT ' + (option.index + 1) + ' OF ' + option.count, deductionDateLabel(option.item.dueDate), '- ' + deductionMoney(deductionStatementAmountForRecord(option.record, [option.item]))));
   const filename = String(payments[0].record.rider || 'Rider').trim().replace(/\s+/g, '_').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/, '').slice(0, 160) || 'Rider', highestPaymentCount = Math.max(...payments.map(option => option.count));
   const statementDetails = payments.map(option => (deductionTypes[option.record.type] || option.record.type) + ' · Payment ' + (option.index + 1) + ' of ' + option.count + ' · Deduction date: ' + deductionDateLabel(option.item.dueDate)).join(' | ');
-  return { ...payload, filename: filename + '_payment-' + highestPaymentCount, pdfFilename: filename + '_payment-' + highestPaymentCount + '.pdf', period: statementDetails + ' · Commission period: ' + deductionPeriodLabel(periods[0]) + ' · refreshed from Grafana', summary: { label: 'Net Commission', value: deductionMoney(netCents) }, footerRows: [filteredTotal, ...paymentRows, footerRow('TOTAL DEDUCTED', '- ' + deductionMoney(deductedCents)), footerRow('NET COMMISSION', deductionMoney(netCents))] };
+  return { ...payload, filename: filename + '_payment-' + highestPaymentCount, pdfFilename: filename + '_payment-' + highestPaymentCount + '.pdf', period: statementDetails + ' · Commission period: ' + deductionPeriodLabel(pdfPeriod) + ' · refreshed from Grafana', summary: { label: 'Net Commission', value: deductionMoney(netCents) }, footerRows: [filteredTotal, ...paymentRows, footerRow('TOTAL DEDUCTED', '- ' + deductionMoney(deductedCents)), footerRow('NET COMMISSION', deductionMoney(netCents))] };
 }
 async function deductionHistoryDownloadBatch(groupId, button) {
   const group = deductionHistoryGroups(deductionState.records).find(item => item.id === groupId);
@@ -612,7 +615,7 @@ async function deductionHistoryDownloadBatch(groupId, button) {
   const view = deductionHistoryEnsure(), feedback = view?.querySelector('[data-deduction-history-feedback]');
   if (feedback) feedback.textContent = 'Preparing one PDF for ' + options.length + ' selected payment' + (options.length === 1 ? '' : 's') + '…';
   try {
-    const [, payload] = await Promise.all([ensureFinanceExportBundle('pdf'), deductionCombinedPaymentStatementPayload(options)]);
+    const [, payload] = await Promise.all([ensureFinanceExportBundle('pdf'), deductionCombinedPaymentStatementPayload(options, { start: filters.periodStart, end: filters.periodEnd })]);
     const downloaded = await downloadPdfTable(payload);
     if (!downloaded) { if (feedback) feedback.textContent = 'PDF download was cancelled.'; return; }
     const unsent = options.filter(option => option.state !== 'sent');

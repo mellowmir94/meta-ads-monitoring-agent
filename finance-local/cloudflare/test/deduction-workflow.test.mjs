@@ -189,6 +189,25 @@ test('one History row combines its selected due payments into one PDF', async ()
   assert.match(payload.period, /Insurance · Payment 1 of 2 · Deduction date: 14\/09\/2026/);
   assert.match(payload.period, /OBD \/ Battery Tester · Payment 1 of 2 · Deduction date: 14\/09\/2026/);
 });
+test('History PDF table uses its selected Commission Rider date range', async () => {
+  const columns = [{ key: 'rider_name', label: 'Rider', value: row => row.rider_name }, { key: 'quantity', label: 'Quantity', value: row => row.quantity }, { key: 'commission', label: 'Commission', value: row => row.commission }];
+  let requestUrl = '';
+  const api = runtime({
+    FINANCE_API_ENDPOINT: '/api/grafana/finance', panels: [{ id: 'commission-main', columns }], visibleTableColumns: panel => panel.columns,
+    financeGrafanaFilterParam: () => '{}', requestFinancePayload: async url => { requestUrl = url; return { response: { ok: true }, payload: { rows: [{ rider_name: 'Rider A', quantity: 2, commission: 500 }] } }; },
+    canonicalizeFinancePayloadRows: async (_panel, payload) => payload.rows,
+  });
+  const group = { records: [record({ installmentCount: 2, installments: [
+    { index: 0, dueDate: '2026-09-14', status: 'applied', settlementPeriodStart: '2026-09-07', settlementPeriodEnd: '2026-09-13' },
+    { index: 1, dueDate: '2026-09-21', status: 'applied', settlementPeriodStart: '2026-09-14', settlementPeriodEnd: '2026-09-20' },
+  ] })] };
+  const paymentTwo = api.deductionHistoryPaymentOptions(group, '2026-09-30')[1];
+  const payload = await api.deductionCombinedPaymentStatementPayload([paymentTwo], { start: '2026-09-14', end: '2026-09-20' });
+  assert.match(requestUrl, /from=2026-09-14/);
+  assert.match(requestUrl, /to=2026-09-20/);
+  assert.match(payload.period, /Commission period: 14\/09\/2026 – 20\/09\/2026/);
+  assert.equal(payload.summary.value, 'RM 488.00');
+});
 test('History filters each deduction column by its own payment status', () => {
   const api = runtime();
   const group = { records: [record({ type: 'insurance', installmentCount: 1, installments: [{ index: 0, dueDate: '2026-09-14', status: 'applied' }] }), record({ id: 'battery', type: 'battery-tester', installmentCount: 1, installments: [{ index: 0, dueDate: '2026-09-21', status: 'applied' }] })] };
