@@ -15,7 +15,7 @@ function runtime(extra = {}) {
     auditCapture: () => ({ scope: { dates: { start: '2026-09-07', end: '2026-09-13' } } }),
     ...extra,
   });
-  vm.runInContext(source + '\nthis.api = { deductionState, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionFirstFourThursdayWeeks, deductionEpfSchedule, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionHistoryGroups, deductionGroupScheduleProgress, deductionGroupMatchesTiming, deductionGroupMatchesTypePaymentFilters, deductionHistoryPaymentOptions, deductionHistoryStatementPayload, deductionPaymentStatementPayload, deductionPrefetchPaymentStatement, deductionScheduleNotice, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
+  vm.runInContext(source + '\nthis.api = { deductionState, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionFirstFourThursdayWeeks, deductionEpfSchedule, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionHistoryGroups, deductionGroupScheduleProgress, deductionGroupMatchesTiming, deductionGroupMatchesTypePaymentFilters, deductionHistoryPaymentOptions, deductionHistoryDownloadOptions, deductionHistoryStatementPayload, deductionPaymentStatementPayload, deductionCombinedPaymentStatementPayload, deductionPrefetchPaymentStatement, deductionScheduleNotice, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
   return context.api;
 }
 const rows = [{ rider_name: 'Rider A', created_at: '2026-09-07', commission: 300 }, { rider_name: 'Rider A', created_at: '2026-09-08', commission: 255 }];
@@ -158,6 +158,25 @@ test('History exposes every payment option while preventing early PDF downloads'
   const group = { records: [record({ installmentCount: 2, installments: [{ index: 0, dueDate: '2026-09-14', status: 'applied' }, { index: 1, dueDate: '2026-09-21', status: 'applied' }] })] };
   const options = runtime().deductionHistoryPaymentOptions(group, '2026-09-15');
   assert.deepEqual(options.map(option => [option.label, option.state]), [['Insurance · Payment 1/2', 'ready'], ['Insurance · Payment 2/2', 'upcoming']]);
+});
+test('one History row combines its selected due payments into one PDF', async () => {
+  const columns = [{ key: 'rider_name', label: 'Rider', value: row => row.rider_name }, { key: 'quantity', label: 'Quantity', value: row => row.quantity }, { key: 'commission', label: 'Commission', value: row => row.commission }];
+  let requests = 0;
+  const api = runtime({
+    FINANCE_API_ENDPOINT: '/api/grafana/finance', panels: [{ id: 'commission-main', columns }], visibleTableColumns: panel => panel.columns,
+    financeGrafanaFilterParam: () => '{}', requestFinancePayload: async () => { requests += 1; return { response: { ok: true }, payload: { rows: [{ rider_name: 'Rider A', quantity: 1, commission: 300 }] } }; },
+    canonicalizeFinancePayloadRows: async (_panel, payload) => payload.rows,
+  });
+  const group = { records: [
+    record({ id: 'insurance', amountCents: 1944, installmentCount: 2, installments: [{ index: 0, dueDate: '2026-09-14', status: 'applied', settlementPeriodStart: '2026-09-07', settlementPeriodEnd: '2026-09-13' }, { index: 1, dueDate: '2026-09-21', status: 'applied', settlementPeriodStart: '2026-09-14', settlementPeriodEnd: '2026-09-20' }] }),
+    record({ id: 'battery', type: 'battery-tester', amountCents: 5000, installmentCount: 2, installments: [{ index: 0, dueDate: '2026-09-14', status: 'applied', settlementPeriodStart: '2026-09-07', settlementPeriodEnd: '2026-09-13' }, { index: 1, dueDate: '2026-09-21', status: 'applied', settlementPeriodStart: '2026-09-14', settlementPeriodEnd: '2026-09-20' }] }),
+  ] };
+  const payload = await api.deductionCombinedPaymentStatementPayload(api.deductionHistoryDownloadOptions(group, {}, '2026-09-15'));
+  assert.equal(requests, 1);
+  assert.equal(payload.filename, 'Rider_A_payment-2');
+  assert.ok(payload.footerRows.some(row => row[0] === 'INSURANCE — PAYMENT 1 OF 2' && row[2] === '- RM 19.44'));
+  assert.ok(payload.footerRows.some(row => row[0] === 'OBD / BATTERY TESTER — PAYMENT 1 OF 2' && row[2] === '- RM 50.00'));
+  assert.ok(payload.footerRows.some(row => row[0] === 'TOTAL DEDUCTED' && row[2] === '- RM 69.44'));
 });
 test('History filters each deduction column by its own payment status', () => {
   const api = runtime();

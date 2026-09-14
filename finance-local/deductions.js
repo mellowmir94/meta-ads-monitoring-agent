@@ -342,17 +342,15 @@ function deductionHistoryPaymentCell(group, type, today = deductionToday(), timi
   const status = selected.state === 'sent' ? '✓ Sent to rider' : selected.state === 'ready' ? 'Ready to download' : 'Upcoming';
   return '<label class="deduction-history-payment-picker"><span>Payment</span><select data-deduction-history-type-payment-select data-deduction-history-payment-type="' + esc(type) + '">' + options.map(option => '<option value="' + esc(option.key) + '"' + (option.key === selected.key ? ' selected' : '') + '>' + esc('Payment ' + (option.index + 1) + '/' + option.count + ' · ' + deductionDateLabel(option.item.dueDate) + ' · ' + deductionMoney(option.amountCents)) + '</option>').join('') + '</select></label><span class="deduction-download-ready ' + (selected.state === 'sent' ? 'is-sent' : selected.state === 'upcoming' ? 'is-upcoming' : '') + '">' + esc(status) + '</span>';
 }
+function deductionHistoryDownloadOptions(group, typeTimings = {}, today = deductionToday()) {
+  return group.records.map(record => deductionHistorySelectedPayment(group, record.type, today, typeTimings[record.type] || '')).filter(Boolean);
+}
 function deductionHistoryDownloadCell(group, typeTimings = {}, today = deductionToday()) {
-  const payments = group.records.map(record => {
-    const type = record.type, selected = deductionHistorySelectedPayment(group, type, today, typeTimings[type] || '');
-    if (!selected) return '';
-    const title = (deductionTypes[type] || type) + ' · Payment ' + (selected.index + 1) + '/' + selected.count;
-    const action = selected.state === 'upcoming'
-      ? '<small>Available ' + esc(deductionDateLabel(selected.item.dueDate)) + '</small>'
-      : '<button type="button" data-deduction-history-payment-download data-deduction-payment-key="' + esc(selected.key) + '">' + (selected.state === 'sent' ? 'Download again' : 'Download PDF') + '</button>';
-    return '<div class="deduction-history-download-item"><strong>' + esc(title) + '</strong><small>' + esc(deductionDateLabel(selected.item.dueDate)) + ' · ' + esc(deductionMoney(selected.amountCents)) + '</small>' + action + '</div>';
-  }).join('');
-  return '<td class="deduction-history-download-cell">' + (payments || '—') + '</td>';
+  const selected = deductionHistoryDownloadOptions(group, typeTimings, today), downloadable = selected.filter(option => option.state !== 'upcoming'), upcoming = selected.filter(option => option.state === 'upcoming');
+  if (!downloadable.length) return '<td class="deduction-history-download-cell"><small>Available when the selected payment date is reached.</small></td>';
+  const labels = downloadable.map(option => (deductionTypes[option.record.type] || option.record.type) + ' payment ' + (option.index + 1)).join(' · ');
+  const sent = downloadable.every(option => option.state === 'sent');
+  return '<td class="deduction-history-download-cell"><div class="deduction-history-download-item"><strong>' + esc(downloadable.length + ' selected payment' + (downloadable.length === 1 ? '' : 's')) + '</strong><small>' + esc(labels) + '</small>' + (upcoming.length ? '<small>' + esc(upcoming.length + ' future payment' + (upcoming.length === 1 ? ' is' : 's are') + ' excluded until due.') + '</small>' : '') + (sent ? '<span class="deduction-download-ready is-sent">✓ Sent to rider</span>' : '<span class="deduction-download-ready">Ready to download</span>') + '<button type="button" data-deduction-history-batch-download>Download PDF</button></div></td>';
 }
 function deductionFilteredHistory(records, filters, today = deductionToday()) {
   return records.filter(record => {
@@ -507,24 +505,49 @@ function deductionPrefetchPaymentStatement(record, index) {
 async function deductionPaymentStatementPayload(record, index) {
   return deductionPrefetchPaymentStatement(record, index);
 }
-async function deductionHistoryDownloadPayment(groupId, paymentKey, button) {
-  const group = deductionHistoryGroups(deductionState.records).find(item => item.id === groupId), option = deductionHistoryPaymentOptions(group || { records: [] }).find(item => item.key === paymentKey);
-  if (!option) throw new Error('This payment is no longer available. Refresh History and try again.');
-  if (option.state === 'upcoming') throw new Error('This payment is not ready to download yet.');
+async function deductionCombinedPaymentStatementPayload(options) {
+  const payments = options.filter(option => option && option.state !== 'upcoming');
+  if (!payments.length) throw new Error('No selected payment is ready to download yet.');
+  const periods = payments.map(option => deductionInstallmentSettlement(option.record, option.item, option.index) || deductionWeekBounds(option.item.dueDate));
+  const periodKeys = new Set(periods.map(period => (period?.start || '') + '|' + (period?.end || '')));
+  if (periodKeys.size !== 1 || !periods[0]?.start || !periods[0]?.end) throw new Error('Choose payments from the same Commission period before downloading one combined PDF.');
+  // One fresh Grafana request is enough because all included payments use the
+  // same Commission Rider week. Rebuild its footer with every selected type.
+  const payload = await deductionPaymentStatementPayload(payments[0].record, payments[0].index), columns = payload.columns || [];
+  const commissionColumn = columns.find(column => String(column.key || '').trim().toLowerCase().replace(/[\s-]+/g, '_') === 'commission');
+  if (!commissionColumn) throw new Error('The Commission Rider table has no commission column.');
+  const commissionIndex = columns.indexOf(commissionColumn), quantityColumn = columns.find(column => String(column.key || '').trim().toLowerCase().replace(/[\s-]+/g, '_') === 'quantity'), paymentDateColumnIndex = quantityColumn ? columns.indexOf(quantityColumn) : Math.max(1, commissionIndex - 1);
+  const grossCents = Math.round((payload.rows || []).reduce((sum, row) => sum + numberValue(commissionColumn.value(row)), 0) * 100), deductedCents = payments.reduce((sum, option) => sum + deductionStatementAmountForRecord(option.record, [option.item]), 0), netCents = grossCents - deductedCents;
+  const footerRow = (label, value, valueColumnIndex = commissionIndex) => columns.map((_column, columnIndex) => columnIndex === 0 ? label : columnIndex === valueColumnIndex ? value : '');
+  const paymentRow = (label, date, amount) => columns.map((_column, columnIndex) => columnIndex === 0 ? label : columnIndex === paymentDateColumnIndex ? date : columnIndex === commissionIndex ? amount : '');
+  const filteredTotal = columns.map(column => column === columns[0] ? 'Filtered total' : column === quantityColumn ? formatNumber((payload.rows || []).reduce((sum, row) => sum + Number(row.quantity || 0), 0)) : column === commissionColumn ? deductionMoney(grossCents) : '');
+  const paymentRows = payments.map(option => paymentRow((deductionTypes[option.record.type] || option.record.type).toUpperCase() + ' — PAYMENT ' + (option.index + 1) + ' OF ' + option.count, deductionDateLabel(option.item.dueDate), '- ' + deductionMoney(deductionStatementAmountForRecord(option.record, [option.item]))));
+  const filename = String(payments[0].record.rider || 'Rider').trim().replace(/\s+/g, '_').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/, '').slice(0, 160) || 'Rider', highestPaymentCount = Math.max(...payments.map(option => option.count));
+  return { ...payload, filename: filename + '_payment-' + highestPaymentCount, pdfFilename: filename + '_payment-' + highestPaymentCount + '.pdf', period: 'Selected deduction dates: ' + payments.map(option => deductionDateLabel(option.item.dueDate)).join(', ') + ' | Commission period: ' + deductionPeriodLabel(periods[0]) + ' | refreshed from Grafana', summary: { label: 'Net Commission', value: deductionMoney(netCents) }, footerRows: [filteredTotal, ...paymentRows, footerRow('TOTAL DEDUCTED', '- ' + deductionMoney(deductedCents)), footerRow('NET COMMISSION', deductionMoney(netCents))] };
+}
+async function deductionHistoryDownloadBatch(groupId, button) {
+  const group = deductionHistoryGroups(deductionState.records).find(item => item.id === groupId);
+  if (!group) throw new Error('This deduction request is no longer available. Refresh History and try again.');
+  const filters = deductionHistoryFilters(deductionHistoryEnsure()), options = deductionHistoryDownloadOptions(group, filters.typeTimings).filter(option => option.state !== 'upcoming');
+  if (!options.length) throw new Error('No selected payment is ready to download yet.');
   button.disabled = true;
   const view = deductionHistoryEnsure(), feedback = view?.querySelector('[data-deduction-history-feedback]');
-  if (feedback) feedback.textContent = 'Preparing ' + option.label + ' PDF…';
+  if (feedback) feedback.textContent = 'Preparing one PDF for ' + options.length + ' selected payment' + (options.length === 1 ? '' : 's') + '…';
   try {
-    const [, payload] = await Promise.all([ensureFinanceExportBundle('pdf'), deductionPaymentStatementPayload(option.record, option.index)]);
+    const [, payload] = await Promise.all([ensureFinanceExportBundle('pdf'), deductionCombinedPaymentStatementPayload(options)]);
     const downloaded = await downloadPdfTable(payload);
     if (!downloaded) { if (feedback) feedback.textContent = 'PDF download was cancelled.'; return; }
-    const saved = await deductionRequest('/mark-sent', { recordId: option.record.id, installmentIndex: option.index, requestId: crypto.randomUUID() });
-    Object.assign(option.item, { statementSentAt: saved.statementSentAt, statementSentBy: saved.statementSentBy });
+    const unsent = options.filter(option => option.state !== 'sent');
+    const results = await Promise.all(unsent.map(async option => {
+      const saved = await deductionRequest('/mark-sent', { recordId: option.record.id, installmentIndex: option.index, requestId: crypto.randomUUID() });
+      Object.assign(option.item, { statementSentAt: saved.statementSentAt, statementSentBy: saved.statementSentBy });
+    }));
+    void results;
     deductionHistoryRender();
     const nextFeedback = deductionHistoryEnsure()?.querySelector('[data-deduction-history-feedback]');
-    if (nextFeedback) nextFeedback.textContent = option.label + ' PDF downloaded and marked sent to rider.';
+    if (nextFeedback) nextFeedback.textContent = 'Combined PDF downloaded and selected payments marked sent to rider.';
   } catch (error) {
-    if (feedback) feedback.textContent = error.message || 'The payment PDF could not be downloaded.';
+    if (feedback) feedback.textContent = error.message || 'The combined payment PDF could not be downloaded.';
     throw error;
   } finally { if (button.isConnected) button.disabled = false; }
 }
@@ -708,8 +731,8 @@ document.addEventListener('click', async event => {
   if (event.target.closest?.('[data-deduction-retry]')) { event.preventDefault(); try { await deductionLoad(); } catch {} render(); deductionHistoryRender(); return; }
   const exported = event.target.closest?.('[data-deduction-history-export]');
   if (exported) { event.preventDefault(); try { await deductionHistoryExport(exported.dataset.deductionHistoryExport); } catch (error) { deductionHistoryEnsure().querySelector('[data-deduction-history-feedback]').textContent = error.message; } return; }
-  const paymentDownload = event.target.closest?.('[data-deduction-history-payment-download]');
-  if (paymentDownload) { event.preventDefault(); try { await deductionHistoryDownloadPayment(paymentDownload.closest('[data-deduction-batch-id]')?.dataset.deductionBatchId, paymentDownload.dataset.deductionPaymentKey, paymentDownload); } catch {} return; }
+  const batchDownload = event.target.closest?.('[data-deduction-history-batch-download]');
+  if (batchDownload) { event.preventDefault(); try { await deductionHistoryDownloadBatch(batchDownload.closest('[data-deduction-batch-id]')?.dataset.deductionBatchId, batchDownload); } catch {} return; }
   const deleteBatch = event.target.closest?.('[data-deduction-delete-batch]'); if (deleteBatch) { event.preventDefault(); return deductionDeleteBatchDialog(deleteBatch.closest('[data-deduction-batch-id]')?.dataset.deductionBatchId); }
   const paymentDetails = event.target.closest?.('[data-deduction-progress-details]'); if (paymentDetails) { event.preventDefault(); return deductionActionDialog(paymentDetails.dataset.deductionProgressDetails, 'view'); }
   const action = event.target.closest?.('[data-deduction-action]'); if (action) { event.preventDefault(); return deductionActionDialog(action.closest('[data-deduction-record-id]')?.dataset.deductionRecordId, action.dataset.deductionAction); }
