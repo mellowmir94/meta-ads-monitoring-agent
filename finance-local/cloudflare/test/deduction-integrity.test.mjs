@@ -193,7 +193,9 @@ test('direct-applied EPF creates one four-week monthly plan and blocks a second 
   assert.deepEqual(record.installments.map(item => item.dueDate), epfSchedule);
   assert.equal(record.epfContributionMonth, '2026-10');
   assert.equal(record.installments[0].epfContributionMonth, '2026-10');
-  assert.equal(record.installments[0].settlementPeriodStart, '2026-09-14');
+  assert.equal(record.installments[0].dueDate, '2026-09-18');
+  assert.equal(record.installments[0].settlementPeriodStart, '2026-09-07');
+  assert.equal(record.installments[0].settlementPeriodEnd, '2026-09-13');
 });
 test('Finance can unlock and save four chronological EPF dates across calendar months', async () => {
   const state = setup(), created = await call(state.env, '/create', epf);
@@ -252,11 +254,11 @@ test('a complete backup and restore retain more than one thousand storage keys',
   const restored = new MemoryStorage(); await restoreDeductionSnapshot(restored, snapshot);
   assert.equal(restored.data.size, state.storage.data.size);
 });
-test('EPF is applied across its four monthly schedule weeks', async () => {
+test('first EPF hold applies to the opening commission week and later holds follow schedule dates', async () => {
   const state = setup(); const created = await call(state.env, '/create', epf);
   const record = await state.storage.get('record:' + created.body.id);
   assert.equal(record.status, 'applied');
-  assert.deepEqual(record.installments.map(item => item.settlementPeriodStart), ['2026-09-14', '2026-09-21', '2026-09-28', '2026-10-05']);
+  assert.deepEqual(record.installments.map(item => item.settlementPeriodStart), ['2026-09-07', '2026-09-21', '2026-09-28', '2026-10-05']);
   assert.deepEqual(record.installments.map(item => item.paymentDate), epfSchedule);
 });
 

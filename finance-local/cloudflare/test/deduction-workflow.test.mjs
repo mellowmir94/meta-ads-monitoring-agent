@@ -55,6 +55,19 @@ test('only applied installments reduce the selected commission period and schedu
   assert.equal(api.deductionSummaryForRows(rows, { start: '2026-09-21', end: '2026-09-27' }).approvedCents, 0);
   assert.equal(api.deductionSummaryForRows(rows, { start: '2026-09-21', end: '2026-09-27' }).pendingCents, 1200);
 });
+test('main Commission Rider PDF treats EPF payment 1 as the opening week for existing records', () => {
+  const api = runtime(); api.deductionState.loaded = true;
+  api.deductionState.records = [record({ type: 'epf', amountCents: 2500, status: 'applied', installments: [
+    { index: 0, dueDate: '2026-09-18', status: 'applied', settlementPeriodStart: '2026-09-14', settlementPeriodEnd: '2026-09-20' },
+    { index: 1, dueDate: '2026-09-24', status: 'applied', settlementPeriodStart: '2026-09-21', settlementPeriodEnd: '2026-09-27' },
+    { index: 2, dueDate: '2026-10-01', status: 'applied', settlementPeriodStart: '2026-09-28', settlementPeriodEnd: '2026-10-04' },
+    { index: 3, dueDate: '2026-10-08', status: 'applied', settlementPeriodStart: '2026-10-05', settlementPeriodEnd: '2026-10-11' },
+  ] })];
+  const opening = api.deductionSummaryForRows(rows, { start: '2026-09-07', end: '2026-09-13' });
+  const second = api.deductionSummaryForRows(rows, { start: '2026-09-21', end: '2026-09-27' });
+  assert.equal(opening.amounts.epf, 2500);
+  assert.equal(second.amounts.epf, 2500);
+});
 test('legacy applied records retain due date basis with an explicit summary marker', () => {
   const api = runtime(); api.deductionState.loaded = true;
   api.deductionState.records = [record({ installments: [{ dueDate: '2026-09-08', status: 'applied' }] })];
@@ -95,13 +108,37 @@ test('rider statement PDF keeps all filtered table rows and subtracts only appli
   const api = runtime({ financeTableExportPayload: () => ({ title: 'Line Item Audit', panelTitle: 'Commission Rider', filename: 'Commission', columns, rows: tableRows, footer: ['Filtered total', 'RM 555.00'], period: '2026-09-07 - 2026-09-13' }) });
   const payload = api.deductionHistoryStatementPayload([
     record({ batchId: 'batch-one' }),
-    record({ id: 'epf', batchId: 'batch-one', type: 'epf', amountCents: 2500, status: 'applied', installments: [{ index: 0, dueDate: '2026-09-14', status: 'applied', settlementPeriodStart: '2026-09-07', settlementPeriodEnd: '2026-09-13' }] }),
+    record({ id: 'epf', batchId: 'batch-one', type: 'epf', amountCents: 2500, status: 'applied', installments: [
+      { index: 0, dueDate: '2026-09-18', status: 'applied', settlementPeriodStart: '2026-09-14', settlementPeriodEnd: '2026-09-20' },
+      { index: 1, dueDate: '2026-09-24', status: 'applied', settlementPeriodStart: '2026-09-21', settlementPeriodEnd: '2026-09-27' },
+      { index: 2, dueDate: '2026-10-01', status: 'applied', settlementPeriodStart: '2026-09-28', settlementPeriodEnd: '2026-10-04' },
+      { index: 3, dueDate: '2026-10-08', status: 'applied', settlementPeriodStart: '2026-10-05', settlementPeriodEnd: '2026-10-11' },
+    ] }),
   ]);
   assert.equal(payload.rows.length, 2); assert.equal(payload.summary.value, 'RM 518.00');
   assert.deepEqual(Array.from(payload.footerRows.at(-1)), ['NET COMMISSION', 'RM 518.00']);
   assert.ok(payload.footerRows.some(row => row[0] === 'EPF (applied)' && row[1] === '- RM 25.00'));
   assert.ok(payload.footerRows.some(row => row[0] === 'APPLIED DEDUCTIONS' && row[1] === '- RM 37.00'));
   assert.equal(payload.footerRows.some(row => row[0].includes('SCHEDULED')), false);
+});
+test('rider statement PDF allocates later EPF payments to their configured weeks', () => {
+  const tableRows = [{ rider_name: 'Rider A', commission: 100 }];
+  const columns = [{ key: 'rider_name', label: 'Rider', value: row => row.rider_name }, { key: 'commission', label: 'Commission', value: row => row.commission }];
+  const api = runtime({
+    auditCapture: () => ({ scope: { dates: { start: '2026-09-21', end: '2026-09-27' } } }),
+    financeTableExportPayload: () => ({ title: 'Line Item Audit', panelTitle: 'Commission Rider', filename: 'Commission', columns, rows: tableRows, footer: ['Filtered total', 'RM 100.00'], period: '2026-09-21 - 2026-09-27' }),
+  });
+  const payload = api.deductionHistoryStatementPayload([
+    record({ id: 'epf', batchId: 'batch-one', type: 'epf', amountCents: 2500, status: 'applied', installments: [
+      { index: 0, dueDate: '2026-09-18', status: 'applied', settlementPeriodStart: '2026-09-07', settlementPeriodEnd: '2026-09-13' },
+      { index: 1, dueDate: '2026-09-24', status: 'applied', settlementPeriodStart: '2026-09-21', settlementPeriodEnd: '2026-09-27' },
+      { index: 2, dueDate: '2026-10-01', status: 'applied', settlementPeriodStart: '2026-09-28', settlementPeriodEnd: '2026-10-04' },
+      { index: 3, dueDate: '2026-10-08', status: 'applied', settlementPeriodStart: '2026-10-05', settlementPeriodEnd: '2026-10-11' },
+    ] }),
+  ]);
+  assert.equal(payload.summary.value, 'RM 75.00');
+  assert.ok(payload.footerRows.some(row => row[0] === 'EPF (applied)' && row[1] === '- RM 25.00'));
+  assert.ok(payload.footerRows.some(row => row[0] === 'APPLIED DEDUCTIONS' && row[1] === '- RM 25.00'));
 });
 test('same request payload retries keep idempotency ID; changed payload gets a new one', () => {
   const identify = runtime().deductionRequestIdentity(), first = identify({ rider: 'A', amount: 25 });

@@ -190,8 +190,8 @@ export class DeductionRegister {
             }
             const counter = Number(await tx.get('counter:reference') || 0) + 1; await tx.put('counter:reference', counter);
             const id = `${input.requestId}-${index + 1}`; const reference = `DED-${now.slice(0, 7).replace('-', '')}-${String(counter).padStart(6, '0')}`;
-            const installments = data.installments.map(item => {
-              const settlement = data.type === 'epf' ? weekBounds(item.dueDate) : { start: data.periodStart, end: data.periodEnd };
+            const installments = data.installments.map((item, installmentIndex) => {
+              const settlement = data.type === 'epf' ? installmentIndex === 0 ? { start: data.periodStart, end: data.periodEnd } : weekBounds(item.dueDate) : { start: data.periodStart, end: data.periodEnd };
               return { ...item, status: 'applied', appliedAt: now, appliedBy: data.createdBy, paymentDate: data.type === 'epf' ? item.dueDate : now.slice(0, 10), settlementPeriodStart: settlement.start, settlementPeriodEnd: settlement.end, ...(data.type === 'epf' ? { epfContributionMonth: data.epfContributionMonth } : {}) };
             });
             const record = { ...data, installments, status: 'applied', approvalStatus: 'applied', approvedBy: data.createdBy, approvedAt: now, id, batchId: input.requestId, reference, createdAt: now, creatorSession: actor.sessionId, audit: [{ action: 'created-and-applied', at: now, by: data.createdBy, role: actor.role, identityVerified: false, selfDeclared: true, amountCents: data.scheduledAmountCents, ...(data.type === 'epf' ? { recordedWeeklyCommissionCents: data.reportedWeeklyCommissionCents, installmentDates: data.installments.map(item => item.dueDate) } : {}), reason: data.reason || 'Finance saved and applied this deduction' }] };
@@ -229,7 +229,7 @@ export class DeductionRegister {
             const collision = await tx.get(nextDuplicateKey);
             if (collision && collision !== record.id) throw new Error('An identical deduction already exists for this rider and period.');
             record.installments = installmentDates.map((dueDate, index) => {
-              const item = record.installments[index], settlement = record.type === 'epf' ? weekBounds(dueDate) : { start: record.periodStart, end: record.periodEnd };
+              const item = record.installments[index], settlement = record.type === 'epf' ? index === 0 ? { start: record.periodStart, end: record.periodEnd } : weekBounds(dueDate) : { start: record.periodStart, end: record.periodEnd };
               return { ...(item || {}), index, dueDate, amountCents, status: item?.status || 'applied', appliedAt: item?.appliedAt || now, appliedBy: item?.appliedBy || actor.name, paymentDate: record.type === 'epf' ? dueDate : item?.paymentDate || now.slice(0, 10), settlementPeriodStart: settlement.start, settlementPeriodEnd: settlement.end, ...(record.type === 'epf' ? { epfContributionMonth: record.epfContributionMonth } : {}) };
             });
             record.deductionDate = installmentDates[0]; record.reason = updatedReason; record.amountCents = amountCents; record.installmentCount = installmentCount; record.installmentIntervalDays = installmentCount > 1 ? 7 : 0; record.scheduledAmountCents = amountCents * installmentCount; record.pricingMode = pricingMode; record.codes = record.type === 'battery-tester' ? [2, 7] : record.codes;
@@ -242,7 +242,7 @@ export class DeductionRegister {
             const scheduleMonth = record.epfScheduleMonth || record.deductionDate.slice(0, 7), installmentDates = validateEpfScheduleDates(input.installmentDates, scheduleMonth);
             const previousDates = record.installments.map(item => item.dueDate), oldDuplicateKey = duplicateKey(record);
             record.installments = record.installments.map((item, index) => {
-              const dueDate = installmentDates[index], settlement = weekBounds(dueDate);
+              const dueDate = installmentDates[index], settlement = index === 0 ? { start: record.periodStart, end: record.periodEnd } : weekBounds(dueDate);
               return { ...item, dueDate, ...(item.status === 'applied' ? { paymentDate: dueDate, settlementPeriodStart: settlement.start, settlementPeriodEnd: settlement.end, epfContributionMonth: record.epfContributionMonth || nextMonth(`${scheduleMonth}-01`) } : {}) };
             });
             record.deductionDate = installmentDates[0]; record.epfScheduleMonth = scheduleMonth; record.epfContributionMonth = nextMonth(`${scheduleMonth}-01`);

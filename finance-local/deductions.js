@@ -96,6 +96,14 @@ function deductionInstallments(record) {
   return Array.from({ length: Number(record.installmentCount || 1) }, (_, index) => ({ index, dueDate: deductionAddDays(record.deductionDate, Number(record.installmentIntervalDays || 7) * index), status: deductionStatus(record) === 'approved' ? 'scheduled' : deductionStatus(record) }));
 }
 function deductionInstallmentAmount(record, item) { return Number(item.amountCents ?? record.amountCents ?? 0); }
+function deductionInstallmentSettlement(record, item, position = 0) {
+  const index = Number.isInteger(Number(item?.index)) ? Number(item.index) : position;
+  if (record.type === 'epf') {
+    if (index === 0 && record.periodStart && record.periodEnd) return { start: record.periodStart, end: record.periodEnd };
+    const scheduledWeek = deductionWeekBounds(item?.dueDate); if (scheduledWeek) return scheduledWeek;
+  }
+  return item?.settlementPeriodStart && item?.settlementPeriodEnd ? { start: item.settlementPeriodStart, end: item.settlementPeriodEnd } : null;
+}
 function deductionMatches(record, row) {
   if (['rejected', 'cancelled', 'reversed'].includes(deductionStatus(record)) || deductionRiderKey(row.rider_name) !== record.riderKey) return false;
   if (record.orderId) return String(row.order_id || '') === record.orderId;
@@ -120,12 +128,12 @@ function deductionSummaryForRows(dataRows, dates) {
   let pendingCents = 0, legacyCount = 0;
   if (deductionState.loaded && rider.valid && scopeStart && scopeEnd) deductionState.records.forEach(record => {
     if (rider.key !== (record.riderKey || deductionRiderKey(record.rider)) || ['rejected', 'cancelled', 'reversed'].includes(deductionStatus(record))) return;
-    for (const item of deductionInstallments(record)) {
+    for (const [index, item] of deductionInstallments(record).entries()) {
       const amount = deductionInstallmentAmount(record, item);
       if (item.status === 'applied') {
         // New applications belong to a settlement week; legacy records retain the due-date basis.
-        const hasSettlement = Boolean(item.settlementPeriodStart && item.settlementPeriodEnd);
-        const included = hasSettlement ? item.settlementPeriodStart >= scopeStart && item.settlementPeriodEnd <= scopeEnd : item.dueDate >= scopeStart && item.dueDate <= scopeEnd;
+        const settlement = deductionInstallmentSettlement(record, item, index), hasSettlement = Boolean(settlement);
+        const included = hasSettlement ? settlement.start >= scopeStart && settlement.end <= scopeEnd : item.dueDate >= scopeStart && item.dueDate <= scopeEnd;
         if (included) { amounts[record.type] = (amounts[record.type] || 0) + amount; if (!hasSettlement) legacyCount++; }
       } else if (['pending', 'approved', 'scheduled'].includes(item.status) && item.dueDate >= scopeStart && item.dueDate <= scopeEnd) pendingCents += amount;
     }
@@ -345,17 +353,24 @@ function deductionHistoryStatementPayload(records) {
   if (!rider.valid) throw new Error('Filter the Commission Rider table to one rider before exporting the rider PDF.');
   const dates = auditCapture('commission-main-ledger')?.scope?.dates || {};
   const start = String(dates.start || '').slice(0, 10), end = String(dates.end || '').slice(0, 10);
-  const active = records.filter(record => (record.riderKey || deductionRiderKey(record.rider)) === rider.key && (!start || record.periodStart === start) && (!end || record.periodEnd === end) && !['rejected', 'cancelled', 'reversed'].includes(deductionStatus(record)));
-  if (!active.length) throw new Error('No selected deductions match this rider and the current Commission Rider table period.');
+  const active = records.filter(record => (record.riderKey || deductionRiderKey(record.rider)) === rider.key && !['rejected', 'cancelled', 'reversed'].includes(deductionStatus(record)));
+  if (!active.length) throw new Error('No selected deductions match this rider.');
+  const periodItems = record => deductionHistoryProgress(record).items.filter((item, index) => {
+    if (item.status !== 'applied') return false;
+    if (!start || !end) return true;
+    const settlement = deductionInstallmentSettlement(record, item, index);
+    const itemStart = settlement?.start || item.dueDate, itemEnd = settlement?.end || item.dueDate;
+    return Boolean(itemStart && itemEnd && itemStart >= start && itemEnd <= end);
+  });
   const commissionColumn = payload.columns.find(column => String(column.key || '').trim().toLowerCase().replace(/[\s-]+/g, '_') === 'commission');
   if (!commissionColumn) throw new Error('The Commission Rider table has no commission column.');
   const grossCents = Math.round(payload.rows.reduce((sum, row) => sum + numberValue(commissionColumn.value(row)), 0) * 100);
-  const appliedCents = active.reduce((sum, record) => sum + deductionHistoryProgress(record).appliedCents, 0);
+  const appliedCents = active.reduce((sum, record) => sum + periodItems(record).reduce((itemSum, item) => itemSum + deductionInstallmentAmount(record, item), 0), 0);
   const commissionIndex = payload.columns.indexOf(commissionColumn), row = (label, value) => payload.columns.map((_column, index) => index === 0 ? label : index === commissionIndex ? value : '');
   const typeRows = [...new Set(active.map(record => record.type))].map(type => {
-    const matching = active.filter(record => record.type === type), cents = matching.reduce((sum, record) => sum + deductionHistoryProgress(record).items.reduce((itemSum, item) => itemSum + deductionInstallmentAmount(record, item), 0), 0), statuses = [...new Set(matching.map(deductionDisplayStatus))];
-    return row((deductionTypes[type] || type).toUpperCase() + ' (' + statuses.join('/') + ')', '- ' + deductionMoney(cents));
-  });
+    const matching = active.filter(record => record.type === type), cents = matching.reduce((sum, record) => sum + periodItems(record).reduce((itemSum, item) => itemSum + deductionInstallmentAmount(record, item), 0), 0), statuses = [...new Set(matching.map(deductionDisplayStatus))];
+    return cents > 0 ? row((deductionTypes[type] || type).toUpperCase() + ' (' + statuses.join('/') + ')', '- ' + deductionMoney(cents)) : null;
+  }).filter(Boolean);
   const footer = payload.footer || row('Filtered total', deductionMoney(grossCents));
   const netCents = grossCents - appliedCents;
   const filename = rider.rider.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/, '').slice(0, 160) || 'Rider';
