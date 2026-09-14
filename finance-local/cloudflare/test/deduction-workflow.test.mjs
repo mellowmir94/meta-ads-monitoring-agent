@@ -142,10 +142,17 @@ test('History payment progress follows schedule dates and marks an active paymen
 test('History payment schedule filter keeps a full request when one of its payments matches', () => {
   const api = runtime();
   const request = { records: [record({ installmentCount: 2, installments: [{ index: 0, dueDate: '2026-09-14', status: 'applied' }, { index: 1, dueDate: '2026-09-21', status: 'applied' }] })] };
-  assert.equal(api.deductionGroupMatchesTiming(request, 'current', '2026-09-15'), true);
-  assert.equal(api.deductionGroupMatchesTiming(request, 'upcoming', '2026-09-15'), false);
+  assert.equal(api.deductionGroupMatchesTiming(request, 'ready', '2026-09-15'), true);
+  assert.equal(api.deductionGroupMatchesTiming(request, 'upcoming', '2026-09-15'), true);
   assert.equal(api.deductionGroupMatchesTiming(request, 'upcoming', '2026-09-12'), true);
-  assert.equal(api.deductionGroupMatchesTiming(request, 'complete', '2026-09-22'), true);
+  assert.equal(api.deductionGroupMatchesTiming(request, 'complete', '2026-09-22'), false);
+});
+test('Ready to download excludes payments already sent to rider', () => {
+  const api = runtime();
+  const sent = { records: [record({ installmentCount: 1, installments: [{ index: 0, dueDate: '2026-09-14', status: 'applied', statementSentAt: '2026-09-14T09:00:00Z' }] })] };
+  assert.equal(api.deductionGroupMatchesTiming(sent, 'ready', '2026-09-15'), false);
+  assert.equal(api.deductionGroupMatchesTiming(sent, 'sent', '2026-09-15'), true);
+  assert.equal(api.deductionGroupMatchesTiming(sent, 'complete', '2026-09-15'), true);
 });
 test('History exposes every payment option while preventing early PDF downloads', () => {
   const group = { records: [record({ installmentCount: 2, installments: [{ index: 0, dueDate: '2026-09-14', status: 'applied' }, { index: 1, dueDate: '2026-09-21', status: 'applied' }] })] };
