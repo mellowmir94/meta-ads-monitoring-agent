@@ -140,6 +140,16 @@ test('rider statement PDF allocates later EPF payments to their configured weeks
   assert.ok(payload.footerRows.some(row => row[0] === 'EPF (applied)' && row[1] === '- RM 25.00'));
   assert.ok(payload.footerRows.some(row => row[0] === 'APPLIED DEDUCTIONS' && row[1] === '- RM 25.00'));
 });
+test('History Rider PDF exports one Battery Tester payment for fixed 2 and fixed 7 plans', () => {
+  const tableRows = [{ rider_name: 'Rider A', commission: 500 }];
+  const columns = [{ key: 'rider_name', label: 'Rider', value: row => row.rider_name }, { key: 'commission', label: 'Commission', value: row => row.commission }];
+  const api = runtime({ financeTableExportPayload: () => ({ title: 'Line Item Audit', panelTitle: 'Commission Rider', filename: 'Commission', columns, rows: tableRows, footer: ['Filtered total', 'RM 500.00'], period: '2026-09-07 - 2026-09-13' }) });
+  const installments = (count, amountCents) => Array.from({ length: count }, (_, index) => ({ index, dueDate: '2026-09-10', status: 'applied', amountCents, settlementPeriodStart: '2026-09-07', settlementPeriodEnd: '2026-09-13' }));
+  const twoPayments = api.deductionHistoryStatementPayload([record({ type: 'battery-tester', pricingMode: 'fixed-2', amountCents: 5000, installmentCount: 2, installments: installments(2, 5000) })]);
+  const sevenPayments = api.deductionHistoryStatementPayload([record({ type: 'battery-tester', pricingMode: 'fixed-7', amountCents: 4000, installmentCount: 7, installments: installments(7, 4000) })]);
+  assert.ok(twoPayments.footerRows.some(row => row[0] === 'OBD / BATTERY TESTER (applied)' && row[1] === '- RM 50.00'));
+  assert.ok(sevenPayments.footerRows.some(row => row[0] === 'OBD / BATTERY TESTER (applied)' && row[1] === '- RM 40.00'));
+});
 test('same request payload retries keep idempotency ID; changed payload gets a new one', () => {
   const identify = runtime().deductionRequestIdentity(), first = identify({ rider: 'A', amount: 25 });
   assert.equal(identify({ rider: 'A', amount: 25 }), first);

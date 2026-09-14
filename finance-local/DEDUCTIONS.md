@@ -31,7 +31,7 @@ An R2 failure does not undo an already committed primary record: the API returns
 
 The current complete-snapshot implementation uses Durable Object `storage.list()` without a limit, which returns all keys, rather than the 100-record paginated public history endpoint. It holds the snapshot in memory; as the register grows, monitor snapshot size and latency before introducing a separately tested streaming/incremental backup strategy. This is a known scale boundary, not an implied guarantee for arbitrarily large registers.
 
-Deduction history Excel and PDF exports include the selected plan or EPF contribution month. Every rider statement export reports at most one EPF hold of RM25, regardless of how many EPF schedule installments exist. The Line Item Audit PDF footer remains short and includes only applied deduction categories and Total Deducted.
+Deduction history Excel and PDF exports include the selected plan or EPF contribution month. Every rider statement export reports at most one EPF hold of RM25, regardless of how many EPF schedule installments exist. Fixed Battery Tester plans export one installment: RM50 for the 2-payment plan or RM40 for the 7-payment plan. The Line Item Audit PDF footer remains short and includes only applied deduction categories and Total Deducted.
 
 ## Validation
 

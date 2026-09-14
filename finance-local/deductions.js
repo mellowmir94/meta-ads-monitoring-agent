@@ -96,6 +96,15 @@ function deductionInstallments(record) {
   return Array.from({ length: Number(record.installmentCount || 1) }, (_, index) => ({ index, dueDate: deductionAddDays(record.deductionDate, Number(record.installmentIntervalDays || 7) * index), status: deductionStatus(record) === 'approved' ? 'scheduled' : deductionStatus(record) }));
 }
 function deductionInstallmentAmount(record, item) { return Number(item.amountCents ?? record.amountCents ?? 0); }
+function deductionStatementAmountForRecord(record, items) {
+  if (!items.length) return 0;
+  if (record.type === 'epf') return 2500;
+  if (record.type === 'battery-tester') {
+    if (record.pricingMode === 'fixed-2' || Number(record.installmentCount) === 2 && Number(record.amountCents) === 5000) return 5000;
+    if (record.pricingMode === 'fixed-7' || Number(record.installmentCount) === 7 && Number(record.amountCents) === 4000) return 4000;
+  }
+  return items.reduce((sum, item) => sum + deductionInstallmentAmount(record, item), 0);
+}
 function deductionInstallmentSettlement(record, item, position = 0) {
   const index = Number.isInteger(Number(item?.index)) ? Number(item.index) : position;
   if (record.type === 'epf') {
@@ -124,22 +133,24 @@ function deductionSummaryForRows(dataRows, dates) {
   const grossCents = Math.round(dataRows.reduce((sum, row) => sum + numberValue(row.commission), 0) * 100);
   const rowDates = dataRows.map(row => formatGrafanaTimestamp(row.created_at).slice(0, 10)).filter(Boolean).sort();
   const scopeStart = String(dates?.start || rowDates[0] || '').slice(0, 10), scopeEnd = String(dates?.end || rowDates.at(-1) || '').slice(0, 10);
-  const rider = deductionSingleRider(dataRows), amounts = { epf: 0, insurance: 0, 'battery-tester': 0, manual: 0 };
+  const rider = deductionSingleRider(dataRows), amounts = { epf: 0, insurance: 0, 'battery-tester': 0, manual: 0 }, statementAmounts = { epf: 0, insurance: 0, 'battery-tester': 0, manual: 0 };
   let pendingCents = 0, legacyCount = 0;
   if (deductionState.loaded && rider.valid && scopeStart && scopeEnd) deductionState.records.forEach(record => {
     if (rider.key !== (record.riderKey || deductionRiderKey(record.rider)) || ['rejected', 'cancelled', 'reversed'].includes(deductionStatus(record))) return;
+    const includedApplied = [];
     for (const [index, item] of deductionInstallments(record).entries()) {
       const amount = deductionInstallmentAmount(record, item);
       if (item.status === 'applied') {
         // New applications belong to a settlement week; legacy records retain the due-date basis.
         const settlement = deductionInstallmentSettlement(record, item, index), hasSettlement = Boolean(settlement);
         const included = hasSettlement ? settlement.start >= scopeStart && settlement.end <= scopeEnd : item.dueDate >= scopeStart && item.dueDate <= scopeEnd;
-        if (included) { amounts[record.type] = (amounts[record.type] || 0) + amount; if (!hasSettlement) legacyCount++; }
+        if (included) { amounts[record.type] = (amounts[record.type] || 0) + amount; includedApplied.push(item); if (!hasSettlement) legacyCount++; }
       } else if (['pending', 'approved', 'scheduled'].includes(item.status) && item.dueDate >= scopeStart && item.dueDate <= scopeEnd) pendingCents += amount;
     }
+    statementAmounts[record.type] = (statementAmounts[record.type] || 0) + deductionStatementAmountForRecord(record, includedApplied);
   });
   const approvedCents = Object.values(amounts).reduce((sum, value) => sum + value, 0);
-  return { loaded: deductionState.loaded, error: deductionState.error, riderValid: rider.valid, grossCents, amounts, approvedCents, appliedCents: approvedCents, pendingCents, netCents: grossCents - approvedCents, legacyCount };
+  return { loaded: deductionState.loaded, error: deductionState.error, riderValid: rider.valid, grossCents, amounts, statementAmounts, approvedCents, appliedCents: approvedCents, pendingCents, netCents: grossCents - approvedCents, legacyCount };
 }
 function deductionDraftFor(id, rider, dates) {
   const key = [rider.key || '', dates.start || '', dates.end || ''].join('|');
@@ -367,7 +378,7 @@ function deductionHistoryStatementPayload(records) {
   const grossCents = Math.round(payload.rows.reduce((sum, row) => sum + numberValue(commissionColumn.value(row)), 0) * 100);
   const activeTypes = [...new Set(active.map(record => record.type))];
   const typeAmounts = new Map(activeTypes.map(type => {
-    const cents = active.filter(record => record.type === type).reduce((sum, record) => sum + periodItems(record).reduce((itemSum, item) => itemSum + deductionInstallmentAmount(record, item), 0), 0);
+    const cents = active.filter(record => record.type === type).reduce((sum, record) => sum + deductionStatementAmountForRecord(record, periodItems(record)), 0);
     return [type, type === 'epf' && cents > 0 ? 2500 : cents];
   }));
   const appliedCents = [...typeAmounts.values()].reduce((sum, cents) => sum + cents, 0);

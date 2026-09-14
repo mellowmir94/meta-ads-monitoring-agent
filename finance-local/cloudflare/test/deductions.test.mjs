@@ -265,7 +265,7 @@ test('PDF deduction footer contains only applied deduction categories and their 
   assert.ok(footerValues.some(row => row[0] === 'EPF' && row[2] === '- RM 25.00'));
   assert.ok(footerValues.some(row => row[0] === 'Total Deducted' && row[2] === '- RM 25.00'));
   assert.equal(context.result.summary.value, 'RM 1070.00');
-  assert.match(source, /epf: Number\(deduction\.amounts\.epf \|\| 0\) > 0 \? 2500 : 0/);
+  assert.match(source, /epf: Number\(statementAmounts\.epf \|\| 0\) > 0 \? 2500 : 0/);
   assert.match(source, /\["EPF", exportAmounts\.epf\]/);
   assert.match(source, /\["INSURANCE", exportAmounts\.insurance\]/);
   assert.match(source, /\["OBD \/ BATTERY TESTER", exportAmounts\["battery-tester"\]\]/);
@@ -275,6 +275,33 @@ test('PDF deduction footer contains only applied deduction categories and their 
   assert.match(source, /const footerRows = \[footer, \.\.\.pdfDeductionItems\.map/);
   assert.doesNotMatch(source, /weekly commission|weekly deductions|Pending Deductions/);
   assert.match(source, /riderNames\.length !== 1 \|\| !exportRows\.length \|\| exportRows\.some/);
+});
+
+test('Commission Rider PDF exports one Battery Tester payment for fixed 2 and fixed 7 plans', () => {
+  const start = dashboardHtml.indexOf('function financeCommissionExportMeta');
+  const end = dashboardHtml.indexOf('function financeTableExportPayload', start);
+  const source = dashboardHtml.slice(start, end);
+  const columns = [{ key: 'rider_name', value: row => row.rider_name }, { key: 'commission', value: row => row.commission }];
+  const rows = [{ rider_name: 'Rider A', commission: 500 }];
+  const exportFor = (rawCents, statementCents) => {
+    const context = vm.createContext({
+      columns,
+      rows,
+      formatMoney: value => `RM ${Number(value).toFixed(2)}`,
+      formatNumber: value => String(value),
+      numberValue: value => Number(value || 0),
+      deductionSummaryForRows: () => ({ loaded: true, grossCents: 50000, amounts: { epf: 0, insurance: 0, 'battery-tester': rawCents, manual: 0 }, statementAmounts: { epf: 0, insurance: 0, 'battery-tester': statementCents, manual: 0 }, approvedCents: rawCents, pendingCents: 0, netCents: 50000 - rawCents }),
+      auditCapture: () => ({ scope: { dates: { start: '2026-09-07', end: '2026-09-13' } } }),
+      tableFilterId: () => 'commission-main-ledger',
+      state: { dates: {} },
+    });
+    vm.runInContext(source + '\nthis.result = financeCommissionExportMeta({ id: "commission-main" }, columns, rows, "commission-main-ledger");', context);
+    return context.result;
+  };
+  const twoPayments = exportFor(10000, 5000);
+  const sevenPayments = exportFor(28000, 4000);
+  assert.ok(Array.from(twoPayments.footerRows, row => Array.from(row)).some(row => row[0] === 'OBD / BATTERY TESTER' && row[1] === '- RM 50.00'));
+  assert.ok(Array.from(sevenPayments.footerRows, row => Array.from(row)).some(row => row[0] === 'OBD / BATTERY TESTER' && row[1] === '- RM 40.00'));
 });
 
 test('deduction history is a dedicated Commission Rider view launched from the green formula footer', () => {
