@@ -15,7 +15,7 @@ function runtime(extra = {}) {
     auditCapture: () => ({ scope: { dates: { start: '2026-09-07', end: '2026-09-13' } } }),
     ...extra,
   });
-  vm.runInContext(source + '\nthis.api = { deductionState, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionFirstFourThursdayWeeks, deductionEpfSchedule, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionHistoryGroups, deductionGroupScheduleProgress, deductionGroupMatchesTiming, deductionHistoryPaymentOptions, deductionHistoryStatementPayload, deductionPaymentStatementPayload, deductionPrefetchPaymentStatement, deductionScheduleNotice, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
+  vm.runInContext(source + '\nthis.api = { deductionState, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionFirstFourThursdayWeeks, deductionEpfSchedule, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionHistoryGroups, deductionGroupScheduleProgress, deductionGroupMatchesTiming, deductionGroupMatchesTypePaymentFilters, deductionHistoryPaymentOptions, deductionHistoryStatementPayload, deductionPaymentStatementPayload, deductionPrefetchPaymentStatement, deductionScheduleNotice, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
   return context.api;
 }
 const rows = [{ rider_name: 'Rider A', created_at: '2026-09-07', commission: 300 }, { rider_name: 'Rider A', created_at: '2026-09-08', commission: 255 }];
@@ -158,6 +158,14 @@ test('History exposes every payment option while preventing early PDF downloads'
   const group = { records: [record({ installmentCount: 2, installments: [{ index: 0, dueDate: '2026-09-14', status: 'applied' }, { index: 1, dueDate: '2026-09-21', status: 'applied' }] })] };
   const options = runtime().deductionHistoryPaymentOptions(group, '2026-09-15');
   assert.deepEqual(options.map(option => [option.label, option.state]), [['Insurance · Payment 1/2', 'ready'], ['Insurance · Payment 2/2', 'upcoming']]);
+});
+test('History filters each deduction column by its own payment status', () => {
+  const api = runtime();
+  const group = { records: [record({ type: 'insurance', installmentCount: 1, installments: [{ index: 0, dueDate: '2026-09-14', status: 'applied' }] }), record({ id: 'battery', type: 'battery-tester', installmentCount: 1, installments: [{ index: 0, dueDate: '2026-09-21', status: 'applied' }] })] };
+  assert.equal(api.deductionGroupMatchesTypePaymentFilters(group, { insurance: 'ready' }, '2026-09-15'), true);
+  assert.equal(api.deductionGroupMatchesTypePaymentFilters(group, { 'battery-tester': 'ready' }, '2026-09-15'), false);
+  assert.equal(api.deductionGroupMatchesTypePaymentFilters(group, { 'battery-tester': 'upcoming' }, '2026-09-15'), true);
+  assert.equal(api.deductionGroupMatchesTypePaymentFilters(group, { epf: 'ready' }, '2026-09-15'), false);
 });
 test('rider statement PDF allocates later EPF payments to their configured weeks', () => {
   const tableRows = [{ rider_name: 'Rider A', commission: 100 }];

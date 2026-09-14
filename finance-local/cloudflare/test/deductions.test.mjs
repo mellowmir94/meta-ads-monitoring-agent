@@ -350,8 +350,9 @@ test('deduction history is a dedicated Commission Rider view launched from the g
   assert.match(dashboardHtml, />Sent to rider<\/option>/);
   assert.match(dashboardHtml, />Upcoming<\/option>/);
   assert.match(dashboardHtml, />Completed<\/option>/);
-  assert.match(dashboardHtml, /<th>Next payment<\/th>/);
-  assert.match(dashboardHtml, /data-deduction-history-payment-select/);
+  assert.doesNotMatch(dashboardHtml, /<th>Next payment<\/th>/);
+  assert.match(dashboardHtml, /data-deduction-history-type-timing/);
+  assert.match(dashboardHtml, /data-deduction-history-type-payment-select/);
   assert.match(dashboardHtml, /data-deduction-history-payment-download/);
   assert.match(dashboardHtml, /Applied deductions/);
   assert.match(dashboardHtml, /Total deducted/);
@@ -362,7 +363,7 @@ test('deduction history is a dedicated Commission Rider view launched from the g
   assert.match(dashboardHtml, /data-deduction-delete-batch/);
   assert.match(dashboardHtml, />Delete request<\/button>/);
   assert.doesNotMatch(dashboardHtml, /cannot be deleted\. Keep it for the audit trail/);
-  assert.match(dashboardHtml, /<th>EPF<\/th><th>Insurance<\/th><th>OBD \/ Battery Tester<\/th><th>Special Case<\/th>/);
+  assert.match(dashboardHtml, /function deductionHistoryTypeHeader/);
   assert.match(dashboardHtml, /function deductionHistoryTypeCell/);
   assert.match(dashboardHtml, /function deductionHistoryGroups/);
   assert.match(dashboardHtml, /data-deduction-batch-id/);
