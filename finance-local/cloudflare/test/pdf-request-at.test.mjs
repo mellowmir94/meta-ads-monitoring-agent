@@ -14,6 +14,11 @@ test('PDF export remains available when the optional Bateriku logo cannot be dec
   assert.match(pdf, /let logo = null;[\s\S]*?try \{\s*logo = await financePdfLogo\(\);[\s\S]*?catch \(error\)/u);
   assert.match(pdf, /if \(logo\) doc\.addImage\(logo, "PNG", 28, 16, 122, 18\.8\);[\s\S]*?else \{[\s\S]*?BATERIKU\.COM/u);
 });
+test('Applied deductions PDF total uses an amber row distinct from other footer rows', () => {
+  const pdf = html.slice(html.indexOf('      async function downloadPdfTable('), html.indexOf('      async function exportFinanceTable('));
+  assert.match(pdf, /didParseCell: \(data\) => \{[\s\S]*?label === "APPLIED DEDUCTIONS"/u);
+  assert.match(pdf, /data\.cell\.styles\.fillColor = \[217, 149, 47\]/u);
+});
 const source = name => {
   const start = html.indexOf(`      function ${name}(`);
   assert.ok(start >= 0);

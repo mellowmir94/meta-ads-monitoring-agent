@@ -11137,6 +11137,13 @@
           styles: { font: "helvetica", halign: "center", valign: "middle", fontSize: payload.columns.length > 14 ? 5 : 6.5, cellPadding: payload.columns.length > 14 ? 1.5 : 2.5, overflow: "linebreak", textColor: [20, 33, 53], lineColor: [218, 226, 237], lineWidth: .35 },
           headStyles: { fillColor: [29, 78, 216], textColor: [255, 255, 255], fontStyle: "bold" },
           footStyles: { fillColor: [23, 76, 59], textColor: [239, 252, 246], fontStyle: "bold" },
+          didParseCell: (data) => {
+            const label = data.section === "foot" ? String(data.row?.raw?.[0] ?? "").trim().toUpperCase() : "";
+            if (label === "APPLIED DEDUCTIONS") {
+              data.cell.styles.fillColor = [217, 149, 47];
+              data.cell.styles.textColor = [30, 41, 30];
+            }
+          },
           alternateRowStyles: { fillColor: [247, 249, 252] },
           rowPageBreak: "avoid",
           showHead: "everyPage",
