@@ -232,6 +232,13 @@ test('deduction history is a dedicated Commission Rider view launched from the g
   assert.match(dashboardHtml, /Applied deductions/);
   assert.match(dashboardHtml, /Approved · not applied/);
   assert.match(dashboardHtml, /data-deduction-history-export="pdf"/);
+  assert.match(dashboardHtml, />Export Rider PDF<\/button>/);
+  assert.match(dashboardHtml, /function deductionHistoryGroups/);
+  assert.match(dashboardHtml, /data-deduction-batch-id/);
+  assert.match(dashboardHtml, /function deductionHistoryStatementPayload/);
+  assert.match(dashboardHtml, /financeTableExportPayload\('commission-main'\)/);
+  assert.match(dashboardHtml, /PENDING DEDUCTIONS/);
+  assert.match(dashboardHtml, /only applied deductions reduce net commission/);
   assert.match(dashboardHtml, /data-deduction-action="approve"/);
   assert.match(dashboardHtml, /data-deduction-action="apply"/);
   assert.match(dashboardHtml, /data-deduction-action="reverse"/);

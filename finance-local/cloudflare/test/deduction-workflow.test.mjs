@@ -15,7 +15,7 @@ function runtime(extra = {}) {
     auditCapture: () => ({ scope: { dates: { start: '2026-09-07', end: '2026-09-13' } } }),
     ...extra,
   });
-  vm.runInContext(source + '\nthis.api = { deductionState, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
+  vm.runInContext(source + '\nthis.api = { deductionState, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionHistoryGroups, deductionHistoryStatementPayload, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
   return context.api;
 }
 const rows = [{ rider_name: 'Rider A', created_at: '2026-09-07', commission: 300 }, { rider_name: 'Rider A', created_at: '2026-09-08', commission: 255 }];
@@ -71,6 +71,29 @@ test('history filters share reference, due, type, status and contribution month 
   assert.equal(api.deductionFilteredHistory(items, { due: 'overdue' }, '2026-09-22').length, 2);
   assert.equal(api.deductionFilteredHistory(items, { due: 'overdue' }, '2026-09-21').length, 0);
   assert.equal(api.deductionFilteredHistory(items, { month: '2026-10', type: 'epf', status: 'approved' }).length, 1);
+});
+test('deductions created in one request render as one history group with combined totals', () => {
+  const api = runtime(), batch = 'batch-20260914-finance';
+  const groups = api.deductionHistoryGroups([
+    record({ id: 'insurance', batchId: batch, type: 'insurance', amountCents: 10000 }),
+    record({ id: 'epf', batchId: batch, type: 'epf', amountCents: 2500, installments: [{ index: 0, dueDate: '2026-09-14', status: 'scheduled' }] }),
+    record({ id: 'special', batchId: batch, type: 'manual', amountCents: 6000, installments: [{ index: 0, dueDate: '2026-09-14', status: 'scheduled' }, { index: 1, dueDate: '2026-09-21', status: 'scheduled' }, { index: 2, dueDate: '2026-09-28', status: 'scheduled' }] }),
+  ]);
+  assert.equal(groups.length, 1); assert.deepEqual(Array.from(groups[0].records, item => item.type), ['epf', 'insurance', 'manual']);
+  assert.equal(groups[0].progress.count, 6); assert.equal(groups[0].progress.appliedCents, 10000); assert.equal(groups[0].progress.remainingCents, 30500);
+});
+test('rider statement PDF keeps all filtered table rows and subtracts only applied deductions', () => {
+  const tableRows = [{ rider_name: 'Rider A', commission: 300 }, { rider_name: 'Rider A', commission: 255 }];
+  const columns = [{ key: 'rider_name', label: 'Rider', value: row => row.rider_name }, { key: 'commission', label: 'Commission', value: row => row.commission }];
+  const api = runtime({ financeTableExportPayload: () => ({ title: 'Line Item Audit', panelTitle: 'Commission Rider', filename: 'Commission', columns, rows: tableRows, footer: ['Filtered total', 'RM 555.00'], period: '2026-09-07 - 2026-09-13' }) });
+  const payload = api.deductionHistoryStatementPayload([
+    record({ batchId: 'batch-one' }),
+    record({ id: 'epf', batchId: 'batch-one', type: 'epf', amountCents: 2500, status: 'pending', installments: [{ index: 0, dueDate: '2026-09-14', status: 'scheduled' }] }),
+  ]);
+  assert.equal(payload.rows.length, 2); assert.equal(payload.summary.value, 'RM 543.00');
+  assert.deepEqual(Array.from(payload.footerRows.at(-1)), ['NET COMMISSION', 'RM 543.00']);
+  assert.ok(payload.footerRows.some(row => row[0] === 'EPF (pending)' && row[1] === '- RM 25.00'));
+  assert.ok(payload.footerRows.some(row => row[0] === 'PENDING DEDUCTIONS' && row[1] === 'RM 37.00'));
 });
 test('same request payload retries keep idempotency ID; changed payload gets a new one', () => {
   const identify = runtime().deductionRequestIdentity(), first = identify({ rider: 'A', amount: 25 });
