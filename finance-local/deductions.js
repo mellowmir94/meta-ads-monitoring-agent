@@ -8,6 +8,7 @@ const deductionDisplayStatus = value => ({ approved: 'applied', pending: 'applie
 const deductionDrafts = new Map();
 const deductionHistorySelected = new Set();
 const deductionHistoryPaymentSelections = new Map();
+const deductionHistoryPdfExclusions = new Set();
 const deductionHistoryRangePicker = { open: false, anchor: '', month: '', draftStart: '', draftEnd: '', recent: [] };
 const deductionHolidayCache = new Map();
 const deductionStatementPayloadCache = new Map();
@@ -364,14 +365,18 @@ function deductionHistoryPaymentCell(group, type, today = deductionToday(), timi
   const options = deductionHistoryPaymentOptions(group, today).filter(option => option.record.type === type), selected = deductionHistorySelectedPayment(group, type, today, timing, periodStart, periodEnd);
   if (!selected) return '<strong>—</strong>';
   const status = selected.state === 'sent' ? '✓ Sent to rider' : selected.state === 'ready' ? 'Ready to download' : 'Upcoming';
-  return '<label class="deduction-history-payment-picker"><span>Payment</span><select data-deduction-history-type-payment-select data-deduction-history-payment-type="' + esc(type) + '">' + options.map(option => '<option value="' + esc(option.key) + '"' + (option.key === selected.key ? ' selected' : '') + '>' + esc('Payment ' + (option.index + 1) + '/' + option.count + ' · ' + deductionDateLabel(option.item.dueDate) + ' · ' + deductionMoney(option.amountCents)) + '</option>').join('') + '</select></label><span class="deduction-download-ready ' + (selected.state === 'sent' ? 'is-sent' : selected.state === 'upcoming' ? 'is-upcoming' : '') + '">' + esc(status) + '</span>';
+  const pdfKey = deductionHistoryPdfSelectionKey(group, type, selected), included = !deductionHistoryPdfExclusions.has(pdfKey);
+  return '<label class="deduction-history-payment-picker"><span>Payment</span><select data-deduction-history-type-payment-select data-deduction-history-payment-type="' + esc(type) + '">' + options.map(option => '<option value="' + esc(option.key) + '"' + (option.key === selected.key ? ' selected' : '') + '>' + esc('Payment ' + (option.index + 1) + '/' + option.count + ' · ' + deductionDateLabel(option.item.dueDate) + ' · ' + deductionMoney(option.amountCents)) + '</option>').join('') + '</select></label><label class="deduction-history-pdf-include"><input type="checkbox" data-deduction-history-pdf-include data-deduction-history-pdf-type="' + esc(type) + '" data-deduction-history-pdf-payment="' + esc(selected.key) + '"' + (included ? ' checked' : '') + '> Include in PDF</label><span class="deduction-download-ready ' + (selected.state === 'sent' ? 'is-sent' : selected.state === 'upcoming' ? 'is-upcoming' : '') + '">' + esc(status) + '</span>';
+}
+function deductionHistoryPdfSelectionKey(group, type, option) {
+  return [group?.id || '', type || '', option?.key || ''].join('|');
 }
 function deductionHistoryDownloadOptions(group, typeTimings = {}, today = deductionToday(), periodStart = '', periodEnd = '') {
-  return group.records.map(record => deductionHistorySelectedPayment(group, record.type, today, typeTimings[record.type] || '', periodStart, periodEnd)).filter(Boolean);
+  return group.records.map(record => deductionHistorySelectedPayment(group, record.type, today, typeTimings[record.type] || '', periodStart, periodEnd)).filter(option => option && !deductionHistoryPdfExclusions.has(deductionHistoryPdfSelectionKey(group, option.record.type, option)));
 }
 function deductionHistoryDownloadCell(group, typeTimings = {}, today = deductionToday(), periodStart = '', periodEnd = '') {
-  const selected = deductionHistoryDownloadOptions(group, typeTimings, today, periodStart, periodEnd), downloadable = selected.filter(option => option.state !== 'upcoming'), upcoming = selected.filter(option => option.state === 'upcoming');
-  if (!downloadable.length) return '<td class="deduction-history-download-cell"><small>Available when the selected payment date is reached.</small></td>';
+  const selected = deductionHistoryDownloadOptions(group, typeTimings, today, periodStart, periodEnd), downloadable = selected.filter(option => option.state !== 'upcoming'), upcoming = selected.filter(option => option.state === 'upcoming'), allSelected = group.records.map(record => deductionHistorySelectedPayment(group, record.type, today, typeTimings[record.type] || '', periodStart, periodEnd)).filter(Boolean);
+  if (!downloadable.length) return '<td class="deduction-history-download-cell"><small>' + (allSelected.some(option => option.state !== 'upcoming') ? 'Tick at least one Include in PDF box.' : 'Available when the selected payment date is reached.') + '</small></td>';
   const labels = downloadable.map(option => (deductionTypes[option.record.type] || option.record.type) + ' payment ' + (option.index + 1)).join(' · ');
   const sent = downloadable.every(option => option.state === 'sent');
   return '<td class="deduction-history-download-cell"><div class="deduction-history-download-item"><strong>' + esc(downloadable.length + ' selected payment' + (downloadable.length === 1 ? '' : 's')) + '</strong><small>' + esc(labels) + '</small>' + (upcoming.length ? '<small>' + esc(upcoming.length + ' future payment' + (upcoming.length === 1 ? ' is' : 's are') + ' excluded until due.') + '</small>' : '') + (sent ? '<span class="deduction-download-ready is-sent">✓ Sent to rider</span>' : '<span class="deduction-download-ready">Ready to download</span>') + '<button type="button" data-deduction-history-batch-download>Download PDF</button></div></td>';
@@ -792,6 +797,14 @@ function deductionMount() {
 }
 document.addEventListener('change', event => {
   if (event.target.matches?.('[data-deduction-history-status], [data-deduction-history-type], [data-deduction-history-due], [data-deduction-history-timing], [data-deduction-history-month], [data-deduction-history-period-start], [data-deduction-history-period-end]')) return deductionHistoryRender();
+  const pdfInclude = event.target.closest?.('[data-deduction-history-pdf-include]');
+  if (pdfInclude) {
+    const groupId = pdfInclude.closest('[data-deduction-batch-id]')?.dataset.deductionBatchId, type = pdfInclude.dataset.deductionHistoryPdfType, payment = pdfInclude.dataset.deductionHistoryPdfPayment;
+    if (!groupId || !type || !payment) return;
+    const key = [groupId, type, payment].join('|');
+    if (pdfInclude.checked) deductionHistoryPdfExclusions.delete(key); else deductionHistoryPdfExclusions.add(key);
+    return deductionHistoryRender();
+  }
   const paymentSelector = event.target.closest?.('[data-deduction-history-type-payment-select]');
   if (paymentSelector) {
     const groupId = paymentSelector.closest('[data-deduction-batch-id]')?.dataset.deductionBatchId, type = paymentSelector.dataset.deductionHistoryPaymentType;
