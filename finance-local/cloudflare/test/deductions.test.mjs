@@ -247,11 +247,30 @@ test('PDF deduction footer contains only applied deduction categories and their 
   const start = dashboardHtml.indexOf('function financeCommissionExportMeta');
   const end = dashboardHtml.indexOf('function financeTableExportPayload', start);
   const source = dashboardHtml.slice(start, end);
-  assert.match(source, /\["EPF", deduction\.amounts\.epf\]/);
-  assert.match(source, /\["INSURANCE", deduction\.amounts\.insurance\]/);
-  assert.match(source, /\["OBD \/ BATTERY TESTER", deduction\.amounts\["battery-tester"\]\]/);
+  const columns = [{ key: 'rider_name', value: row => row.rider_name }, { key: 'quantity', value: row => row.quantity }, { key: 'commission', value: row => row.commission }];
+  const rows = [{ rider_name: 'Rider A', quantity: 30, commission: 1095 }];
+  const context = vm.createContext({
+    columns,
+    rows,
+    formatMoney: value => `RM ${Number(value).toFixed(2)}`,
+    formatNumber: value => String(value),
+    numberValue: value => Number(value || 0),
+    deductionSummaryForRows: () => ({ loaded: true, grossCents: 109500, amounts: { epf: 10000, insurance: 0, 'battery-tester': 0, manual: 0 }, approvedCents: 10000, pendingCents: 0, netCents: 99500 }),
+    auditCapture: () => ({ scope: { dates: { start: '2026-09-07', end: '2026-09-13' } } }),
+    tableFilterId: () => 'commission-main-ledger',
+    state: { dates: {} },
+  });
+  vm.runInContext(source + '\nthis.result = financeCommissionExportMeta({ id: "commission-main" }, columns, rows, "commission-main-ledger");', context);
+  const footerValues = Array.from(context.result.footerRows, row => Array.from(row));
+  assert.ok(footerValues.some(row => row[0] === 'EPF' && row[2] === '- RM 25.00'));
+  assert.ok(footerValues.some(row => row[0] === 'Total Deducted' && row[2] === '- RM 25.00'));
+  assert.equal(context.result.summary.value, 'RM 1070.00');
+  assert.match(source, /epf: Number\(deduction\.amounts\.epf \|\| 0\) > 0 \? 2500 : 0/);
+  assert.match(source, /\["EPF", exportAmounts\.epf\]/);
+  assert.match(source, /\["INSURANCE", exportAmounts\.insurance\]/);
+  assert.match(source, /\["OBD \/ BATTERY TESTER", exportAmounts\["battery-tester"\]\]/);
   assert.match(source, /\.filter\(\(\[, cents\]\) => Number\(cents \|\| 0\) > 0\)/);
-  assert.match(source, /const pdfDeductionItems = Number\(deduction\.approvedCents \|\| 0\) > 0/);
+  assert.match(source, /const pdfDeductionItems = exportDeductedCents > 0/);
   assert.match(source, /\["Total Deducted"/);
   assert.match(source, /const footerRows = \[footer, \.\.\.pdfDeductionItems\.map/);
   assert.doesNotMatch(source, /weekly commission|weekly deductions|Pending Deductions/);

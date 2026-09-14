@@ -365,10 +365,15 @@ function deductionHistoryStatementPayload(records) {
   const commissionColumn = payload.columns.find(column => String(column.key || '').trim().toLowerCase().replace(/[\s-]+/g, '_') === 'commission');
   if (!commissionColumn) throw new Error('The Commission Rider table has no commission column.');
   const grossCents = Math.round(payload.rows.reduce((sum, row) => sum + numberValue(commissionColumn.value(row)), 0) * 100);
-  const appliedCents = active.reduce((sum, record) => sum + periodItems(record).reduce((itemSum, item) => itemSum + deductionInstallmentAmount(record, item), 0), 0);
+  const activeTypes = [...new Set(active.map(record => record.type))];
+  const typeAmounts = new Map(activeTypes.map(type => {
+    const cents = active.filter(record => record.type === type).reduce((sum, record) => sum + periodItems(record).reduce((itemSum, item) => itemSum + deductionInstallmentAmount(record, item), 0), 0);
+    return [type, type === 'epf' && cents > 0 ? 2500 : cents];
+  }));
+  const appliedCents = [...typeAmounts.values()].reduce((sum, cents) => sum + cents, 0);
   const commissionIndex = payload.columns.indexOf(commissionColumn), row = (label, value) => payload.columns.map((_column, index) => index === 0 ? label : index === commissionIndex ? value : '');
-  const typeRows = [...new Set(active.map(record => record.type))].map(type => {
-    const matching = active.filter(record => record.type === type), cents = matching.reduce((sum, record) => sum + periodItems(record).reduce((itemSum, item) => itemSum + deductionInstallmentAmount(record, item), 0), 0), statuses = [...new Set(matching.map(deductionDisplayStatus))];
+  const typeRows = activeTypes.map(type => {
+    const matching = active.filter(record => record.type === type), cents = typeAmounts.get(type) || 0, statuses = [...new Set(matching.map(deductionDisplayStatus))];
     return cents > 0 ? row((deductionTypes[type] || type).toUpperCase() + ' (' + statuses.join('/') + ')', '- ' + deductionMoney(cents)) : null;
   }).filter(Boolean);
   const footer = payload.footer || row('Filtered total', deductionMoney(grossCents));
