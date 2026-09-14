@@ -15,7 +15,7 @@ function runtime(extra = {}) {
     auditCapture: () => ({ scope: { dates: { start: '2026-09-07', end: '2026-09-13' } } }),
     ...extra,
   });
-  vm.runInContext(source + '\nthis.api = { deductionState, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionFirstFourThursdayWeeks, deductionEpfSchedule, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionHistoryGroups, deductionGroupScheduleProgress, deductionGroupMatchesTiming, deductionHistoryStatementPayload, deductionPaymentStatementPayload, deductionScheduleNotice, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
+  vm.runInContext(source + '\nthis.api = { deductionState, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionFirstFourThursdayWeeks, deductionEpfSchedule, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionHistoryGroups, deductionGroupScheduleProgress, deductionGroupMatchesTiming, deductionHistoryStatementPayload, deductionPaymentStatementPayload, deductionPrefetchPaymentStatement, deductionScheduleNotice, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
   return context.api;
 }
 const rows = [{ rider_name: 'Rider A', created_at: '2026-09-07', commission: 300 }, { rider_name: 'Rider A', created_at: '2026-09-08', commission: 255 }];
@@ -209,6 +209,18 @@ test('selected payment PDF refreshes its own Commission Rider week and exports o
   assert.ok(payload.footerRows.some(row => row[0] === 'COMMISSION PERIOD' && row[2] === '07/09/2026 – 13/09/2026'));
   assert.ok(payload.footerRows.some(row => row[0] === 'EPF — PAYMENT 1 OF 4' && row[2] === '- RM 25.00'));
   assert.ok(payload.footerRows.some(row => row[0] === 'NET COMMISSION' && row[2] === 'RM 275.00'));
+});
+test('selected payment statement reuses its preloaded Grafana request for a fast download', async () => {
+  const columns = [{ key: 'rider_name', label: 'Rider', value: row => row.rider_name }, { key: 'quantity', label: 'Quantity', value: row => row.quantity }, { key: 'commission', label: 'Commission', value: row => row.commission }];
+  let requests = 0;
+  const api = runtime({
+    FINANCE_API_ENDPOINT: '/api/grafana/finance', panels: [{ id: 'commission-main', columns }], visibleTableColumns: panel => panel.columns,
+    financeGrafanaFilterParam: () => '{}', requestFinancePayload: async () => { requests += 1; return { response: { ok: true }, payload: { rows: [{ rider_name: 'Rider A', quantity: 1, commission: 300 }] } }; },
+    canonicalizeFinancePayloadRows: async (_panel, payload) => payload.rows,
+  });
+  await api.deductionPrefetchPaymentStatement(record(), 0);
+  await api.deductionPaymentStatementPayload(record(), 0);
+  assert.equal(requests, 1);
 });
 test('same request payload retries keep idempotency ID; changed payload gets a new one', () => {
   const identify = runtime().deductionRequestIdentity(), first = identify({ rider: 'A', amount: 25 });

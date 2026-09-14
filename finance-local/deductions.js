@@ -8,6 +8,8 @@ const deductionDisplayStatus = value => ({ approved: 'applied', pending: 'applie
 const deductionDrafts = new Map();
 const deductionHistorySelected = new Set();
 const deductionHolidayCache = new Map();
+const deductionStatementPayloadCache = new Map();
+const DEDUCTION_STATEMENT_PREFETCH_TTL_MS = 120000;
 
 async function deductionRequest(path = '', body) {
   const response = await fetch('/api/deductions' + path, { method: body ? 'POST' : 'GET', credentials: 'same-origin', headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
@@ -419,7 +421,11 @@ function deductionHistoryStatementPayload(records) {
   const filename = rider.rider.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/, '').slice(0, 160) || 'Rider';
   return { ...payload, title: rider.rider, filename: filename + '-Commission-Statement', pdfFilename: filename + '.pdf', period: (start && end ? start + ' - ' + end : payload.period) + ' | saved deductions are applied immediately', summary: { label: 'Net Commission', value: deductionMoney(netCents) }, footerRows: [footer, ...typeRows, row('APPLIED DEDUCTIONS', '- ' + deductionMoney(appliedCents)), row('NET COMMISSION', deductionMoney(netCents))] };
 }
-async function deductionPaymentStatementPayload(record, index) {
+function deductionPaymentStatementCacheKey(record, index) {
+  const item = deductionHistoryProgress(record).items[index] || {};
+  return [record.id, index, item.dueDate, item.settlementPeriodStart, item.settlementPeriodEnd, record.amountCents, record.installmentCount, record.pricingMode, record.updatedAt].join('|');
+}
+async function deductionFreshPaymentStatementPayload(record, index) {
   const progress = deductionHistoryProgress(record), item = progress.items[index];
   if (!item) throw new Error('This payment is no longer available. Refresh History and try again.');
   if (item.status !== 'applied') throw new Error('Only saved, applied deductions can be downloaded.');
@@ -442,6 +448,17 @@ async function deductionPaymentStatementPayload(record, index) {
   const filteredTotal = columns.map(column => column === columns[0] ? 'Filtered total' : column === quantityColumn ? formatNumber(rows.reduce((sum, row) => sum + Number(row.quantity || 0), 0)) : column === commissionColumn ? deductionMoney(grossCents) : '');
   const payment = Number.isInteger(Number(item.index)) ? Number(item.index) + 1 : index + 1, paymentCount = Number(record.installmentCount || progress.items.length || payment), type = (deductionTypes[record.type] || record.type || 'Deduction').toUpperCase(), filename = String(record.rider || 'Rider').trim().replace(/\s+/g, '_').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/, '').slice(0, 160) || 'Rider';
   return { title: record.rider, panelTitle: 'Commission Rider', filename: filename + '_payment-' + paymentCount, pdfFilename: filename + '_payment-' + paymentCount + '.pdf', columns, rows, period: 'Selected deduction date: ' + deductionDateLabel(item.dueDate) + ' | Commission period: ' + deductionPeriodLabel(period) + ' | refreshed from Grafana', summary: { label: 'Net Commission', value: deductionMoney(netCents) }, footerRows: [filteredTotal, footerRow('SELECTED DEDUCTION DATE', deductionDateLabel(item.dueDate)), footerRow('COMMISSION PERIOD', deductionPeriodLabel(period)), footerRow(type + ' — PAYMENT ' + payment + ' OF ' + paymentCount, '- ' + deductionMoney(deductedCents)), footerRow('TOTAL DEDUCTED', '- ' + deductionMoney(deductedCents)), footerRow('NET COMMISSION', deductionMoney(netCents))] };
+}
+function deductionPrefetchPaymentStatement(record, index) {
+  const key = deductionPaymentStatementCacheKey(record, index), existing = deductionStatementPayloadCache.get(key);
+  if (existing && Date.now() - existing.loadedAt < DEDUCTION_STATEMENT_PREFETCH_TTL_MS) return existing.promise;
+  const entry = { loadedAt: Date.now(), promise: deductionFreshPaymentStatementPayload(record, index) };
+  deductionStatementPayloadCache.set(key, entry);
+  entry.promise.catch(() => { if (deductionStatementPayloadCache.get(key) === entry) deductionStatementPayloadCache.delete(key); });
+  return entry.promise;
+}
+async function deductionPaymentStatementPayload(record, index) {
+  return deductionPrefetchPaymentStatement(record, index);
 }
 async function deductionHistoryExport(format) {
   await deductionLoad();
@@ -489,9 +506,10 @@ function deductionActionDialog(recordId, action) {
         rows.querySelectorAll('[data-deduction-payment-select]').forEach(button => { const active = Number(button.dataset.deductionPaymentSelect) === index; button.classList.toggle('is-selected', active); button.setAttribute('aria-pressed', String(active)); });
         const sent = item.statementSentAt ? '<span class="deduction-payment-sent">✓ Sent to rider</span><small>Downloaded by ' + esc(item.statementSentBy || 'Finance') + ' · ' + esc(formatGrafanaTimestamp(item.statementSentAt)) + '</small>' : '<small>Not yet sent to rider</small>';
         statement.innerHTML = '<div class="deduction-payment-statement-copy"><span>Selected payment</span><strong>Payment ' + payment + '/' + paymentCount + '</strong><small>Deduction date: ' + esc(deductionDateLabel(dueDate)) + ' · Commission period: ' + esc(deductionPeriodLabel(settlement)) + '</small></div><div class="deduction-payment-statement-copy"><span>Amount deducted</span><strong>− ' + esc(deductionMoney(amount)) + '</strong><small>' + esc(deductionTypes[record.type] || record.type) + ' · one payment only</small>' + sent + '</div><button type="button" data-deduction-payment-download' + (toggle.getAttribute('aria-pressed') === 'true' ? ' disabled' : '') + '>' + (item.statementSentAt ? 'Download weekly PDF again' : 'Download weekly PDF') + '</button><p data-deduction-payment-feedback></p>';
+        void Promise.allSettled([ensureFinanceExportBundle('pdf'), deductionPrefetchPaymentStatement(record, index)]);
         statement.querySelector('[data-deduction-payment-download]').onclick = async event => {
-          const button = event.currentTarget, message = statement.querySelector('[data-deduction-payment-feedback]'); button.disabled = true; message.textContent = 'Refreshing Commission Rider data from Grafana…';
-          try { await ensureFinanceExportBundle('pdf'); const downloaded = await downloadPdfTable(await deductionPaymentStatementPayload(record, selectedIndex)); if (!downloaded) { message.textContent = 'PDF download was cancelled.'; return; } const saved = await deductionRequest('/mark-sent', { recordId: record.id, installmentIndex: selectedIndex, requestId: deliveryIdentity({ recordId: record.id, installmentIndex: selectedIndex }) }); Object.assign(item, { statementSentAt: saved.statementSentAt, statementSentBy: saved.statementSentBy }); renderStatement(); statement.querySelector('[data-deduction-payment-feedback]').textContent = 'Weekly PDF downloaded and marked sent to rider.'; }
+          const button = event.currentTarget, message = statement.querySelector('[data-deduction-payment-feedback]'); button.disabled = true; message.textContent = 'Preparing weekly PDF…';
+          try { const [, payload] = await Promise.all([ensureFinanceExportBundle('pdf'), deductionPaymentStatementPayload(record, selectedIndex)]); const downloaded = await downloadPdfTable(payload); if (!downloaded) { message.textContent = 'PDF download was cancelled.'; return; } const saved = await deductionRequest('/mark-sent', { recordId: record.id, installmentIndex: selectedIndex, requestId: deliveryIdentity({ recordId: record.id, installmentIndex: selectedIndex }) }); Object.assign(item, { statementSentAt: saved.statementSentAt, statementSentBy: saved.statementSentBy }); renderStatement(); statement.querySelector('[data-deduction-payment-feedback]').textContent = 'Weekly PDF downloaded and marked sent to rider.'; }
           catch (error) { message.textContent = error.message; message.classList.add('is-error'); }
           finally { button.disabled = toggle.getAttribute('aria-pressed') === 'true'; }
         };
