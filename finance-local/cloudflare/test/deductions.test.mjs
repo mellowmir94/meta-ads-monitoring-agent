@@ -367,7 +367,9 @@ test('deduction history is a dedicated Commission Rider view launched from the g
   assert.match(dashboardHtml, /function deductionHistoryTypeHeader/);
   assert.match(dashboardHtml, /state\.activeTab === 'commission'/);
   assert.match(dashboardHtml, /data-deduction-history-period-start/);
-  assert.match(dashboardHtml, /data-deduction-history-use-commission-range/);
+  assert.match(dashboardHtml, /data-deduction-history-range-toggle/);
+  assert.match(dashboardHtml, /Absolute time range/);
+  assert.match(dashboardHtml, /data-deduction-history-range-quick/);
   assert.match(dashboardHtml, /<th>Download PDF<\/th><th>Commission period<\/th>/);
   assert.match(dashboardHtml, /function deductionHistoryDownloadCell/);
   assert.match(dashboardHtml, /noticeLabel = selected \? \(selected\.state === 'ready' \? 'Ongoing'/);

@@ -8,6 +8,7 @@ const deductionDisplayStatus = value => ({ approved: 'applied', pending: 'applie
 const deductionDrafts = new Map();
 const deductionHistorySelected = new Set();
 const deductionHistoryPaymentSelections = new Map();
+const deductionHistoryRangePicker = { open: false, anchor: '', month: '', draftStart: '', draftEnd: '', recent: [] };
 const deductionHolidayCache = new Map();
 const deductionStatementPayloadCache = new Map();
 const DEDUCTION_STATEMENT_PREFETCH_TTL_MS = 120000;
@@ -299,6 +300,9 @@ function deductionHistoryUseCommissionRange(view) {
   const start = view?.querySelector('[data-deduction-history-period-start]'), end = view?.querySelector('[data-deduction-history-period-end]');
   if (start) start.value = range.start;
   if (end) end.value = range.end;
+  deductionHistoryRangeSetDraft(range.start, range.end);
+  deductionHistoryRangePicker.open = false;
+  deductionHistoryRenderRangePicker(view);
 }
 function deductionHistoryProgress(record, today = deductionToday()) {
   const items = deductionInstallments(record), active = !['rejected', 'cancelled', 'reversed'].includes(deductionStatus(record)), scheduled = items.filter(item => item.status === 'scheduled' && active), applied = items.filter(item => item.status === 'applied');
@@ -433,6 +437,50 @@ function deductionHistoryTypeCell(group, type, checker, timing = '', periodStart
   const progress = deductionHistoryProgress(record), total = progress.items.reduce((sum, installment) => sum + deductionInstallmentAmount(record, installment), 0), selected = deductionHistorySelectedPayment(group, type, deductionToday(), timing, periodStart, periodEnd), noticeLabel = selected ? (selected.state === 'ready' ? 'Ongoing' : selected.state === 'sent' ? 'Sent to rider' : selected.state === 'upcoming' ? 'Upcoming' : 'Completed') + ' · Payment ' + (selected.index + 1) : '';
   return '<td class="deduction-type-cell" data-deduction-record-id="' + esc(record.id) + '"><strong>' + esc(deductionMoney(total)) + '</strong><small>' + esc(deductionPlanLabel(record)) + '</small>' + (selected ? '<span class="deduction-payment-notice ' + esc(selected.state) + '">' + esc(noticeLabel) + '<small>' + esc(deductionDateLabel(selected.item.dueDate)) + '</small></span>' + deductionHistoryPaymentCell(group, type, deductionToday(), timing, periodStart, periodEnd) : '<small>No payment in this Commission Rider range.</small>') + '<span class="deduction-history-status ' + esc(deductionStatus(record)) + '">' + esc(deductionDisplayStatus(record)) + '</span>' + (record.reason ? '<small>Reason: ' + esc(record.reason) + '</small>' : '') + '<div class="deduction-type-actions">' + deductionHistoryActions(record, checker) + '</div></td>';
 }
+function deductionHistoryRangeDisplay(value, end = false) {
+  const date = String(value || '').slice(0, 10); return date ? date + (end ? ' 23:59:59' : ' 00:00:00') : 'Select date';
+}
+function deductionHistoryRangeMonthLabel(monthKey) {
+  const [year, month] = String(monthKey || '').split('-').map(Number); return new Intl.DateTimeFormat('en-MY', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, month - 1, 1)));
+}
+function deductionHistoryRangePickerMarkup(view) {
+  const start = view?.querySelector('[data-deduction-history-period-start]')?.value || '', end = view?.querySelector('[data-deduction-history-period-end]')?.value || '', picker = deductionHistoryRangePicker;
+  if (!picker.draftStart) { picker.draftStart = start; picker.draftEnd = end; }
+  if (!picker.month) picker.month = (picker.draftStart || start || deductionToday()).slice(0, 7);
+  const [year, month] = picker.month.split('-').map(Number), monthStart = new Date(Date.UTC(year, month - 1, 1)), first = new Date(monthStart); first.setUTCDate(1 - first.getUTCDay());
+  const dateText = date => date.getUTCFullYear() + '-' + String(date.getUTCMonth() + 1).padStart(2, '0') + '-' + String(date.getUTCDate()).padStart(2, '0');
+  const calendar = Array.from({ length: 42 }, (_, index) => { const date = new Date(first); date.setUTCDate(first.getUTCDate() + index); const value = dateText(date), outside = date.getUTCMonth() !== monthStart.getUTCMonth(), selected = picker.draftStart && picker.draftEnd && value >= picker.draftStart && value <= picker.draftEnd, edge = value === picker.draftStart || value === picker.draftEnd; return '<button type="button" class="deduction-history-range-day' + (outside ? ' is-outside' : '') + (selected ? ' is-selected' : '') + (edge ? ' is-edge' : '') + '" data-deduction-history-range-day="' + value + '" aria-label="' + value + '">' + date.getUTCDate() + '</button>'; }).join('');
+  const triggerText = start && end ? deductionDateLabel(start) + ' – ' + deductionDateLabel(end) : 'Select range';
+  const quick = [['today', 'Today'], ['yesterday', 'Yesterday'], ['this-week', 'This week'], ['last-week', 'Last week (Mon–Sun)'], ['this-month', 'This month'], ['previous-month', 'Previous month']];
+  return '<div class="deduction-history-range-control"><span>date_range</span><button type="button" class="deduction-history-range-trigger" data-deduction-history-range-toggle aria-expanded="' + String(picker.open) + '"><b>◷</b><strong>' + esc(triggerText) + '</strong><small>UTC</small><i>⌄</i></button><input type="hidden" data-deduction-history-period-start value="' + esc(start) + '"><input type="hidden" data-deduction-history-period-end value="' + esc(end) + '">' + (picker.open ? '<section class="deduction-history-range-popover" aria-label="Commission Rider date range"><div class="deduction-history-range-calendar"><header><button type="button" data-deduction-history-range-month="-1" aria-label="Previous month">‹</button><strong>' + esc(deductionHistoryRangeMonthLabel(picker.month)) + '</strong><button type="button" data-deduction-history-range-month="1" aria-label="Next month">›</button></header><div class="deduction-history-range-weekdays">' + ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => '<span>' + day + '</span>').join('') + '</div><div class="deduction-history-range-days">' + calendar + '</div></div><div class="deduction-history-range-side"><h4>Absolute time range</h4><label>From<input readonly value="' + esc(deductionHistoryRangeDisplay(picker.draftStart)) + '"></label><label>To<input readonly value="' + esc(deductionHistoryRangeDisplay(picker.draftEnd, true)) + '"></label><button type="button" class="deduction-history-range-apply" data-deduction-history-range-apply>Apply time range</button><h4>Quick ranges</h4><div class="deduction-history-range-quick">' + quick.map(([key, label]) => '<button type="button" data-deduction-history-range-quick="' + key + '">' + label + '</button>').join('') + '</div></div></section>' : '') + '</div>';
+}
+function deductionHistoryRenderRangePicker(view) {
+  const host = view?.querySelector('[data-deduction-history-range-host]'); if (host) host.innerHTML = deductionHistoryRangePickerMarkup(view);
+}
+function deductionHistoryRangeSetDraft(start, end) {
+  const picker = deductionHistoryRangePicker; picker.draftStart = start; picker.draftEnd = end; picker.anchor = '';
+  if (start) picker.month = start.slice(0, 7);
+}
+function deductionHistoryRangeMonthShift(monthKey, amount) {
+  const [year, month] = String(monthKey || deductionToday().slice(0, 7)).split('-').map(Number), date = new Date(Date.UTC(year, month - 1 + Number(amount || 0), 1));
+  return date.getUTCFullYear() + '-' + String(date.getUTCMonth() + 1).padStart(2, '0');
+}
+function deductionHistoryRangeQuick(key) {
+  if (typeof auditQuickRange === 'function') {
+    const range = auditQuickRange(key);
+    if (range?.start && range?.end) return { start: String(range.start).slice(0, 10), end: String(range.end).slice(0, 10) };
+  }
+  const today = deductionToday(), date = new Date(today + 'T00:00:00Z'), shift = amount => new Date(date.getTime() + amount * 86400000), text = value => value.toISOString().slice(0, 10);
+  if (key === 'yesterday') return { start: text(shift(-1)), end: text(shift(-1)) };
+  if (key === 'this-week' || key === 'last-week') { const mondayOffset = -((date.getUTCDay() + 6) % 7) + (key === 'last-week' ? -7 : 0), start = shift(mondayOffset); return { start: text(start), end: text(new Date(start.getTime() + 6 * 86400000)) }; }
+  if (key === 'this-month' || key === 'previous-month') { const month = date.getUTCMonth() + (key === 'previous-month' ? -1 : 0), year = date.getUTCFullYear(), start = new Date(Date.UTC(year, month, 1)), end = new Date(Date.UTC(year, month + 1, 0)); return { start: text(start), end: text(end) }; }
+  return { start: today, end: today };
+}
+function deductionHistoryRangeRemember(start, end) {
+  if (!start || !end) return;
+  const value = start + ' to ' + end;
+  deductionHistoryRangePicker.recent = [value, ...deductionHistoryRangePicker.recent.filter(item => item !== value)].slice(0, 5);
+}
 function deductionHistoryEnsure() {
   const commission = document.getElementById('tab-commission'); if (!commission) return null;
   const commissionRange = deductionHistoryCommissionRange();
@@ -440,9 +488,9 @@ function deductionHistoryEnsure() {
   let view = document.getElementById('deductionHistoryView');
   if (!view) {
     view = document.createElement('section'); view.id = 'deductionHistoryView'; view.className = 'deduction-history-view'; view.hidden = true;
-    view.innerHTML = '<header class="deduction-history-head"><div><p>Commission Rider</p><h2>Rider deduction history</h2><span>Every saved request is applied immediately. Each deduction has its own column and audit actions.</span></div><div class="deduction-history-head-actions"><button type="button" data-deduction-history-export="excel">Export Excel</button><button type="button" data-deduction-history-export="pdf" disabled>Export checked Rider PDF</button><button type="button" data-deduction-history-close>← Back to Commission Rider</button></div></header><div data-deduction-history-feedback role="status"></div><section class="deduction-history-kpis" data-deduction-history-kpis></section><div class="deduction-history-toolbar"><label>Search<input type="search" data-deduction-history-search placeholder="Rider, reference or reason"></label><label>Status<select data-deduction-history-status><option value="">All statuses</option>' + ['applied', 'rejected', 'cancelled', 'reversed'].map(value => '<option>' + value + '</option>').join('') + '</select></label><label>Deduction<select data-deduction-history-type><option value="">All types</option>' + Object.entries(deductionTypes).map(([value, label]) => '<option value="' + value + '">' + esc(label) + '</option>').join('') + '</select></label><label>Payment schedule<select data-deduction-history-timing><option value="">All payments</option><option value="ready">Ready to download</option><option value="sent">Sent to rider</option><option value="upcoming">Upcoming</option><option value="complete">Completed</option></select></label><label>Commission period from<input type="date" data-deduction-history-period-start value="' + esc(commissionRange.start) + '"></label><label>Commission period to<input type="date" data-deduction-history-period-end value="' + esc(commissionRange.end) + '"></label><label>EPF contribution month<input type="month" data-deduction-history-month></label><button type="button" class="deduction-history-range-sync" data-deduction-history-use-commission-range>Use Commission Rider range</button></div><div class="deduction-history-table-wrap"><table><thead><tr><th class="deduction-export-check">PDF</th><th>Rider / batch</th>' + deductionHistoryTypeHeader('epf', 'EPF') + deductionHistoryTypeHeader('insurance', 'Insurance') + deductionHistoryTypeHeader('battery-tester', 'OBD / Battery Tester') + deductionHistoryTypeHeader('manual', 'Special Case') + '<th>Download PDF</th><th>Commission period</th><th>Applied</th><th>Remaining</th><th>Status</th><th>Created by</th></tr></thead><tbody data-deduction-history-body></tbody></table></div><p class="deduction-history-empty" data-deduction-history-empty hidden>No deductions match these filters.</p>';
+    view.innerHTML = '<header class="deduction-history-head"><div><p>Commission Rider</p><h2>Rider deduction history</h2><span>Every saved request is applied immediately. Each deduction has its own column and audit actions.</span></div><div class="deduction-history-head-actions"><button type="button" data-deduction-history-export="excel">Export Excel</button><button type="button" data-deduction-history-export="pdf" disabled>Export checked Rider PDF</button><button type="button" data-deduction-history-close>← Back to Commission Rider</button></div></header><div data-deduction-history-feedback role="status"></div><section class="deduction-history-kpis" data-deduction-history-kpis></section><div class="deduction-history-toolbar"><label>Search<input type="search" data-deduction-history-search placeholder="Rider, reference or reason"></label><label>Status<select data-deduction-history-status><option value="">All statuses</option>' + ['applied', 'rejected', 'cancelled', 'reversed'].map(value => '<option>' + value + '</option>').join('') + '</select></label><label>Deduction<select data-deduction-history-type><option value="">All types</option>' + Object.entries(deductionTypes).map(([value, label]) => '<option value="' + value + '">' + esc(label) + '</option>').join('') + '</select></label><label>Payment schedule<select data-deduction-history-timing><option value="">All payments</option><option value="ready">Ready to download</option><option value="sent">Sent to rider</option><option value="upcoming">Upcoming</option><option value="complete">Completed</option></select></label><div data-deduction-history-range-host><input type="hidden" data-deduction-history-period-start value="' + esc(commissionRange.start) + '"><input type="hidden" data-deduction-history-period-end value="' + esc(commissionRange.end) + '"></div><label>EPF contribution month<input type="month" data-deduction-history-month></label></div><div class="deduction-history-table-wrap"><table><thead><tr><th class="deduction-export-check">PDF</th><th>Rider / batch</th>' + deductionHistoryTypeHeader('epf', 'EPF') + deductionHistoryTypeHeader('insurance', 'Insurance') + deductionHistoryTypeHeader('battery-tester', 'OBD / Battery Tester') + deductionHistoryTypeHeader('manual', 'Special Case') + '<th>Download PDF</th><th>Commission period</th><th>Applied</th><th>Remaining</th><th>Status</th><th>Created by</th></tr></thead><tbody data-deduction-history-body></tbody></table></div><p class="deduction-history-empty" data-deduction-history-empty hidden>No deductions match these filters.</p>';
     commission.append(view);
-  } return view;
+  } deductionHistoryRenderRangePicker(view); return view;
 }
 function deductionHistoryRender() {
   const view = deductionHistoryEnsure(); if (!view) return;
@@ -759,7 +807,59 @@ document.addEventListener('change', event => {
 document.addEventListener('click', async event => {
   if (event.target.closest?.('[data-deduction-history-open]')) { event.preventDefault(); return deductionHistoryOpen(); }
   if (event.target.closest?.('[data-deduction-history-close]')) { event.preventDefault(); return deductionHistoryClose(); }
-  if (event.target.closest?.('[data-deduction-history-use-commission-range]')) { event.preventDefault(); deductionHistoryUseCommissionRange(deductionHistoryEnsure()); return deductionHistoryRender(); }
+  const rangeToggle = event.target.closest?.('[data-deduction-history-range-toggle]');
+  if (rangeToggle) {
+    event.preventDefault();
+    const view = deductionHistoryEnsure(), start = view?.querySelector('[data-deduction-history-period-start]')?.value || '', end = view?.querySelector('[data-deduction-history-period-end]')?.value || '';
+    if (!deductionHistoryRangePicker.open) {
+      deductionHistoryRangeSetDraft(start, end);
+      if (!deductionHistoryRangePicker.month) deductionHistoryRangePicker.month = (start || deductionToday()).slice(0, 7);
+    }
+    deductionHistoryRangePicker.open = !deductionHistoryRangePicker.open;
+    deductionHistoryRenderRangePicker(view);
+    return;
+  }
+  const rangeMonth = event.target.closest?.('[data-deduction-history-range-month]');
+  if (rangeMonth) {
+    event.preventDefault();
+    deductionHistoryRangePicker.month = deductionHistoryRangeMonthShift(deductionHistoryRangePicker.month, Number(rangeMonth.dataset.deductionHistoryRangeMonth));
+    deductionHistoryRenderRangePicker(deductionHistoryEnsure());
+    return;
+  }
+  const rangeDay = event.target.closest?.('[data-deduction-history-range-day]');
+  if (rangeDay) {
+    event.preventDefault();
+    const day = rangeDay.dataset.deductionHistoryRangeDay, picker = deductionHistoryRangePicker;
+    if (!picker.anchor || !picker.draftStart || !picker.draftEnd || picker.draftStart !== picker.draftEnd) {
+      picker.anchor = day; picker.draftStart = day; picker.draftEnd = day;
+    } else {
+      picker.draftStart = day < picker.anchor ? day : picker.anchor;
+      picker.draftEnd = day > picker.anchor ? day : picker.anchor;
+      picker.anchor = '';
+    }
+    deductionHistoryRenderRangePicker(deductionHistoryEnsure());
+    return;
+  }
+  const rangeQuick = event.target.closest?.('[data-deduction-history-range-quick]');
+  if (rangeQuick) {
+    event.preventDefault();
+    const range = deductionHistoryRangeQuick(rangeQuick.dataset.deductionHistoryRangeQuick);
+    deductionHistoryRangeSetDraft(range.start, range.end);
+    deductionHistoryRenderRangePicker(deductionHistoryEnsure());
+    return;
+  }
+  if (event.target.closest?.('[data-deduction-history-range-apply]')) {
+    event.preventDefault();
+    const view = deductionHistoryEnsure(), picker = deductionHistoryRangePicker, start = picker.draftStart, end = picker.draftEnd || picker.draftStart;
+    if (!start || !end) return;
+    const startInput = view.querySelector('[data-deduction-history-period-start]'), endInput = view.querySelector('[data-deduction-history-period-end]');
+    if (startInput) startInput.value = start;
+    if (endInput) endInput.value = end;
+    deductionHistoryRangeRemember(start, end);
+    picker.open = false; picker.anchor = '';
+    deductionHistoryRenderRangePicker(view);
+    return deductionHistoryRender();
+  }
   if (event.target.closest?.('[data-deduction-retry]')) { event.preventDefault(); try { await deductionLoad(); } catch {} render(); deductionHistoryRender(); return; }
   const exported = event.target.closest?.('[data-deduction-history-export]');
   if (exported) { event.preventDefault(); try { await deductionHistoryExport(exported.dataset.deductionHistoryExport); } catch (error) { deductionHistoryEnsure().querySelector('[data-deduction-history-feedback]').textContent = error.message; } return; }
