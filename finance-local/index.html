@@ -11143,9 +11143,12 @@
           footStyles: { fillColor: [23, 76, 59], textColor: [239, 252, 246], fontStyle: "bold" },
           didParseCell: (data) => {
             const label = data.section === "foot" ? String(data.row?.raw?.[0] ?? "").trim().toUpperCase() : "";
-            if (label === "APPLIED DEDUCTIONS") {
+            if (label === "APPLIED DEDUCTIONS" || label === "TOTAL DEDUCTED") {
               data.cell.styles.fillColor = [217, 149, 47];
               data.cell.styles.textColor = [30, 41, 30];
+            } else if (label === "NET COMMISSION") {
+              data.cell.styles.fillColor = [18, 117, 75];
+              data.cell.styles.textColor = [240, 253, 244];
             }
           },
           alternateRowStyles: { fillColor: [247, 249, 252] },
