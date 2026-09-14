@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Daily Sales Report</title>
+  <style>
+    body { margin: 0; padding: 0; background: #f3f6f8; color: #172b3d; font-family: Arial, Helvetica, sans-serif; }
+    table { border-collapse: collapse; }
+    .page { width: 100%; background: #f3f6f8; }
+    .shell { width: 680px; max-width: 680px; margin: 0 auto; background: #ffffff; }
+    .header { padding: 26px 30px 24px; background: #172b3d; color: #ffffff; }
+    .eyebrow { color: #8fcfc4; font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; }
+    h1 { margin: 8px 0 0; font-size: 24px; line-height: 1.2; }
+    .header p { margin: 8px 0 0; color: #d7e3e8; font-size: 13px; line-height: 1.5; }
+    .content { padding: 26px 30px 30px; }
+    .intro { margin: 0 0 20px; font-size: 14px; line-height: 1.55; }
+    .intro strong { color: #0b625b; }
+    .section-title { margin: 24px 0 8px; color: #172b3d; font-size: 16px; }
+    .section-subtitle { margin: 0 0 12px; color: #657b8d; font-size: 12px; line-height: 1.45; }
+    .summary { width: 100%; margin: 0 0 22px; }
+    .summary td { width: 50%; padding: 12px 14px; border: 1px solid #d9e3e8; background: #f8fafb; }
+    .summary-label { display: block; color: #657b8d; font-size: 10px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase; }
+    .summary-value { display: block; margin-top: 5px; color: #172b3d; font-size: 20px; font-weight: 700; }
+    .data-table { width: 100%; border: 1px solid #cfdde3; font-size: 12px; }
+    .data-table th { padding: 10px 8px; background: #dcefe5; color: #172b3d; font-size: 10px; font-weight: 700; text-align: left; text-transform: uppercase; }
+    .data-table td { padding: 10px 8px; border-top: 1px solid #e6edf0; color: #243b4d; }
+    .data-table th:not(:first-child), .data-table td:not(:first-child) { text-align: center; }
+    .data-table tr.total td { background: #eef8f2; font-weight: 700; }
+    .movement { display: inline-block; padding: 4px 7px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+    .increase, .target { background: #dff3eb; color: #17694f; }
+    .decrease, .below { background: #fae4e2; color: #9c332c; }
+    .first { background: #edf1f3; color: #536273; }
+    .legend { margin: 12px 0 0; color: #657b8d; font-size: 11px; line-height: 1.5; }
+    .legend span { display: inline-block; margin-right: 14px; }
+    .bullet { display: inline-block; width: 9px; height: 9px; margin-right: 4px; border-radius: 50%; vertical-align: -1px; }
+    .green { background: #27a27a; }
+    .red { background: #cf5148; }
+    .note { margin-top: 22px; padding: 12px 14px; border-left: 3px solid #159b8e; background: #eff9f6; color: #536b7a; font-size: 12px; line-height: 1.5; }
+    .footer { padding: 15px 30px; border-top: 1px solid #d9e3e8; background: #f8fafb; color: #758796; font-size: 10px; line-height: 1.45; }
+    @media screen and (max-width: 700px) { .shell { width: 100% !important; } .header, .content, .footer { padding-left: 18px !important; padding-right: 18px !important; } .data-table { font-size: 11px; } .data-table th, .data-table td { padding: 8px 5px; } }
+  </style>
+</head>
+<body>
+  <!--
+    Daily email template. Replace the report date, summary values, and table rows
+    before sending. The sample values below are the 1–5 Aug 2026 report window.
+  -->
+  <table role="presentation" class="page" width="100%">
+    <tr><td align="center">
+      <table role="presentation" class="shell" width="680">
+        <tr><td class="header">
+          <div class="eyebrow">Operations / Daily reporting</div>
+          <h1>Daily Sales Report</h1>
+          <p>B2C and B2B2C sales performance</p>
+        </td></tr>
+        <tr><td class="content">
+          <p class="intro">Dear all,<br><br>This is the sales report for our <strong>B2C and B2B2C</strong> channels from <strong>1st August 2026 to 5th August 2026</strong>. Please refer to the daily details below.</p>
+
+          <table role="presentation" class="summary" width="100%">
+            <tr>
+              <td><span class="summary-label">Sales in period</span><span class="summary-value">9,393 units</span></td>
+              <td><span class="summary-label">Latest day · 5 Aug 2026</span><span class="summary-value">1,678 units</span></td>
+            </tr>
+          </table>
+
+          <h2 class="section-title">Daily sales movement</h2>
+          <p class="section-subtitle">HQ represents B2C. BP represents B2B2C. Movement compares total units with the previous day.</p>
+          <table class="data-table" width="100%">
+            <thead><tr><th>Date</th><th>HQ / B2C<br>(Units)</th><th>BP / B2B2C<br>(Units)</th><th>Total<br>(Units)</th><th>Movement</th></tr></thead>
+            <tbody>
+              <tr><td>1 Aug 2026</td><td>1,087</td><td>931</td><td><strong>2,018</strong></td><td><span class="movement first">First day</span></td></tr>
+              <tr><td>2 Aug 2026</td><td>1,146</td><td>931</td><td><strong>2,077</strong></td><td><span class="movement increase">Increase</span></td></tr>
+              <tr><td>3 Aug 2026</td><td>1,043</td><td>866</td><td><strong>1,909</strong></td><td><span class="movement decrease">Decrease</span></td></tr>
+              <tr><td>4 Aug 2026</td><td>879</td><td>832</td><td><strong>1,711</strong></td><td><span class="movement decrease">Decrease</span></td></tr>
+              <tr><td>5 Aug 2026</td><td>897</td><td>781</td><td><strong>1,678</strong></td><td><span class="movement decrease">Decrease</span></td></tr>
+              <tr class="total"><td>Total</td><td>5,052</td><td>4,341</td><td>9,393</td><td></td></tr>
+            </tbody>
+          </table>
+          <div class="legend"><span><i class="bullet green"></i>Increase / target met</span><span><i class="bullet red"></i>Decrease / below target</span></div>
+
+          <div class="note"><strong>Next update:</strong> replace the sample daily rows with the latest workbook values before sending. Keep the date format as “1 Aug 2026” for readability.</div>
+        </td></tr>
+        <tr><td class="footer">Prepared from the Daily Report Dashboard workbook · For internal distribution only</td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

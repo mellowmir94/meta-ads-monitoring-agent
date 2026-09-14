@@ -1,0 +1,32 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "daily-report-operations-local-preview",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-11",
+  "workers_dev": false,
+  "preview_urls": false,
+  "dev": { "ip": "127.0.0.1", "port": 8791 },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "run_worker_first": true
+  },
+  "kv_namespaces": [{ "binding": "DASHBOARD_DATA", "id": "00000000000000000000000000000001", "remote": false }],
+  "durable_objects": {
+    "bindings": [
+      { "name": "CONCURRENCY_LIMITER", "class_name": "ConcurrencyLimiter" },
+      { "name": "MANUAL_VALUES", "class_name": "ManualValuesStore" },
+      { "name": "REPORT_VERSIONS", "class_name": "ReportVersionsStore" },
+      { "name": "OPERATIONS_JOBS", "class_name": "OperationsJobsStore" }
+    ]
+  },
+  "migrations": [{ "tag": "local-preview-v1", "new_sqlite_classes": ["ConcurrencyLimiter", "ManualValuesStore", "ReportVersionsStore", "OperationsJobsStore"] }],
+  "triggers": { "crons": ["*/2 * * * *"] },
+  "vars": {
+    "ALLOW_LOCAL_API": "true",
+    "OPERATIONS_SCHEDULED_BACKUPS": "true",
+    "OPERATIONS_BACKUP_RETENTION_DAYS": "30",
+    "OPERATIONS_BACKUP_MAX_PER_KIND": "31"
+  }
+}

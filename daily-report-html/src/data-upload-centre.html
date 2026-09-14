@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Daily Report Dashboard data upload centre">
+  <title>Data Upload Centre | Daily Report Dashboard</title>
+  <style>/* INLINE_CSS */</style>
+  <script>/* INLINE_XLSX */</script>
+  <script>window.__INITIAL_WORKBOOK__ = /* INITIAL_DATA */;</script>
+</head>
+<body>
+  <div class="pin-gate" id="pinGate">
+    <form class="pin-card" id="pinForm">
+      <div class="pin-lock" aria-hidden="true">⌑</div>
+      <span class="eyebrow">Restricted workspace</span>
+      <h2>Data upload centre</h2>
+      <p>Enter the PIN to manage the daily report workbook.</p>
+      <label for="pinInput">PIN<input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" required></label>
+      <button class="button button-primary" type="submit">Unlock</button>
+      <div class="pin-error" id="pinError" role="alert" hidden>Incorrect PIN. Try again.</div>
+      <a class="pin-back" href="Daily Report Dashboard - Enhanced.html">Back to dashboard</a>
+    </form>
+  </div>
+  <div class="page-shell">
+    <header class="topbar">
+      <div class="brand-lockup">
+        <img class="brand-logo" src="data:image/png;base64,/* INLINE_LOGO */" alt="Bateriku">
+        <div>
+          <div class="eyebrow eyebrow-light">Daily report</div>
+          <h1>Data upload centre</h1>
+          <p>Prepare, validate, and load the daily report workbook.</p>
+        </div>
+      </div>
+      <a class="back-link" id="backDashboardLink" href="Daily Report Dashboard - Enhanced.html">Open dashboard with this upload <span aria-hidden="true">→</span></a>
+    </header>
+
+    <main class="main-content">
+      <section class="page-intro">
+        <div>
+          <span class="eyebrow">Workbook control</span>
+          <h2>Pitstop Master</h2>
+          <p>Operations Summary, BGarage, and Indonesia values are entered and saved directly in Summary.</p>
+          <ol class="upload-steps" aria-label="Upload workflow" hidden>
+            <li id="stepSelect" class="is-current"><span>1</span><strong>Select</strong></li>
+            <li id="stepReview"><span>2</span><strong>Review</strong></li>
+            <li id="stepConfirm"><span>3</span><strong>Confirm</strong></li>
+          </ol>
+        </div>
+        <div class="intro-actions" hidden>
+          <button class="button button-secondary" id="templateButton" type="button">Download template</button>
+          <button class="button button-primary" id="chooseButton" type="button">Upload Excel workbook</button>
+        </div>
+      </section>
+
+      <section class="upload-layout" aria-label="Workbook upload">
+        <article class="upload-card">
+          <div hidden>
+          <div class="upload-dropzone" id="dropzone" role="button" tabindex="0" aria-label="Choose an Excel workbook to upload">
+            <div class="drop-icon" aria-hidden="true">↑</div>
+            <strong>Drop Daily Report Email 2026.xlsx here</strong>
+            <span>or choose a .xlsx, .xlsm, .xls, or .json file</span>
+          </div>
+          <div class="upload-actions">
+            <button class="button button-primary" id="dropChooseButton" type="button">Upload Excel workbook</button>
+            <button class="button button-confirm-upload" id="uploadButton" type="button" hidden>Confirm upload</button>
+            <button class="button button-secondary" id="cancelUploadButton" type="button" hidden>Cancel selection</button>
+            <button class="button button-secondary" id="sharePointButton" type="button" hidden>Load from SharePoint</button>
+          </div>
+          <div class="upload-pending" id="pendingFile" hidden aria-live="polite">
+            <div class="pending-copy"><span class="eyebrow">Selected workbook</span><strong id="pendingFileName">-</strong></div>
+            <span class="pending-state">Ready to confirm</span>
+          </div>
+          <p class="upload-note"><strong>Daily workflow:</strong> add the newest rows to Service &amp; Warranty, BGarage, and Indonesia, upload the same Daily Report Email 2026.xlsx file, review the preview, then confirm. Do not add Daily Sales or Pitstops sheets; those values are refreshed from Grafana. Pitstop Master remains a separate reference upload below.</p>
+          <div class="message" id="message" role="status" aria-live="polite" hidden></div>
+          </div>
+          <section class="master-upload" aria-labelledby="masterUploadTitle">
+            <div class="master-upload-copy">
+              <span class="eyebrow">Reference data</span>
+              <h3 id="masterUploadTitle">Pitstop Master</h3>
+              <p>Update branch name, HQ/BP type, state, region, tier, target and active status. Sales and operational data remain API and Summary-managed.</p>
+            </div>
+            <div class="master-upload-actions">
+              <button class="button button-secondary master-button" id="masterChooseButton" type="button">Upload Pitstop Master</button>
+              <button class="button button-confirm-upload" id="masterConfirmButton" type="button" hidden>Confirm master update</button>
+              <button class="button button-secondary" id="masterCancelButton" type="button" hidden>Cancel</button>
+            </div>
+            <div class="upload-pending master-pending" id="masterPending" hidden aria-live="polite">
+              <div class="pending-copy"><span class="eyebrow">Selected master</span><strong id="masterPendingName">-</strong><small id="masterPendingStats"></small></div>
+              <span class="pending-state" id="masterPendingState">Review required</span>
+            </div>
+            <section class="master-review" id="masterReviewPanel" aria-labelledby="masterReviewTitle" hidden>
+              <h4 id="masterReviewTitle" tabindex="-1">Master upload review</h4>
+              <p id="masterReviewSummary" role="status" aria-live="polite"></p>
+              <p id="masterReviewDecision"></p>
+              <div id="masterReviewBody"></div>
+              <label class="review-ack" id="masterReviewAckLabel" hidden><input id="masterReviewAck" type="checkbox"> <span>I acknowledge the listed branch removals and field changes in this Master replacement.</span></label>
+            </section>
+            <div class="message master-message" id="masterMessage" role="status" aria-live="polite" hidden></div>
+          </section>
+          <section class="master-upload grafana-archive" aria-labelledby="grafanaArchiveTitle" hidden>
+            <div class="master-upload-copy">
+              <span class="eyebrow">Monthly Grafana archive</span>
+              <h3 id="grafanaArchiveTitle">Archive a completed month</h3>
+              <p>Fetch daily ALL PITSTOP HTML sales from Grafana, validate branch names against Pitstop Master, then save one closed month to Cloudflare history. The current month stays live.</p>
+            </div>
+            <div class="archive-control-row">
+              <label class="month-field" for="grafanaArchiveMonth"><span>Completed month</span><input id="grafanaArchiveMonth" type="month" autocomplete="off"></label>
+              <button class="button button-primary" id="grafanaPreviewButton" type="button">Fetch from Grafana</button>
+            </div>
+            <div class="archive-preview" id="grafanaArchivePreview" hidden aria-live="polite">
+              <div class="archive-preview-heading">
+                <div><span class="eyebrow">Ready to archive</span><strong id="grafanaPreviewMonth">-</strong><small id="grafanaPreviewRange"></small></div>
+                <span class="pending-state" id="grafanaPreviewState">Preview</span>
+              </div>
+              <div class="archive-metrics" id="grafanaPreviewMetrics"></div>
+              <div class="archive-warning" id="grafanaPreviewWarning" hidden></div>
+              <div class="master-upload-actions">
+                <button class="button button-confirm-upload" id="grafanaConfirmButton" type="button">Confirm monthly archive</button>
+                <button class="button button-secondary" id="grafanaCancelButton" type="button">Clear preview</button>
+              </div>
+            </div>
+            <div class="message master-message" id="grafanaArchiveMessage" role="status" aria-live="polite" hidden></div>
+          </section>
+          <section class="master-upload history-upload" aria-labelledby="historyUploadTitle" hidden>
+            <div class="master-upload-copy">
+              <span class="eyebrow">One-time archive</span>
+              <h3 id="historyUploadTitle">Historical Pitstop Sales</h3>
+              <p>Upload the verified daily archive for 2025 to July 2026. It is stored month by month; Pitstop Explorer uses it before switching to live Grafana data.</p>
+            </div>
+            <div class="master-upload-actions">
+              <button class="button button-secondary master-button" id="historyChooseButton" type="button">Upload historical archive</button>
+              <button class="button button-confirm-upload" id="historyConfirmButton" type="button" hidden>Confirm archive upload</button>
+              <button class="button button-secondary" id="historyLegacyButton" type="button" hidden>Use legacy month upload</button>
+              <button class="button button-secondary" id="historyCancelButton" type="button" hidden>Cancel</button>
+            </div>
+            <div class="upload-pending master-pending" id="historyPending" hidden aria-live="polite">
+              <div class="pending-copy"><span class="eyebrow">Validated archive</span><strong id="historyPendingName">-</strong><small id="historyPendingStats"></small></div>
+              <span class="pending-state" id="historyPendingState">Ready to confirm</span>
+            </div>
+            <div class="message master-message" id="historyMessage" role="status" aria-live="polite" hidden></div>
+          </section>
+        </article>
+
+        <aside class="status-card" aria-labelledby="statusTitle">
+          <div class="status-heading">
+            <div>
+              <span class="eyebrow">Current workbook</span>
+              <h2 id="statusTitle">Data status</h2>
+            </div>
+            <span class="status-badge" id="statusBadge">Ready</span>
+          </div>
+          <div class="source-name" id="sourceName">-</div>
+          <p class="status-help">Pitstop Master controls the active branch list, location metadata, and targets. Operational data is saved from the Summary tabs.</p>
+          <div class="status-grid" id="statusGrid"></div>
+          <div class="status-foot" id="statusFoot">-</div>
+        </aside>
+      </section>
+
+      <section class="archive-jobs" aria-labelledby="archiveJobsTitle">
+        <div class="section-heading"><h2 id="archiveJobsTitle">Archive jobs</h2><a href="/upload/operations/#jobs">Open archive operations</a></div>
+        <div id="archiveJobPanel" hidden>
+          <p id="archiveJobStatus" role="status" aria-live="polite"></p>
+          <p class="archive-job-id" id="archiveJobIdentity"></p>
+          <progress id="archiveJobProgress" value="0" max="1" aria-label="Archive months completed"></progress>
+          <details class="review-section"><summary>Month progress</summary><ul class="archive-job-months" id="archiveJobMonths"></ul></details>
+          <div class="backup-actions"><button class="button button-secondary" id="archiveJobRefresh" type="button">Check job status</button><button class="button button-primary" id="archiveJobResume" type="button" hidden>Resume archive job</button></div>
+          <div class="message" id="archiveJobMessage" role="status" aria-live="polite" hidden></div>
+        </div>
+      </section>
+
+      <section class="manual-backups" id="manualBackups" aria-labelledby="manualBackupsTitle">
+        <div class="section-heading"><h2 id="manualBackupsTitle">Saved report backups</h2></div>
+        <div class="backup-controls">
+          <label for="backupCollection">Collection<select id="backupCollection"><option value="rsa">RSA</option><option value="b2w">B2W</option><option value="bgarage">BGarage</option><option value="indonesia">Indonesia</option></select></label>
+          <button type="button" class="button button-secondary" id="downloadManualBackup">Download backup</button>
+          <label class="backup-file-field" for="restoreBackupInput">Backup file<input id="restoreBackupInput" type="file" accept=".json,application/json"></label>
+          <button type="button" class="button button-secondary" id="previewManualRestore" disabled>Preview restore</button>
+        </div>
+        <div class="backup-preview" id="manualRestorePreview" hidden>
+          <dl><div><dt>Missing values to restore</dt><dd id="restoreMissingCount">0</dd></div><div><dt>Identical values retained</dt><dd id="restoreIdenticalCount">0</dd></div><div><dt>Different existing values retained</dt><dd id="restoreDifferentCount">0</dd></div></dl>
+          <div class="backup-actions"><button type="button" class="button button-primary" id="confirmManualRestore">Restore missing values</button><button type="button" class="button button-secondary" id="cancelManualRestore">Cancel</button></div>
+        </div>
+        <div class="message" id="manualBackupMessage" role="status" aria-live="polite" hidden></div>
+      </section>
+
+      <section class="workbook-card" aria-labelledby="workbookTitle">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">Master contents</span>
+            <h2 id="workbookTitle">Pitstop Master preview</h2>
+          </div>
+          <label class="search-box">Search preview<input id="searchInput" type="search" placeholder="Search rows" autocomplete="off"></label>
+        </div>
+        <div class="sheet-tabs" id="sheetTabs" role="tablist" aria-label="Workbook sheets"></div>
+        <div class="sheet-meta" id="sheetMeta"></div>
+        <div class="table-wrap" id="previewWrap"></div>
+      </section>
+    </main>
+
+    <footer class="footer"><span>Upload only Pitstop Master. Sales, Services &amp; Warranty, BGarage, and Indonesia use their API or Summary-managed sources.</span></footer>
+  </div>
+
+  <input id="fileInput" type="file" accept=".json,.xlsx,.xlsm,.xls" hidden>
+  <input id="masterFileInput" type="file" accept=".xlsx,.xlsm,.xls" hidden>
+  <input id="historyFileInput" type="file" accept=".xlsx,.xlsm,.xls" hidden>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script>/* INLINE_MASTER_REVIEW */</script>
+  <script>/* INLINE_APP */</script>
+</body>
+</html>

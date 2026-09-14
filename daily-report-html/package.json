@@ -1,0 +1,21 @@
+{
+  "name": "daily-report-dashboard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build-html-report.mjs && node build-data-upload-centre.mjs && node build-cloudflare.mjs",
+    "test": "node --test --test-isolation=none cloudflare/test/*.test.mjs",
+    "test:summary-lock": "node scripts/verify-summary-lock.mjs",
+    "check:release": "npm test && npm run test:summary-lock",
+    "preview:workspace": "node scripts/workspace-preview-server.mjs",
+    "cf:dev": "npm run build && wrangler dev --config cloudflare/wrangler.jsonc",
+    "cf:deploy": "npm run build && wrangler deploy --config cloudflare/wrangler.jsonc",
+    "cf:deploy:alias": "wrangler deploy --config cloudflare/wrangler-alias.jsonc"
+  },
+  "devDependencies": {
+    "wrangler": "^4.30.0"
+  },
+  "dependencies": {
+    "sanitize-html": "^2.17.7"
+  }
+}

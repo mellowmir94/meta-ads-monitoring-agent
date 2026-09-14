@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Interactive daily sales, pitstop, BGarage, services, and warranty report">
+  <title>Daily Report Dashboard</title>
+  <style>/* INLINE_CSS */</style>
+  <script>/* INLINE_XLSX */</script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="brand-lockup">
+        <img class="brand-logo" src="data:image/png;base64,/* INLINE_LOGO */" alt="Bateriku">
+        <div>
+          <div class="eyebrow eyebrow-light">Daily report</div>
+          <h1>Daily Report</h1>
+          <p>Sales momentum, location health, and service workload in one view.</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="freshness"><span class="live-dot"></span><strong id="loadStatus">Ready</strong><small id="loadMeta">Last loaded: -</small></div>
+        <div class="admin-actions admin-only" aria-label="Data controls">
+          <button class="header-button header-button-upload-centre" id="dataUploadButton" type="button">Data upload centre</button>
+          <button class="header-button" id="logoutButton" type="button">Logout</button>
+        </div>
+        <button class="icon-button" id="refreshButton" type="button" title="Refresh dashboard" aria-label="Refresh dashboard">&#8635;</button>
+      </div>
+    </header>
+
+    <nav class="main-nav" aria-label="Dashboard sections">
+      <div class="nav-scroll">
+        <button class="nav-item is-active" type="button" data-view="overview">Overview</button>
+        <button class="nav-item" type="button" data-view="pitstops">Pitstop explorer</button>
+        <button class="nav-item" type="button" data-view="services">Services &amp; warranty</button>
+        <button class="nav-item" type="button" data-view="bgarage">BGarage performance</button>
+        <button class="nav-item" type="button" data-view="indonesia">Indonesia</button>
+        <button class="nav-item" type="button" data-view="special">Summary</button>
+      </div>
+      <div class="dashboard-owner" aria-label="Dashboard ownership">
+        <strong>Business Analyst &amp; Insight Unit Team</strong>
+        <span>Developed by Muhamad Amir Khalil &copy;</span>
+      </div>
+    </nav>
+
+    <section class="filter-bar" aria-label="Report filters">
+      <div class="filter-heading"><span class="eyebrow" id="filterEyebrow">Report window</span><strong id="rangeLabel">Previous day</strong></div>
+      <div class="summary-report-switcher" id="summaryReportSwitcher" role="group" aria-label="Summary reports" hidden>
+        <button type="button" data-summary-view="summary-header">Summary header</button>
+        <button type="button" data-summary-view="operations-summary">Operations summary</button>
+        <button type="button" data-summary-view="bgarage-summary">BGarage</button>
+        <button type="button" data-summary-view="indonesia-summary">Indonesia</button>
+      </div>
+      <div class="range-control" role="group" aria-label="Date range presets">
+        <button type="button" data-range="all">All dates</button>
+        <button type="button" data-range="previous" class="is-active">Previous Day</button>
+        <button type="button" data-range="7d">7 days</button>
+        <button type="button" data-range="14d">14 days</button>
+        <button type="button" data-range="month">Whole month</button>
+      </div>
+      <div class="date-inputs">
+        <label>From<input id="fromDate" type="date"></label><span>to</span><label>To<input id="toDate" type="date"></label>
+      </div>
+    </section>
+
+    <div class="notice" id="notice" hidden></div>
+    <div class="app-version-notice" id="appVersionNotice" role="status" hidden>
+      <span>A newer dashboard version is available.</span>
+      <button type="button" id="appVersionReload">Update dashboard</button>
+    </div>
+    <div class="progress-line" id="progressLine" hidden><span></span></div>
+
+    <main class="dashboard-main" id="viewRoot"></main>
+
+  </div>
+
+  <input id="fileInput" type="file" accept=".json,.xlsx,.xlsm,.xls" hidden>
+  <div class="upload-centre-backdrop" id="uploadCentreDialog" hidden>
+    <section class="upload-centre-dialog" role="dialog" aria-modal="true" aria-labelledby="uploadCentreTitle">
+      <div class="upload-centre-header">
+        <div>
+          <span class="eyebrow">Data management</span>
+          <h2 id="uploadCentreTitle">Data upload centre</h2>
+          <p>Load the complete daily report workbook. The file is read in your browser for fast, private processing.</p>
+        </div>
+        <button class="upload-centre-close" id="uploadCentreClose" type="button" aria-label="Close data upload centre">&times;</button>
+      </div>
+      <div class="upload-centre-body">
+        <div class="upload-dropzone" id="uploadDropzone" role="button" tabindex="0" aria-label="Choose an Excel workbook to upload">
+          <span class="upload-dropzone-icon" aria-hidden="true">↑</span>
+          <strong>Drop your Excel workbook here</strong>
+          <span>or choose a .xlsx, .xlsm, .xls, or .json file</span>
+        </div>
+        <div class="upload-centre-actions">
+          <button class="header-button header-button-accent" id="uploadCentreChoose" type="button">Upload Excel workbook</button>
+          <button class="header-button upload-centre-light-button" id="uploadCentreTemplate" type="button">Download template</button>
+          <button class="header-button upload-centre-light-button" id="uploadCentreSharePoint" type="button">Load from SharePoint</button>
+        </div>
+        <div class="upload-centre-status" id="uploadCentreStatus" aria-live="polite"></div>
+      </div>
+      <div class="upload-centre-footer">
+        <span>Expected sheets: Daily Sales, Service &amp; Warranty, Pitstops, BGarage, Indonesia</span>
+        <button class="header-button upload-centre-light-button" id="uploadCentreDone" type="button">Done</button>
+      </div>
+    </section>
+  </div>
+  <div class="overwrite-confirm-backdrop" id="overwriteConfirmDialog" hidden>
+    <section class="overwrite-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="overwriteConfirmTitle" aria-describedby="overwriteConfirmMessage">
+      <div class="overwrite-confirm-content">
+        <span class="overwrite-confirm-icon" aria-hidden="true">!</span>
+        <div>
+          <span class="eyebrow">Existing saved data</span>
+          <h2 id="overwriteConfirmTitle">Overwrite saved data?</h2>
+          <p id="overwriteConfirmMessage">Saving will replace the existing record.</p>
+        </div>
+      </div>
+      <div class="overwrite-confirm-actions">
+        <button class="header-button overwrite-confirm-cancel" id="overwriteConfirmCancel" type="button">Cancel</button>
+        <button class="header-button overwrite-confirm-accept" id="overwriteConfirmAccept" type="button">Overwrite and save</button>
+      </div>
+    </section>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <dialog id="reportArchiveDialog" class="report-archive-dialog" aria-labelledby="reportArchiveTitle">
+    <div class="report-archive-heading"><h2 id="reportArchiveTitle">Finalised reports</h2><button type="button" id="reportArchiveClose" class="upload-centre-close" aria-label="Close finalised reports">&times;</button></div>
+    <div id="reportArchiveContent"></div>
+  </dialog>
+  <script>/* INLINE_APP */</script>
+</body>
+</html>

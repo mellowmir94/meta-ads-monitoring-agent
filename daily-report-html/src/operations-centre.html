@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Operations Centre | Bateriku</title>
+  <style>/* OPERATIONS_CSS */</style>
+</head>
+<body>
+  <header class="ops-header">
+    <a class="ops-brand" href="/"><img src="data:image/png;base64,/* INLINE_LOGO */" alt="Bateriku"><span>Daily Report <b>Operations</b></span></a>
+    <div class="ops-header-actions"><span class="access-label">Admin workspace</span><a class="button" href="/" data-icon="ArrowLeft">Dashboard</a></div>
+  </header>
+  <div class="ops-layout">
+    <nav class="ops-nav" aria-label="Operations sections">
+      <span class="nav-label">MANAGE</span>
+      <a href="#health" data-tab="health" data-icon="Activity">System health</a>
+      <a href="#verify" data-tab="verify" data-icon="FileCheck2">Grafana verification</a>
+      <a href="#master" data-tab="master" data-icon="MapPin">Master review</a>
+      <a href="#jobs" data-tab="jobs" data-icon="History">Sync jobs</a>
+      <a href="#backups" data-tab="backups" data-icon="Database">Backups</a>
+      <div class="nav-footer"><a href="/upload/" data-icon="Upload">Data upload centre</a><span>Manual inputs stay manual.</span></div>
+    </nav>
+    <main>
+      <div class="page-heading"><div><span class="overline">DAILY REPORT / ADMINISTRATION</span><h1 id="pageTitle">System health</h1><p id="pageMeta">Loading operations status...</p></div><button type="button" class="button" id="refreshStatus" data-icon="RefreshCw">Refresh status</button></div>
+      <div id="pageAlert" class="alert" role="status" hidden></div>
+      <section id="healthPanel" class="tab-panel" aria-labelledby="pageTitle">
+        <div id="healthMetrics" class="metric-row"></div>
+        <div class="section-heading"><div><h2>Source health</h2><span class="muted">Most recent diagnostic checks</span></div><button class="button primary" id="runChecks" data-icon="Activity">Run checks</button></div>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Source health"><table><thead><tr><th>Data source</th><th>Status</th><th>Last successful check</th><th class="numeric">Records</th><th class="numeric">Duration</th><th>Detail</th></tr></thead><tbody id="sourcesBody"></tbody></table></div>
+        <div class="split-sections"><section><div class="section-heading"><h2>Needs attention</h2><span class="count" id="attentionCount"></span></div><div id="attentionList"></div></section><section><div class="section-heading"><h2>Background B2W sync</h2><a class="text-link" href="#jobs">Sync jobs</a></div><div id="b2wStatus"></div></section></div>
+      </section>
+      <section id="verifyPanel" class="tab-panel" hidden>
+        <form id="verifyForm" class="toolbar"><label>From<input id="verifyFrom" type="date" required></label><label>To<input id="verifyTo" type="date" required></label><button class="button primary" type="submit" data-icon="FileCheck2">Verify range</button></form>
+        <div id="verifyResult" class="empty">No verification has been run for this date range.</div>
+      </section>
+      <section id="masterPanel" class="tab-panel" hidden>
+        <div class="section-heading"><div><h2>Pitstop Master preflight</h2><span class="muted">Review only. No records are published from this screen.</span></div><label class="button primary file-button"><span data-icon="Upload">Choose workbook</span><input id="masterFile" type="file" accept=".xlsx,.xlsm,.xls,.json"></label></div>
+        <div id="masterResult" class="empty">Select the proposed Pitstop Master to compare it with the current saved Master.</div>
+        <div class="section-footer"><a class="button" href="/upload/" data-icon="ArrowUpRight">Review and publish in upload centre</a></div>
+      </section>
+      <section id="jobsPanel" class="tab-panel" hidden>
+        <div class="section-heading"><div><h2>Historical sync jobs</h2><span class="muted">Saved checkpoints remain available after a failed batch.</span></div><a class="button primary" href="/upload/" data-icon="Upload">Import archive</a></div>
+        <div id="jobsList"></div>
+      </section>
+      <section id="backupsPanel" class="tab-panel" hidden>
+        <div class="toolbar"><label>Collection<select id="backupKind"><option value="all">All collections</option><option value="rsa">RSA</option><option value="b2w">B2W</option><option value="bgarage">BGarage</option><option value="indonesia">Indonesia</option></select></label><button class="button primary" id="createBackup" data-icon="Database">Create backup</button><a class="button" href="/upload/#manual-backup" data-icon="History">Restore in upload centre</a></div>
+        <p id="retentionMeta" class="muted"></p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Manual data backups"><table><thead><tr><th>Collection</th><th>Created</th><th>Trigger</th><th class="numeric">Records</th><th class="numeric">Size</th><th>File</th></tr></thead><tbody id="backupsBody"></tbody></table></div>
+      </section>
+    </main>
+  </div>
+  <dialog id="confirmDialog"><form method="dialog"><div class="dialog-heading"><h2 id="confirmTitle">Confirm action</h2><button class="icon-button" value="cancel" aria-label="Close" data-icon="X"></button></div><p id="confirmMessage"></p><div class="dialog-actions"><button class="button" value="cancel">Cancel</button><button class="button primary" id="confirmAccept" value="confirm">Confirm</button></div></form></dialog>
+  <script>/* OPERATIONS_ICONS */</script>
+  <script>/* INLINE_XLSX */</script>
+  <script>/* MASTER_REVIEW */</script>
+  <script>/* OPERATIONS_APP */</script>
+</body>
+</html>

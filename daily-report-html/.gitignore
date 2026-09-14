@@ -1,0 +1,25 @@
+# Local packages and generated dashboard output
+node_modules/
+dist/
+cloudflare/public/
+.wrangler/
+
+# Local input, snapshots, diagnostics, and historical exports
+.tmp-current-workbook.json
+.tmp-pitstop-history/
+tmp-data.xlsx
+artifacts/
+backups/
+outputs/
+*.png
+
+# Keep the approved byte-for-byte Summary lock baseline.
+!artifacts/
+artifacts/*
+!artifacts/upgrade-baseline/
+!artifacts/upgrade-baseline/dashboard.js
+!artifacts/upgrade-baseline/dashboard.css
+!artifacts/upgrade-baseline/dashboard.html
+
+# Never commit local Cloudflare scratch output.
+cloudflare/.tmp-*/

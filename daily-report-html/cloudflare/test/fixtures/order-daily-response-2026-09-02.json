@@ -1,0 +1,123 @@
+{
+  "capturedAt": "2026-09-03T10:17:32.755Z",
+  "from": "2026-09-02",
+  "to": "2026-09-02",
+  "dashboard": "oLOEK6sDz",
+  "panel": 54,
+  "results": {
+    "A": {
+      "frames": [
+        {
+          "schema": {
+            "refId": "A",
+            "fields": [
+              {
+                "name": "date_col",
+                "type": "time",
+                "typeInfo": {
+                  "frame": "time.Time",
+                  "nullable": true
+                }
+              },
+              {
+                "name": "Total_count",
+                "type": "number",
+                "typeInfo": {
+                  "frame": "int64",
+                  "nullable": true
+                }
+              }
+            ]
+          },
+          "data": {
+            "values": [
+              [
+                1788307200000
+              ],
+              [
+                1934
+              ]
+            ]
+          }
+        }
+      ],
+      "status": 500
+    },
+    "B": {
+      "frames": [
+        {
+          "schema": {
+            "refId": "B",
+            "fields": [
+              {
+                "name": "date_col",
+                "type": "time",
+                "typeInfo": {
+                  "frame": "time.Time",
+                  "nullable": true
+                }
+              },
+              {
+                "name": "Total_count",
+                "type": "number",
+                "typeInfo": {
+                  "frame": "int64",
+                  "nullable": true
+                }
+              }
+            ]
+          },
+          "data": {
+            "values": [
+              [
+                1788307200000
+              ],
+              [
+                1082
+              ]
+            ]
+          }
+        }
+      ],
+      "status": 500
+    },
+    "C": {
+      "frames": [
+        {
+          "schema": {
+            "refId": "C",
+            "fields": [
+              {
+                "name": "date_col",
+                "type": "time",
+                "typeInfo": {
+                  "frame": "time.Time",
+                  "nullable": true
+                }
+              },
+              {
+                "name": "Total_count",
+                "type": "number",
+                "typeInfo": {
+                  "frame": "int64",
+                  "nullable": true
+                }
+              }
+            ]
+          },
+          "data": {
+            "values": [
+              [
+                1788307200000
+              ],
+              [
+                852
+              ]
+            ]
+          }
+        }
+      ],
+      "status": 500
+    }
+  }
+}

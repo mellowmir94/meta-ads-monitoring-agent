@@ -1,0 +1,12 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "bateriku-daily-report-dashboard",
+  "main": "src/alias-worker.js",
+  "compatibility_date": "2026-08-11",
+  "services": [
+    {
+      "binding": "DAILY_REPORT_ORIGIN",
+      "service": "daily-report-dashboard"
+    }
+  ]
+}

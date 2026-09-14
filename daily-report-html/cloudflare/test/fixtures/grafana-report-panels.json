@@ -1,0 +1,1173 @@
+{
+  "capturedAt": "2026-09-03T06:57:45.730Z",
+  "hq": {
+    "uid": "6YM7jesvz",
+    "timezone": "utc",
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "selected": true,
+            "text": [
+              "All"
+            ],
+            "value": [
+              "$__all"
+            ]
+          },
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "_4a9wLSVz"
+          },
+          "definition": "",
+          "hide": 0,
+          "includeAll": true,
+          "multi": true,
+          "name": "branch_area",
+          "options": [],
+          "query": {
+            "editorMode": "code",
+            "format": 1,
+            "location": "asia-southeast1",
+            "project": "clone-330106",
+            "rawQuery": true,
+            "rawSql": "SELECT DISTINCT\r\n    ba.name AS branch_area_name\r\nFROM `bateriku-customer-72fa8.bateriku_public.branches` b\r\nLEFT JOIN `bateriku-customer-72fa8.bateriku_public.branch_areas` ba\r\n    ON b.branch_area_id = ba.id\r\nWHERE\r\n    ba.name IS NOT NULL\r\n    AND UPPER(ba.name) NOT LIKE '%TEST%'\r\nORDER BY branch_area_name;\r\n",
+            "sql": {
+              "columns": [
+                {
+                  "parameters": [],
+                  "type": "function"
+                }
+              ],
+              "groupBy": [
+                {
+                  "property": {
+                    "type": "string"
+                  },
+                  "type": "groupBy"
+                }
+              ],
+              "limit": 50
+            }
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0,
+          "type": "query"
+        }
+      ]
+    },
+    "panels": [
+      {
+        "datasource": {
+          "type": "grafana-bigquery-datasource",
+          "uid": "_4a9wLSVz"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "filterable": true,
+              "inspect": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Name"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 270
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Total_Sales"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 105
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "branch_status"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 125
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Count_of_Days"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 153
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Count_of_Months"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 142
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Daily Average"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 131
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Branch_Created_Date"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 220
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 12,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "id": 63,
+        "options": {
+          "footer": {
+            "countRows": false,
+            "fields": [
+              "Total_Sales"
+            ],
+            "reducer": [
+              "sum"
+            ],
+            "show": true
+          },
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "9.4.7",
+        "targets": [
+          {
+            "datasource": {
+              "type": "grafana-bigquery-datasource",
+              "uid": "_4a9wLSVz"
+            },
+            "editorMode": "code",
+            "format": 1,
+            "location": "asia-southeast1",
+            "project": "clone-330106",
+            "rawQuery": true,
+            "rawSql": "WITH johor_hq_branches AS (\r\n    SELECT branch_name\r\n    FROM UNNEST([\r\n        'MB JB - VBK1136 (AXIA)',\r\n        'MB JB - WUX8465 (HILUX)',\r\n        'MB JB - WWX3343 (HILUX)',\r\n        'MS JB  - WWT6579 (DMAX)',\r\n        'MS JB - WWT6579 (DMAX)',\r\n        'MS JB AFIQ RODZI',\r\n        'MS JB AMIM',\r\n        'MS JB AMIRUL ASYRAF',\r\n        'MS JB BH AMIRUL ASYRAF',\r\n        'MS JB BH RADIN',\r\n        'MS JB BH ZULKAPLY',\r\n        'MS JB KHIR SAWAL',\r\n        'MS JB MAHADI',\r\n        'MS JB MAHATHIR',\r\n        'MS JB MAHDIR KASSIM',\r\n        'MS JB MOHAMMAD HASBARIZAL',\r\n        'MS JB MOHD NAZIM',\r\n        'MS JB MUHAMAD ASYRAF',\r\n        'MS JB ROSIDI',\r\n        'MS JB SHAHEMAN',\r\n        'MS JB SHAHMIERUL ARIFFIN',\r\n        'MS JB SHAMSURI',\r\n        'MS JB SUHAIMY EZWAN SHAH',\r\n        'MS JB SUTHAKAREN',\r\n        'MS JB ZAIROL AZMI',\r\n        'HQ JOHOR BAHRU'\r\n    ]) AS branch_name\r\n),\r\n\r\nfirst_created_at_per_branch AS (\r\n    SELECT\r\n        branch_id,\r\n        MIN(created_at) AS first_created_at\r\n    FROM `bateriku-customer-72fa8.bateriku_public.branch_time_logs`\r\n    GROUP BY\r\n        branch_id\r\n),\r\n\r\nsales_data AS (\r\n    SELECT\r\n        CASE\r\n            WHEN jhb.branch_name IS NOT NULL THEN 'HQ PASIR GUDANG'\r\n            ELSE b.name\r\n        END AS Name,\r\n\r\n        COUNT(DISTINCT o.id) AS Total_Sales,\r\n        DATE(MAX(f.first_created_at)) AS Branch_Created_Date,\r\n        MAX(b.status) AS Status,\r\n\r\n        COUNT(DISTINCT DATE(TIMESTAMP_ADD(o.created_at, INTERVAL 8 HOUR))) AS Count_of_Days,\r\n\r\n        COUNT(\r\n            DISTINCT EXTRACT(YEAR FROM TIMESTAMP_ADD(o.created_at, INTERVAL 8 HOUR)) * 100\r\n            + EXTRACT(MONTH FROM TIMESTAMP_ADD(o.created_at, INTERVAL 8 HOUR))\r\n        ) AS Count_of_Months,\r\n\r\n        COUNT(\r\n            DISTINCT CASE\r\n                WHEN EXTRACT(YEAR FROM TIMESTAMP_ADD(o.created_at, INTERVAL 8 HOUR)) = EXTRACT(YEAR FROM CURRENT_DATE('Asia/Kuala_Lumpur'))\r\n                 AND EXTRACT(MONTH FROM TIMESTAMP_ADD(o.created_at, INTERVAL 8 HOUR)) = EXTRACT(MONTH FROM CURRENT_DATE('Asia/Kuala_Lumpur'))\r\n                THEN o.id\r\n            END\r\n        ) AS MTD_Sales,\r\n\r\n        COUNT(\r\n            DISTINCT CASE\r\n                WHEN EXTRACT(YEAR FROM TIMESTAMP_ADD(o.created_at, INTERVAL 8 HOUR)) = EXTRACT(YEAR FROM CURRENT_DATE('Asia/Kuala_Lumpur'))\r\n                THEN o.id\r\n            END\r\n        ) AS YTD_Sales\r\n\r\n    FROM `bateriku-customer-72fa8.bateriku_public.orders` AS o\r\n    LEFT JOIN `bateriku-customer-72fa8.bateriku_public.order_items` AS oi\r\n    ON o.id = oi.order_id\r\n    LEFT JOIN `bateriku-customer-72fa8.bateriku_public.products` AS p\r\n    ON oi.product_id = p.id\r\n    LEFT JOIN `bateriku-customer-72fa8.bateriku_public.branches` AS b\r\n    ON o.branch_id = b.id\r\n    LEFT JOIN `bateriku-customer-72fa8.bateriku_public.branch_areas` AS ba\r\n    ON b.branch_area_id = ba.id\r\n    LEFT JOIN first_created_at_per_branch AS f\r\n    ON b.id = f.branch_id\r\n    LEFT JOIN `bateriku-customer-72fa8.bateriku_public.promo_codes` AS pc\r\n    ON pc.id = o.promo_code_id\r\n    LEFT JOIN johor_hq_branches AS jhb\r\n    ON b.name = jhb.branch_name\r\n\r\n    WHERE\r\n        TIMESTAMP_ADD(o.created_at, INTERVAL 8 HOUR) >= TIMESTAMP_MILLIS(${__from})\r\n        AND TIMESTAMP_ADD(o.created_at, INTERVAL 8 HOUR) < TIMESTAMP_MILLIS(${__to})\r\n        AND o.status NOT IN ('cancelled', 'refunded', 'rejected')\r\n        AND p.consumable = TRUE\r\n        AND (pc.code IS NULL OR pc.code != 'WARRANTY(NEWBATTERY)')\r\n        AND (\r\n            b.name LIKE 'HQ%'\r\n            OR jhb.branch_name IS NOT NULL\r\n            OR b.name LIKE '%Warehouse%'\r\n            OR UPPER(b.name) LIKE '%WAREHOUSE%'\r\n            OR UPPER(b.name) LIKE 'WH%'\r\n        )\r\n        AND b.name NOT IN ('HQ SELAYANG', 'HQ TANJUNG API')\r\n        AND UPPER(b.name) NOT LIKE '%TEST%'\r\n        AND ba.name IN (${branch_area})\r\n\r\n    GROUP BY\r\n        Name\r\n)\r\n\r\nSELECT\r\n    Name,\r\n    Total_Sales,\r\n    Branch_Created_Date AS branch_created_date,\r\n    Status AS branch_status,\r\n    Count_of_Days,\r\n    Count_of_Months,\r\n    MTD_Sales,\r\n    YTD_Sales,\r\n    SAFE_DIVIDE(YTD_Sales, Count_of_Months) AS YTD_Average\r\nFROM sales_data\r\nORDER BY\r\n    Total_Sales DESC;",
+            "refId": "A",
+            "sql": {
+              "columns": [
+                {
+                  "parameters": [],
+                  "type": "function"
+                }
+              ],
+              "groupBy": [
+                {
+                  "property": {
+                    "type": "string"
+                  },
+                  "type": "groupBy"
+                }
+              ],
+              "limit": 50
+            }
+          }
+        ],
+        "title": "ALL PERFORMANCE (HQ) HTML",
+        "transformations": [
+          {
+            "id": "calculateField",
+            "options": {
+              "alias": "Daily Average",
+              "binary": {
+                "left": "Total_Sales",
+                "operator": "/",
+                "reducer": "sum",
+                "right": "Count_of_Days"
+              },
+              "mode": "binary",
+              "reduce": {
+                "include": [
+                  "Count_of_Days",
+                  "Total_Sales"
+                ],
+                "reducer": "mean"
+              }
+            }
+          },
+          {
+            "id": "calculateField",
+            "options": {
+              "alias": "Monthly Average",
+              "binary": {
+                "left": "Total_Sales",
+                "operator": "/",
+                "reducer": "sum",
+                "right": "Count_of_Months"
+              },
+              "mode": "binary",
+              "reduce": {
+                "reducer": "sum"
+              }
+            }
+          },
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Count_of_Days": true,
+                "Count_of_Months": true
+              },
+              "indexByName": {},
+              "renameByName": {}
+            }
+          },
+          {
+            "id": "filterByValue",
+            "options": {
+              "filters": [
+                {
+                  "config": {
+                    "id": "isNull",
+                    "options": {}
+                  },
+                  "fieldName": "Name"
+                }
+              ],
+              "match": "all",
+              "type": "exclude"
+            }
+          }
+        ],
+        "type": "table"
+      }
+    ]
+  },
+  "bp": {
+    "uid": "-tqZjesvk",
+    "timezone": "utc",
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "selected": true,
+            "text": [
+              "All"
+            ],
+            "value": [
+              "$__all"
+            ]
+          },
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "_4a9wLSVz"
+          },
+          "definition": "",
+          "hide": 0,
+          "includeAll": true,
+          "multi": true,
+          "name": "branch_area",
+          "options": [],
+          "query": {
+            "editorMode": "code",
+            "format": 1,
+            "location": "asia-southeast1",
+            "project": "clone-330106",
+            "rawQuery": true,
+            "rawSql": "SELECT DISTINCT\r\n    ba.name AS branch_area_name\r\nFROM `bateriku-customer-72fa8.bateriku_public.branches` b\r\nLEFT JOIN `bateriku-customer-72fa8.bateriku_public.branch_areas` ba\r\n    ON b.branch_area_id = ba.id\r\nWHERE\r\n    ba.name IS NOT NULL\r\n    AND UPPER(ba.name) NOT LIKE '%TEST%'\r\nORDER BY branch_area_name;\r\n",
+            "sql": {
+              "columns": [
+                {
+                  "parameters": [],
+                  "type": "function"
+                }
+              ],
+              "groupBy": [
+                {
+                  "property": {
+                    "type": "string"
+                  },
+                  "type": "groupBy"
+                }
+              ],
+              "limit": 50
+            }
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0,
+          "type": "query"
+        }
+      ]
+    },
+    "panels": [
+      {
+        "datasource": {
+          "type": "grafana-bigquery-datasource",
+          "uid": "_4a9wLSVz"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "filterable": true,
+              "inspect": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Name"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 270
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Total_Sales"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 105
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "branch_status"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 125
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Daily Average"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 131
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 12,
+          "w": 24,
+          "x": 0,
+          "y": 1
+        },
+        "id": 35,
+        "options": {
+          "footer": {
+            "countRows": false,
+            "fields": [
+              "Total_Sales"
+            ],
+            "reducer": [
+              "sum"
+            ],
+            "show": true
+          },
+          "showHeader": true
+        },
+        "pluginVersion": "9.4.7",
+        "targets": [
+          {
+            "datasource": {
+              "type": "grafana-bigquery-datasource",
+              "uid": "_4a9wLSVz"
+            },
+            "editorMode": "code",
+            "format": 1,
+            "location": "asia-southeast1",
+            "project": "clone-330106",
+            "rawQuery": true,
+            "rawSql": "WITH first_created_at_per_branch AS (\r\n    SELECT\r\n        branch_id,\r\n        MIN(created_at) AS first_created_at\r\n    FROM `bateriku-customer-72fa8.bateriku_public.branch_time_logs`\r\n    GROUP BY\r\n        branch_id\r\n),\r\n\r\nsegamat_branch_aliases AS (\r\n    SELECT branch_key\r\n    FROM UNNEST([\r\n        'BPM SEGAMAT',\r\n        'BPM MUADZAM',\r\n        'BPM SEGAMAT MUADZAM',\r\n        'BP MUADZAM',\r\n        'BP SEGAMAT MUADZAM',\r\n        'BP TAMAN YAYASAN SEGAMAT'\r\n    ]) AS branch_key\r\n),\r\n\r\nbranch_details AS (\r\n    SELECT\r\n        b.id AS branch_id,\r\n        b.name AS original_branch_name,\r\n\r\n        TRIM(\r\n            REGEXP_REPLACE(\r\n                UPPER(COALESCE(b.name, '')),\r\n                r'[^A-Z0-9]+',\r\n                ' '\r\n            )\r\n        ) AS branch_key,\r\n\r\n        ba.name AS state_hub,\r\n\r\n        CASE\r\n            WHEN TRIM(\r\n                REGEXP_REPLACE(\r\n                    UPPER(COALESCE(b.name, '')),\r\n                    r'[^A-Z0-9]+',\r\n                    ' '\r\n                )\r\n            ) = 'BP NIBONG TEBAL'\r\n            THEN DATE '2026-08-13'\r\n            ELSE DATE(f.first_created_at)\r\n        END AS branch_created_date,\r\n\r\n        b.status AS branch_status\r\n\r\n    FROM `bateriku-customer-72fa8.bateriku_public.branches` AS b\r\n\r\n    LEFT JOIN `bateriku-customer-72fa8.bateriku_public.branch_areas` AS ba\r\n        ON b.branch_area_id = ba.id\r\n\r\n    LEFT JOIN first_created_at_per_branch AS f\r\n        ON b.id = f.branch_id\r\n),\r\n\r\ntarget_branch_metadata AS (\r\n    SELECT\r\n        branch_id,\r\n        state_hub,\r\n        branch_created_date,\r\n        branch_status\r\n\r\n    FROM branch_details\r\n\r\n    WHERE\r\n        branch_key = 'BP TAMAN YAYASAN SEGAMAT'\r\n\r\n    QUALIFY\r\n        ROW_NUMBER() OVER (\r\n            ORDER BY branch_id DESC\r\n        ) = 1\r\n),\r\n\r\nmapped_orders AS (\r\n    SELECT DISTINCT\r\n        CASE\r\n            WHEN sba.branch_key IS NOT NULL\r\n            THEN 'BP TAMAN YAYASAN, SEGAMAT'\r\n            ELSE TRIM(b.original_branch_name)\r\n        END AS Name,\r\n\r\n        CASE\r\n            WHEN sba.branch_key IS NOT NULL\r\n            THEN COALESCE(tbm.state_hub, b.state_hub)\r\n            ELSE b.state_hub\r\n        END AS state_hub,\r\n\r\n        o.id AS order_id,\r\n\r\n        TIMESTAMP_ADD(\r\n            o.created_at,\r\n            INTERVAL 8 HOUR\r\n        ) AS order_created_at,\r\n\r\n        CASE\r\n            WHEN sba.branch_key IS NOT NULL\r\n            THEN COALESCE(\r\n                tbm.branch_created_date,\r\n                b.branch_created_date\r\n            )\r\n            ELSE b.branch_created_date\r\n        END AS branch_created_date,\r\n\r\n        CASE\r\n            WHEN sba.branch_key IS NOT NULL\r\n            THEN COALESCE(\r\n                tbm.branch_status,\r\n                b.branch_status\r\n            )\r\n            ELSE b.branch_status\r\n        END AS branch_status\r\n\r\n    FROM `bateriku-customer-72fa8.bateriku_public.orders` AS o\r\n\r\n    LEFT JOIN `bateriku-customer-72fa8.bateriku_public.order_items` AS oi\r\n        ON o.id = oi.order_id\r\n\r\n    LEFT JOIN `bateriku-customer-72fa8.bateriku_public.products` AS p\r\n        ON oi.product_id = p.id\r\n\r\n    LEFT JOIN branch_details AS b\r\n        ON o.branch_id = b.branch_id\r\n\r\n    LEFT JOIN `bateriku-customer-72fa8.bateriku_public.promo_codes` AS pc\r\n        ON pc.id = o.promo_code_id\r\n\r\n    LEFT JOIN segamat_branch_aliases AS sba\r\n        ON b.branch_key = sba.branch_key\r\n\r\n    LEFT JOIN target_branch_metadata AS tbm\r\n        ON TRUE\r\n\r\n    WHERE\r\n        TIMESTAMP_ADD(o.created_at, INTERVAL 8 HOUR)\r\n            >= TIMESTAMP_MILLIS(${__from})\r\n\r\n        AND TIMESTAMP_ADD(o.created_at, INTERVAL 8 HOUR)\r\n            < TIMESTAMP_MILLIS(${__to})\r\n\r\n        AND o.status NOT IN (\r\n            'cancelled',\r\n            'refunded',\r\n            'rejected'\r\n        )\r\n\r\n        AND (\r\n            REGEXP_CONTAINS(b.branch_key, r'^BP(\\s|$)')\r\n            OR sba.branch_key IS NOT NULL\r\n        )\r\n\r\n        AND p.consumable = TRUE\r\n\r\n        AND b.branch_key NOT LIKE '%TEST%'\r\n        AND b.branch_key NOT LIKE '%BGARAGE%'\r\n        AND b.branch_key NOT LIKE '%BANNED%'\r\n\r\n        AND (\r\n            pc.code IS NULL\r\n            OR pc.code != 'WARRANTY(NEWBATTERY)'\r\n        )\r\n),\r\n\r\nbase_orders AS (\r\n    SELECT *\r\n    FROM mapped_orders\r\n    WHERE\r\n        state_hub IN (${branch_area})\r\n),\r\n\r\nsales_data AS (\r\n    SELECT\r\n        Name,\r\n        COUNT(DISTINCT order_id) AS Total_Sales,\r\n        MIN(branch_created_date) AS branch_created_date,\r\n        MAX(branch_status) AS branch_status,\r\n\r\n        COUNT(\r\n            DISTINCT DATE(order_created_at)\r\n        ) AS Count_of_Days,\r\n\r\n        COUNT(\r\n            DISTINCT (\r\n                EXTRACT(YEAR FROM order_created_at) * 100\r\n                + EXTRACT(MONTH FROM order_created_at)\r\n            )\r\n        ) AS Count_of_Months,\r\n\r\n        COUNT(\r\n            DISTINCT CASE\r\n                WHEN EXTRACT(YEAR FROM order_created_at)\r\n                    = EXTRACT(YEAR FROM CURRENT_DATE('Asia/Kuala_Lumpur'))\r\n                AND EXTRACT(MONTH FROM order_created_at)\r\n                    = EXTRACT(MONTH FROM CURRENT_DATE('Asia/Kuala_Lumpur'))\r\n                THEN order_id\r\n            END\r\n        ) AS MTD_Sales,\r\n\r\n        COUNT(\r\n            DISTINCT CASE\r\n                WHEN EXTRACT(YEAR FROM order_created_at)\r\n                    = EXTRACT(YEAR FROM CURRENT_DATE('Asia/Kuala_Lumpur'))\r\n                THEN order_id\r\n            END\r\n        ) AS YTD_Sales\r\n\r\n    FROM base_orders\r\n\r\n    GROUP BY\r\n        Name\r\n)\r\n\r\nSELECT\r\n    Name,\r\n    Total_Sales,\r\n    FORMAT_DATE('%d-%m-%Y', branch_created_date) AS branch_created_date,\r\n    branch_status,\r\n    Count_of_Days,\r\n    Count_of_Months,\r\n    MTD_Sales,\r\n    YTD_Sales,\r\n\r\n    SAFE_DIVIDE(\r\n        YTD_Sales,\r\n        Count_of_Months\r\n    ) AS YTD_Average\r\n\r\nFROM sales_data\r\n\r\nORDER BY\r\n    Total_Sales DESC;",
+            "refId": "A",
+            "sql": {
+              "columns": [
+                {
+                  "parameters": [],
+                  "type": "function"
+                }
+              ],
+              "groupBy": [
+                {
+                  "property": {
+                    "type": "string"
+                  },
+                  "type": "groupBy"
+                }
+              ],
+              "limit": 50
+            }
+          }
+        ],
+        "title": "ALL PERFORMANCE (BP) HTML",
+        "transformations": [
+          {
+            "id": "calculateField",
+            "options": {
+              "alias": "Daily Average",
+              "binary": {
+                "left": "Total_Sales",
+                "operator": "/",
+                "reducer": "sum",
+                "right": "Count_of_Days"
+              },
+              "mode": "binary",
+              "reduce": {
+                "reducer": "sum"
+              }
+            }
+          },
+          {
+            "id": "calculateField",
+            "options": {
+              "alias": "Monthly Average",
+              "binary": {
+                "left": "Total_Sales",
+                "operator": "/",
+                "reducer": "sum",
+                "right": "Count_of_Months"
+              },
+              "mode": "binary",
+              "reduce": {
+                "reducer": "sum"
+              }
+            }
+          },
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Count_of_Days": true,
+                "Count_of_Months": true
+              },
+              "indexByName": {},
+              "renameByName": {}
+            }
+          },
+          {
+            "id": "filterByValue",
+            "options": {
+              "filters": [
+                {
+                  "config": {
+                    "id": "greater",
+                    "options": {
+                      "value": 0
+                    }
+                  },
+                  "fieldName": "Name"
+                }
+              ],
+              "match": "all",
+              "type": "exclude"
+            }
+          }
+        ],
+        "type": "table"
+      }
+    ]
+  },
+  "orders": {
+    "uid": "oLOEK6sDz",
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "selected": true,
+            "text": [
+              "arrived",
+              "completed",
+              "dispatched",
+              "in_progress",
+              "pending",
+              "pending_scrap_receive",
+              "pending_stock_pickup",
+              "ready_to_dispatch",
+              "scrap_handover",
+              "waiting_confirmation",
+              "waiting_payment"
+            ],
+            "value": [
+              "arrived",
+              "completed",
+              "dispatched",
+              "in_progress",
+              "pending",
+              "pending_scrap_receive",
+              "pending_stock_pickup",
+              "ready_to_dispatch",
+              "scrap_handover",
+              "waiting_confirmation",
+              "waiting_payment"
+            ]
+          },
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "_4a9wLSVz"
+          },
+          "definition": "",
+          "hide": 0,
+          "includeAll": true,
+          "multi": true,
+          "name": "Order_Status",
+          "options": [],
+          "query": {
+            "dataset": "View",
+            "editorMode": "code",
+            "format": 1,
+            "location": "asia-southeast1",
+            "project": "clone-330106",
+            "rawQuery": true,
+            "rawSql": "SELECT DISTINCT status FROM clone-330106.View.orderdetail ORDER BY status \n\n\n-- SELECT DISTINCT status FROM clone-330106.djangosetup.oprtion_order_detail ORDER BY status ",
+            "sql": {
+              "columns": [
+                {
+                  "parameters": [],
+                  "type": "function"
+                }
+              ],
+              "groupBy": [
+                {
+                  "property": {
+                    "type": "string"
+                  },
+                  "type": "groupBy"
+                }
+              ],
+              "limit": 50
+            },
+            "table": "orderdetail"
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 1,
+          "type": "query"
+        },
+        {
+          "current": {
+            "selected": true,
+            "text": [
+              "All"
+            ],
+            "value": [
+              "$__all"
+            ]
+          },
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "_4a9wLSVz"
+          },
+          "definition": "",
+          "hide": 0,
+          "includeAll": true,
+          "multi": true,
+          "name": "State",
+          "options": [],
+          "query": {
+            "editorMode": "code",
+            "format": 1,
+            "location": "asia-southeast1",
+            "project": "clone-330106",
+            "rawQuery": true,
+            "rawSql": "-- SELECT DISTINCT state FROM clone-330106.djangosetup.oprtion_order_detail ORDER BY state \n\nSELECT DISTINCT state FROM clone-330106.View.orderdetail ORDER BY state \n",
+            "sql": {
+              "columns": [
+                {
+                  "parameters": [],
+                  "type": "function"
+                }
+              ],
+              "groupBy": [
+                {
+                  "property": {
+                    "type": "string"
+                  },
+                  "type": "groupBy"
+                }
+              ],
+              "limit": 50
+            }
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0,
+          "type": "query"
+        },
+        {
+          "current": {
+            "selected": true,
+            "text": [
+              "All"
+            ],
+            "value": [
+              "$__all"
+            ]
+          },
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "_4a9wLSVz"
+          },
+          "definition": "",
+          "hide": 0,
+          "includeAll": true,
+          "multi": true,
+          "name": "Stock_Pickup_At",
+          "options": [],
+          "query": {
+            "editorMode": "code",
+            "format": 1,
+            "location": "asia-southeast1",
+            "project": "clone-330106",
+            "rawQuery": true,
+            "rawSql": "-- SELECT DISTINCT Stock_pickup_at FROM clone-330106.djangosetup.oprtion_order_detail ORDER BY Stock_pickup_at \n\n\nSELECT DISTINCT Stock_pickup_at FROM clone-330106.View.orderdetail ORDER BY Stock_pickup_at \n\n",
+            "sql": {
+              "columns": [
+                {
+                  "parameters": [],
+                  "type": "function"
+                }
+              ],
+              "groupBy": [
+                {
+                  "property": {
+                    "type": "string"
+                  },
+                  "type": "groupBy"
+                }
+              ],
+              "limit": 50
+            }
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0,
+          "type": "query"
+        },
+        {
+          "current": {
+            "selected": true,
+            "text": [
+              "All"
+            ],
+            "value": [
+              "$__all"
+            ]
+          },
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "_4a9wLSVz"
+          },
+          "definition": "",
+          "hide": 0,
+          "includeAll": true,
+          "multi": true,
+          "name": "Branches",
+          "options": [],
+          "query": {
+            "editorMode": "code",
+            "format": 1,
+            "location": "asia-southeast1",
+            "project": "clone-330106",
+            "rawQuery": true,
+            "rawSql": "-- SELECT DISTINCT branch_name FROM clone-330106.djangosetup.oprtion_order_detail ORDER BY branch_name\n\n\nSELECT DISTINCT name FROM clone-330106.View.orderdetail ORDER BY name\n",
+            "sql": {
+              "columns": [
+                {
+                  "parameters": [],
+                  "type": "function"
+                }
+              ],
+              "groupBy": [
+                {
+                  "property": {
+                    "type": "string"
+                  },
+                  "type": "groupBy"
+                }
+              ],
+              "limit": 50
+            }
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0,
+          "type": "query"
+        },
+        {
+          "current": {
+            "selected": true,
+            "text": [
+              "BATTERY"
+            ],
+            "value": [
+              "BATTERY"
+            ]
+          },
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "_4a9wLSVz"
+          },
+          "definition": "",
+          "hide": 0,
+          "includeAll": true,
+          "multi": true,
+          "name": "Order_Category",
+          "options": [],
+          "query": {
+            "editorMode": "code",
+            "format": 1,
+            "location": "asia-southeast1",
+            "project": "clone-330106",
+            "rawQuery": true,
+            "rawSql": "-- SELECT DISTINCT Order_category FROM clone-330106.djangosetup.oprtion_order_detail ORDER BY Order_category \n\n\nSELECT DISTINCT Order_category FROM clone-330106.View.orderdetail ORDER BY Order_category \n\n",
+            "sql": {
+              "columns": [
+                {
+                  "parameters": [],
+                  "type": "function"
+                }
+              ],
+              "groupBy": [
+                {
+                  "property": {
+                    "type": "string"
+                  },
+                  "type": "groupBy"
+                }
+              ],
+              "limit": 50
+            }
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0,
+          "type": "query"
+        },
+        {
+          "current": {
+            "selected": true,
+            "text": [
+              "All"
+            ],
+            "value": [
+              "$__all"
+            ]
+          },
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "_4a9wLSVz"
+          },
+          "definition": "",
+          "hide": 0,
+          "includeAll": true,
+          "multi": true,
+          "name": "Branch_Area",
+          "options": [],
+          "query": {
+            "editorMode": "code",
+            "format": 1,
+            "location": "asia-southeast1",
+            "project": "clone-330106",
+            "rawQuery": true,
+            "rawSql": "-- SELECT DISTINCT branch_area FROM clone-330106.djangosetup.oprtion_order_detail ORDER BY branch_area \n\n\nSELECT DISTINCT branch_area FROM clone-330106.View.orderdetail ORDER BY branch_area \n",
+            "sql": {
+              "columns": [
+                {
+                  "parameters": [],
+                  "type": "function"
+                }
+              ],
+              "groupBy": [
+                {
+                  "property": {
+                    "type": "string"
+                  },
+                  "type": "groupBy"
+                }
+              ],
+              "limit": 50
+            }
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0,
+          "type": "query"
+        },
+        {
+          "current": {
+            "selected": true,
+            "text": [
+              "All"
+            ],
+            "value": [
+              "$__all"
+            ]
+          },
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "_4a9wLSVz"
+          },
+          "definition": "",
+          "hide": 0,
+          "includeAll": true,
+          "multi": true,
+          "name": "Battery_Brands",
+          "options": [],
+          "query": {
+            "editorMode": "code",
+            "format": 1,
+            "location": "asia-southeast1",
+            "project": "clone-330106",
+            "rawQuery": true,
+            "rawSql": "-- SELECT DISTINCT brand FROM clone-330106.djangosetup.oprtion_order_detail ORDER BY brand \n\nSELECT DISTINCT brand FROM clone-330106.View.orderdetail ORDER BY brand \n\n",
+            "sql": {
+              "columns": [
+                {
+                  "parameters": [],
+                  "type": "function"
+                }
+              ],
+              "groupBy": [
+                {
+                  "property": {
+                    "type": "string"
+                  },
+                  "type": "groupBy"
+                }
+              ],
+              "limit": 50
+            }
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0,
+          "type": "query"
+        },
+        {
+          "current": {
+            "selected": true,
+            "text": [
+              "All"
+            ],
+            "value": [
+              "$__all"
+            ]
+          },
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "_4a9wLSVz"
+          },
+          "definition": "",
+          "hide": 0,
+          "includeAll": true,
+          "multi": true,
+          "name": "branch_type",
+          "options": [],
+          "query": {
+            "editorMode": "code",
+            "format": 1,
+            "location": "asia-southeast1",
+            "project": "clone-330106",
+            "rawQuery": true,
+            "rawSql": "-- SELECT DISTINCT branch_type FROM clone-330106.djangosetup.oprtion_order_detail ORDER BY branch_type\n\n\n-- SELECT DISTINCT branch_type FROM clone-330106.View.orderdetail ORDER BY branch_type\n\nSELECT DISTINCT \n  COALESCE(branch_type, 'unlabeled') AS branch_type\nFROM clone-330106.View.orderdetail\nORDER BY branch_type\n\n",
+            "sql": {
+              "columns": [
+                {
+                  "parameters": [],
+                  "type": "function"
+                }
+              ],
+              "groupBy": [
+                {
+                  "property": {
+                    "type": "string"
+                  },
+                  "type": "groupBy"
+                }
+              ],
+              "limit": 50
+            }
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 1,
+          "type": "query"
+        },
+        {
+          "current": {
+            "selected": true,
+            "text": [
+              "All"
+            ],
+            "value": [
+              "$__all"
+            ]
+          },
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "_4a9wLSVz"
+          },
+          "definition": "",
+          "hide": 0,
+          "includeAll": true,
+          "multi": true,
+          "name": "partner",
+          "options": [],
+          "query": {
+            "editorMode": "code",
+            "format": 1,
+            "location": "asia-southeast1",
+            "project": "clone-330106",
+            "rawQuery": true,
+            "rawSql": "-- SELECT DISTINCT partners_name\r\n-- FROM clone-330106.djangosetup.oprtion_order_detail\r\n-- ORDER BY partners_name;\r\n\r\n\r\nSELECT DISTINCT partners_name\r\nFROM `clone-330106.View.orderdetail` \r\nORDER BY partners_name;\r\n",
+            "sql": {
+              "columns": [
+                {
+                  "parameters": [],
+                  "type": "function"
+                }
+              ],
+              "groupBy": [
+                {
+                  "property": {
+                    "type": "string"
+                  },
+                  "type": "groupBy"
+                }
+              ],
+              "limit": 50
+            }
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0,
+          "type": "query"
+        }
+      ]
+    },
+    "panels": [
+      {
+        "datasource": {
+          "type": "grafana-bigquery-datasource",
+          "uid": "_4a9wLSVz"
+        },
+        "description": "Dashboard to monitor daily orders",
+        "gridPos": {
+          "h": 14,
+          "w": 24,
+          "x": 0,
+          "y": 1
+        },
+        "id": 54,
+        "options": {
+          "baidu": {
+            "callback": "bmapReady",
+            "key": ""
+          },
+          "editor": {
+            "format": "auto",
+            "height": 1186
+          },
+          "gaode": {
+            "key": "",
+            "plugin": "AMap.Scale,AMap.ToolBar"
+          },
+          "getOption": "const series = data.series.map((s) => {\r\n  const sData = s.fields.find((f) => f.type === 'number').values.buffer || s.fields.find((f) => f.type === 'number').values;\r\n  const sTime = s.fields.find((f) => f.type === 'time').values.buffer || s.fields.find((f) => f.type === 'time').values;\r\n\r\n  // Rename legend names\r\n  let legendName = s.refId;\r\n  if (s.refId === 'A') {\r\n    legendName = 'Total Orders';\r\n  } else if (s.refId === 'B') {\r\n    legendName = 'Moving Average';\r\n  }\r\n\r\n  if (s.refId === 'A') {\r\n    // Bar chart for Total_count\r\n    return {\r\n      name: legendName, // Use the renamed legend name\r\n      type: 'bar',\r\n      showSymbol: true,\r\n      barMaxWidth: '55%', // Adjust the width as needed\r\n      emphasis: {\r\n        focus: 'series'\r\n      },\r\n      data: sData.map((d, i) => ({\r\n        value: [sTime[i], d.toFixed(2)],\r\n        label: {\r\n          show: true,\r\n          position: 'inside',\r\n          formatter: (params) => Math.round(params.value[1]), // Display the value as an integer\r\n          fontSize: 10, // Adjust the font size here\r\n          color: 'black', // Font color\r\n          fontWeight: 'semi bold', // Make the label text bold\r\n        },\r\n        // Add a class for CSS styling\r\n        itemStyle: {\r\n          color: {\r\n            type: 'linear',\r\n            x: 0, // Start from left\r\n            y: 0,\r\n            x2: 0, // End at right\r\n            y2: 1,\r\n            colorStops: [\r\n              {\r\n                offset: 0,\r\n                color: '#83D475', // Start color\r\n              },\r\n              {\r\n                offset: 1,\r\n                color: '#2EB62C', // End color\r\n              },\r\n            ],\r\n          },\r\n        },\r\n      })),\r\n    };\r\n  } else {\r\n    // Line chart for Daily_average (moving average)\r\n    return {\r\n      name: legendName, // Use the renamed legend name\r\n      type: 'line',\r\n      showSymbol: true,\r\n      symbol: 'circle', // You can choose a different symbol if desired\r\n      data: sData.map((d, i) => ({\r\n        value: [sTime[i], d.toFixed(2)],\r\n        label: {\r\n          show: true,\r\n          position: 'top',\r\n          formatter: (params) => Math.round(params.value[1]), // Display the value as an integer\r\n          fontSize: 10, // Adjust the font size here\r\n          color: 'white', // Font color\r\n        },\r\n        itemStyle: {\r\n          color: 'gold', // Line color\r\n        },\r\n      })),\r\n    };\r\n  }\r\n});\r\n\r\nreturn {\r\n  backgroundColor: 'transparent',\r\n  tooltip: {\r\n    trigger: 'axis',\r\n  },\r\n  legend: {\r\n    left: '0',\r\n    bottom: '0',\r\n    data: data.series.map((s) => {\r\n      // Use the renamed legend name\r\n      if (s.refId === 'A') {\r\n        return 'Total Orders';\r\n      } else if (s.refId === 'B') {\r\n        return 'Moving Average';\r\n      } else {\r\n        return legendName; // Use the modified legendName variable\r\n      }\r\n    }),\r\n    itemStyle: {\r\n      color: '#5dc449',\r\n    },\r\n    textStyle: {\r\n      color: 'rgba(128, 128, 128, .9)',\r\n    },\r\n  },\r\n  toolbox: {\r\n    feature: {\r\n      dataZoom: {\r\n        yAxisIndex: 'none',\r\n        icon: {\r\n          zoom: 'path://',\r\n          back: 'path://',\r\n        },\r\n      },\r\n      saveAsImage: {},\r\n    },\r\n  },\r\n  xAxis: {\r\n    type: 'time',\r\n    // minInterval: 0,\r\n    maxInterval: 3600 * 1000 * 24,\r\n    // interval:1,\r\n    min: 'dataMin',\r\n    max: 'dataMax',\r\n\r\n    axisTick: {\r\n      alignWithLabel: true,\r\n      interval: 1\r\n    },\r\n    // axisPointer: {\r\n    //   label: {\r\n    //     formatter: function (params) {\r\n    //       return (\r\n    //         'Precipitation  ' +\r\n    //         params.value +\r\n    //         (params.seriesData.length ? '：' + params.seriesData[0].data : '')\r\n    //       );\r\n    //     }\r\n    //   },\r\n    // },\r\n    axisLabel: {\r\n      show: true,\r\n      interval: \"auto\",\r\n      // showMinLabel: true,\r\n      align: \"left\",\r\n      // formatter: function (value, index) {\r\n      //   return value + 'kg';\r\n      // }\r\n    },\r\n    splitLine: {\r\n      show: false, // Remove gridlines\r\n    },\r\n  },\r\n  yAxis: {\r\n    type: 'value',\r\n    splitLine: {\r\n      show: false, // Remove gridlines\r\n    },\r\n  },\r\n  grid: {\r\n    left: '2%',\r\n    right: '2%',\r\n    top: '2%',\r\n    bottom: 60, // Adjust the bottom value to accommodate labels\r\n    containLabel: true,\r\n    borderWidth: 0, // Remove gridlines (borders)\r\n  },\r\n  series,\r\n};\r\n",
+          "google": {
+            "callback": "gmapReady",
+            "key": ""
+          },
+          "map": "none",
+          "renderer": "svg",
+          "themeEditor": {
+            "config": "{}",
+            "height": 400,
+            "name": "default"
+          }
+        },
+        "targets": [
+          {
+            "dataset": "View",
+            "datasource": {
+              "type": "grafana-bigquery-datasource",
+              "uid": "_4a9wLSVz"
+            },
+            "editorMode": "code",
+            "format": 1,
+            "location": "asia-southeast1",
+            "project": "clone-330106",
+            "rawQuery": true,
+            "rawSql": "SELECT \r\n    DATE_TRUNC(created_at, DAY) AS date_col,\r\n    COUNT(DISTINCT id) AS Total_count\r\nFROM `clone-330106.View.orderdetail`\r\nWHERE $__timeFilter(CAST(created_at AS STRING))\r\n      AND status IN ($Order_Status)\r\n      -- AND cancelled_note IN ($Cancelled_Note)\r\n      AND state IN ($State)\r\n      AND Stock_pickup_at IN ($Stock_Pickup_At)\r\n      AND name IN ($Branches)\r\n      AND Order_category IN ($Order_Category)\r\n      AND branch_area IN ($Branch_Area)\r\n      AND brand IN ($Battery_Brands)\r\n      AND UPPER(name) NOT LIKE '%TEST%'\r\n    --   AND promo_code_name IN ($promo_code)\r\n      -- AND branch_type IN ($branch_type)\r\n      --       AND (\r\n      --   branch_type IS NULL\r\n      --   OR branch_type IN ($branch_type)\r\n      -- )\r\n\r\n      AND COALESCE(branch_type, 'unlabeled') IN ($branch_type)\r\n      AND partners_name IN ($partner)\r\n    --   AND source_category IN ($Sales_Source)\r\n      AND promo_code_name != 'WARRANTY(NEWBATTERY)'\r\nGROUP BY 1\r\nORDER BY 1;\r\n",
+            "refId": "A",
+            "sql": {
+              "columns": [
+                {
+                  "parameters": [
+                    {
+                      "name": "id",
+                      "type": "functionParameter"
+                    }
+                  ],
+                  "type": "function"
+                }
+              ],
+              "groupBy": [
+                {
+                  "property": {
+                    "type": "string"
+                  },
+                  "type": "groupBy"
+                }
+              ],
+              "limit": 50
+            },
+            "table": "orderdetail"
+          },
+          {
+            "datasource": {
+              "type": "grafana-bigquery-datasource",
+              "uid": "_4a9wLSVz"
+            },
+            "editorMode": "code",
+            "format": 1,
+            "hide": false,
+            "location": "asia-southeast1",
+            "project": "clone-330106",
+            "rawQuery": true,
+            "rawSql": "WITH DailyCounts AS (\r\n  SELECT \r\n    DATE_TRUNC(created_at, DAY) AS date_col, \r\n    COUNT(DISTINCT id) AS Total_count\r\n  FROM `clone-330106.View.orderdetail` \r\n  WHERE $__timeFilter(CAST(created_at AS STRING))\r\n    AND status IN ($Order_Status)\r\n    -- AND cancelled_note IN ($Cancelled_Note)\r\n    AND state IN ($State)\r\n    AND Stock_pickup_at IN ($Stock_Pickup_At)\r\n    AND name IN ($Branches)\r\n    AND Order_category IN ($Order_Category)\r\n    AND branch_area IN ($Branch_Area)\r\n    AND brand IN ($Battery_Brands)\r\n    AND UPPER(name) NOT LIKE \"%TEST%\"\r\n    -- AND promo_code_name IN ($promo_code)\r\n    AND promo_code_name != 'WARRANTY(NEWBATTERY)'\r\n    -- AND branch_type IN ($branch_type)\r\n      --     AND (\r\n      --   branch_type IS NULL\r\n      --   OR branch_type IN ($branch_type)\r\n      -- )\r\n    \r\n    AND COALESCE(branch_type, 'unlabeled') IN ($branch_type)\r\n    AND partners_name IN ($partner)\r\n    -- AND source_category IN ($Sales_Source)\r\n  GROUP BY 1\r\n)\r\nSELECT\r\n  date_col,\r\n  CAST(\r\n    ROUND(\r\n      AVG(Total_count) \r\n      OVER (ORDER BY date_col ASC ROWS BETWEEN 1000 PRECEDING AND CURRENT ROW)\r\n    ) AS INT\r\n  ) AS Daily_average\r\nFROM DailyCounts\r\nORDER BY 1;\r\n",
+            "refId": "B",
+            "sql": {
+              "columns": [
+                {
+                  "parameters": [],
+                  "type": "function"
+                }
+              ],
+              "groupBy": [
+                {
+                  "property": {
+                    "type": "string"
+                  },
+                  "type": "groupBy"
+                }
+              ],
+              "limit": 50
+            }
+          }
+        ],
+        "title": "Orders - Daily",
+        "transformations": [],
+        "type": "volkovlabs-echarts-panel"
+      }
+    ]
+  }
+}

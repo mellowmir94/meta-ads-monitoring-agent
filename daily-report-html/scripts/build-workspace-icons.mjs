@@ -1,0 +1,10 @@
+import { build } from 'esbuild';
+import { mkdir, copyFile } from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+import { fileURLToPath } from 'node:url';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const dependencies = process.env.NODE_DEPENDENCIES || path.join(os.homedir(), '.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules');
+await mkdir(path.join(root, 'vendor'), { recursive: true });
+await build({ entryPoints: [path.join(root, 'src/workspace-icons.js')], outfile: path.join(root, 'vendor/workspace-icons.js'), nodePaths: [dependencies], bundle: true, format: 'iife', minify: true, legalComments: 'inline' });
+await copyFile(path.join(dependencies, 'lucide/LICENSE'), path.join(root, 'vendor/lucide-LICENSE'));
