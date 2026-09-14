@@ -91,6 +91,7 @@
 .deduction-payment-statement-copy { display: grid; min-width: 0; gap: 4px; }
 .deduction-payment-statement-copy > span, .deduction-payment-statement-copy small { color: var(--text-soft); font-size: .65rem; line-height: 1.4; }
 .deduction-payment-statement-copy strong { color: var(--text); font-size: .78rem; font-variant-numeric: tabular-nums; }
+.deduction-payment-sent { display: inline-flex; width: fit-content; margin-top: 3px; padding: 4px 6px; border: 1px solid color-mix(in srgb, var(--success) 55%, var(--line)); border-radius: 4px; background: color-mix(in srgb, var(--success) 14%, var(--surface)); color: var(--success); font-size: .63rem; font-weight: 750; }
 .deduction-payment-statement > button { white-space: nowrap; border-color: var(--success) !important; background: var(--success) !important; color: var(--surface) !important; font-weight: 750; }
 .deduction-payment-statement > p { grid-column: 1 / -1; margin: -4px 0 0; color: var(--text-soft); font-size: .66rem; }
 .deduction-payment-statement > p.is-error { color: var(--danger); }
@@ -153,6 +154,7 @@
 .deduction-history-progress > strong, .deduction-history-progress > small { display: block; }
 .deduction-history-progress > small { margin-top: 4px; color: var(--text-soft); font-size: .65rem; font-variant-numeric: tabular-nums; }
 .deduction-download-ready { display: inline-flex; margin-top: 8px; padding: 4px 6px; border: 1px solid color-mix(in srgb, var(--success) 55%, var(--line)); border-radius: 4px; background: color-mix(in srgb, var(--success) 14%, var(--surface)); color: var(--success); font-size: .62rem; font-weight: 750; }
+.deduction-download-ready.is-sent { background: color-mix(in srgb, var(--success) 22%, var(--surface)); }
 .deduction-history-progress button { display: block; margin-top: 8px; padding: 6px 8px; border: 1px solid var(--accent); border-radius: 4px; background: transparent; color: var(--accent); font: inherit; font-size: .65rem; font-weight: 750; white-space: nowrap; }
 .is-table-fullscreen .deduction-workspace .deduction-inline-actions { position: sticky; bottom: -20px; z-index: 2; margin-bottom: -20px; padding-bottom: 14px; background: var(--deduction-surface); }
 @media (max-width: 900px) {

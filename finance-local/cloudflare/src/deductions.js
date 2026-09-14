@@ -134,7 +134,7 @@ export class DeductionRegister {
         return reply({ found: true, result: prior.result });
       }
       if (!/^[a-z0-9-]{16,80}$/i.test(input.requestId || '')) return reply({ error: 'A valid request ID is required.' }, 400);
-      if (!['/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/delete-batch'].includes(url.pathname)) return reply({ error: 'Deduction action not found.' }, 404);
+      if (!['/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/mark-sent', '/delete-batch'].includes(url.pathname)) return reply({ error: 'Deduction action not found.' }, 404);
       const signature = requestSignature(url.pathname, input);
       const result = await this.storage.transaction(async tx => {
         const prior = await tx.get('request:' + input.requestId);
@@ -205,7 +205,16 @@ export class DeductionRegister {
           const alreadyProceeded = url.pathname === '/approve' && ['approved', 'applied'].includes(record.status);
           if (!alreadyProceeded && ['/approve', '/reject', '/reverse'].includes(url.pathname) && !checker) throw new Error('Authorized Finance checker access is required.');
           if (!alreadyProceeded && ['/approve', '/reject'].includes(url.pathname) && record.creatorSession === actor.sessionId) throw new Error('Maker-checker rule: the creator cannot approve or reject their own request.');
-          if (url.pathname === '/update-details') {
+          if (url.pathname === '/mark-sent') {
+            const index = Number(input.installmentIndex);
+            if (!Number.isInteger(index) || !record.installments[index] || record.installments[index].status !== 'applied') throw new Error('Choose an applied payment statement before marking it sent.');
+            const item = record.installments[index];
+            if (!item.statementSentAt) {
+              record.installments[index] = { ...item, statementSentAt: now, statementSentBy: actor.name };
+              record.audit.push({ action: 'statement-sent', installmentIndex: index, dueDate: item.dueDate, at: now, by: actor.name, role: actor.role, identityVerified: true, amountCents: Number(item.amountCents ?? record.amountCents), reason: 'Finance downloaded the payment statement and marked it sent to rider' });
+            }
+            const sent = record.installments[index]; result = { id: record.id, installmentIndex: index, statementSentAt: sent.statementSentAt, statementSentBy: sent.statementSentBy };
+          } else if (url.pathname === '/update-details') {
             const pricingMode = record.type === 'battery-tester' ? required(input.pricingMode || record.pricingMode, 'Battery Tester plan') : record.pricingMode;
             const installmentCount = Number(input.installmentCount ?? record.installmentCount), amount = required(String(input.amount ?? record.amountCents / 100), 'Amount', 15);
             if (!/^\d+(\.\d{1,2})?$/.test(amount)) throw new Error('Enter a positive amount with up to two decimal places.');
@@ -325,7 +334,7 @@ export async function deductionsApi(request, env, actor, context) {
     if (request.headers.get('origin') !== url.origin || !request.headers.get('content-type')?.startsWith('application/json')) return reply({ error: 'Same-origin JSON request required.' }, 403);
   }
   const path = url.pathname.slice('/api/deductions'.length) || '/';
-  if (!['/', '/eligibility', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/delete-batch'].includes(path)) return reply({ error: 'Deduction action not found.' }, 404);
+  if (!['/', '/eligibility', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/mark-sent', '/delete-batch'].includes(path)) return reply({ error: 'Deduction action not found.' }, 404);
   const readOnly = path === '/' || path === '/eligibility';
   if ((readOnly && request.method !== 'GET') || (!readOnly && request.method !== 'POST')) return reply({ error: 'Method not allowed.' }, 405);
   try {

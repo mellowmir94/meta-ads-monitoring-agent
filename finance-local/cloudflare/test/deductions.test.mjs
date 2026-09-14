@@ -121,6 +121,15 @@ test('loading History finishes a partially applied legacy schedule with zero rem
   assert.equal(listed.records[0].installments.every(item => item.status === 'applied'), true);
   assert.equal(listed.records[0].installments.filter(item => item.paymentDate === '2026-09-23').length, 1);
 });
+test('a downloaded payment statement is persistently marked sent to rider', async () => {
+  const storage = new MemoryStorage(); const register = new DeductionRegister({ storage }, {}, { now: () => new Date('2026-09-15T10:00:00Z') });
+  const created = await post(register, { ...base, requestId: crypto.randomUUID() });
+  const marked = await post(register, { recordId: created.body.id, installmentIndex: 0, requestId: crypto.randomUUID() }, '/mark-sent');
+  assert.equal(marked.status, 201); assert.equal(marked.body.statementSentBy, 'Finance Maker');
+  const stored = await storage.get('record:' + created.body.id);
+  assert.equal(stored.installments[0].statementSentBy, 'Finance Maker');
+  assert.equal(stored.audit.at(-1).action, 'statement-sent');
+});
 test('saved deductions apply immediately, remain idempotent, support reversal and enforce one EPF plan per month', async () => {
   const storage = new MemoryStorage(); const register = new DeductionRegister({ storage }, {}, { now: () => new Date('2026-09-23T12:00:00Z') });
   const input = { ...base, requestId: crypto.randomUUID() };
