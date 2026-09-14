@@ -157,6 +157,7 @@
 .deduction-history-table-wrap td { max-width: 300px; overflow-wrap: anywhere; vertical-align: top; }
 .deduction-history-table-wrap .deduction-overdue { color: var(--danger); }
 .deduction-history-table-wrap table { min-width: 1780px; }
+.deduction-history-table-wrap thead th { text-align: center; }
 .deduction-type-heading { min-width: 230px; }
 .deduction-export-check { width: 52px; min-width: 52px; text-align: center !important; }
 .deduction-export-check input { width: 17px; height: 17px; accent-color: var(--accent); }
