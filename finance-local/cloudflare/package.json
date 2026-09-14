@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "check:startup": "node --test test/commission-table-fullscreen.test.mjs",
+    "predeploy": "npm run check:startup",
+    "deploy": "wrangler deploy --config wrangler.jsonc"
   }
 }

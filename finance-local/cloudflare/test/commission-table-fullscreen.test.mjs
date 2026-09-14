@@ -4,12 +4,18 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
+const sourceHtml = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
 
-test('the deployed dashboard startup script parses before it is published', () => {
-  const scriptStart = html.indexOf('<script>', html.indexOf('data-finance-recharts'));
-  const scriptEnd = html.indexOf('</script>', scriptStart);
+function assertDashboardStartupParses(documentHtml, label) {
+  const scriptStart = documentHtml.indexOf('<script>', documentHtml.indexOf('data-finance-recharts'));
+  const scriptEnd = documentHtml.indexOf('</script>', scriptStart);
   assert.ok(scriptStart >= 0 && scriptEnd > scriptStart, 'the dashboard startup script should exist');
-  assert.doesNotThrow(() => new vm.Script(html.slice(scriptStart + '<script>'.length, scriptEnd)));
+  assert.doesNotThrow(() => new vm.Script(documentHtml.slice(scriptStart + '<script>'.length, scriptEnd)), `${label} startup script must parse`);
+}
+
+test('the source and deployed dashboard startup scripts parse before publishing', () => {
+  assertDashboardStartupParses(sourceHtml, 'source');
+  assertDashboardStartupParses(html, 'deployed');
 });
 
 test('Commission Rider table has a dedicated fullscreen control after search', () => {
