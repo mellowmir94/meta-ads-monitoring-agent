@@ -205,8 +205,8 @@ test('selected payment PDF refreshes its own Commission Rider week and exports o
   assert.match(requestUrl, /to=2026-09-13/);
   assert.equal(payload.rows.length, 1);
   assert.equal(payload.filename, 'Rider_A_payment-4');
-  assert.ok(payload.footerRows.some(row => row[0] === 'SELECTED DEDUCTION DATE' && row[2] === '18/09/2026'));
-  assert.ok(payload.footerRows.some(row => row[0] === 'COMMISSION PERIOD' && row[2] === '07/09/2026 – 13/09/2026'));
+  assert.ok(payload.footerRows.some(row => row[0] === 'SELECTED DEDUCTION DATE' && row[1] === '18/09/2026'));
+  assert.ok(!payload.footerRows.some(row => row[0] === 'COMMISSION PERIOD'));
   assert.ok(payload.footerRows.some(row => row[0] === 'EPF — PAYMENT 1 OF 4' && row[2] === '- RM 25.00'));
   assert.ok(payload.footerRows.some(row => row[0] === 'NET COMMISSION' && row[2] === 'RM 275.00'));
 });
