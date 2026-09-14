@@ -159,6 +159,13 @@
 .deduction-history-payment-picker { display: grid; gap: 5px; min-width: 220px; }
 .deduction-history-payment-picker > span { color: var(--text-soft); font-size: .62rem; font-weight: 750; text-transform: uppercase; letter-spacing: .04em; }
 .deduction-history-payment-picker select { width: 100%; min-height: 33px; font-size: .67rem; font-variant-numeric: tabular-nums; }
+.deduction-history-download-cell { min-width: 180px; }
+.deduction-history-download-item { display: grid; gap: 5px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.deduction-history-download-item:first-child { padding-top: 0; }
+.deduction-history-download-item:last-child { padding-bottom: 0; border-bottom: 0; }
+.deduction-history-download-item > strong { font-size: .68rem; }
+.deduction-history-download-item > small { color: var(--text-soft); font-size: .64rem; font-variant-numeric: tabular-nums; }
+.deduction-history-download-item button { width: fit-content; min-height: 29px; }
 .deduction-download-ready { display: inline-flex; margin-top: 8px; padding: 4px 6px; border: 1px solid color-mix(in srgb, var(--success) 55%, var(--line)); border-radius: 4px; background: color-mix(in srgb, var(--success) 14%, var(--surface)); color: var(--success); font-size: .62rem; font-weight: 750; }
 .deduction-download-ready.is-sent { background: color-mix(in srgb, var(--success) 22%, var(--surface)); }
 .deduction-download-ready.is-upcoming { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); color: var(--accent); }
