@@ -337,6 +337,19 @@ async function financeDataApi(request, env, context) {
   }
 }
 
+async function malaysiaPublicHolidaysApi(url) {
+  const year = Number(url.searchParams.get("year"));
+  if (!Number.isInteger(year) || year < 2020 || year > 2100) return json({ error: "Choose a valid holiday year." }, 400);
+  try {
+    const response = await fetch("https://www.malaysia.gov.my/calendar", { headers: { accept: "text/html" }, cf: { cacheEverything: true, cacheTtl: 21600 } });
+    if (!response.ok) throw new Error("Official calendar unavailable");
+    const page = await response.text(), dates = [...page.matchAll(/startDate\\?":\\?"(\d{4}-\d{2}-\d{2})T/g)].map(match => match[1]).filter(value => value.startsWith(`${year}-`));
+    return json({ dates: [...new Set(dates)].sort(), source: "Government of Malaysia", sourceUrl: "https://www.malaysia.gov.my/calendar" });
+  } catch {
+    return json({ dates: [], source: "Government of Malaysia", sourceUrl: "https://www.malaysia.gov.my/calendar", warning: "The official holiday calendar could not be checked. Review the generated dates before saving." });
+  }
+}
+
 export default {
   async fetch(request, env, context) {
     const url = new URL(request.url);
@@ -406,6 +419,7 @@ export default {
     if (url.pathname.startsWith("/api/")) {
       if (leaseDenied) return leaseDenied;
       if (url.pathname === "/api/session" && request.method === "GET") return json({ name: session.name, role: session.role });
+      if (url.pathname === "/api/public-holidays" && request.method === "GET") return malaysiaPublicHolidaysApi(url);
       if (url.pathname === "/api/deductions" || url.pathname.startsWith("/api/deductions/")) return deductionsApi(request, env, session, context);
       if (url.pathname === "/api/dashboard-layout") return dashboardLayoutApi(request, env, session.sessionId);
       if (url.pathname === "/api/grafana/finance" || url.pathname === "/api/finance/data") return financeDataApi(request, env, context);

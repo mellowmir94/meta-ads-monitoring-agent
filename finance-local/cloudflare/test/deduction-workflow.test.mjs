@@ -15,7 +15,7 @@ function runtime(extra = {}) {
     auditCapture: () => ({ scope: { dates: { start: '2026-09-07', end: '2026-09-13' } } }),
     ...extra,
   });
-  vm.runInContext(source + '\nthis.api = { deductionState, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionHistoryGroups, deductionHistoryStatementPayload, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
+  vm.runInContext(source + '\nthis.api = { deductionState, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionFirstFourThursdayWeeks, deductionEpfSchedule, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionHistoryGroups, deductionHistoryStatementPayload, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
   return context.api;
 }
 const rows = [{ rider_name: 'Rider A', created_at: '2026-09-07', commission: 300 }, { rider_name: 'Rider A', created_at: '2026-09-08', commission: 255 }];
@@ -34,6 +34,12 @@ test('EPF requires the exact full week and next contribution month handles year 
   assert.equal(api.deductionFullWeek('2026-09-07', '2026-09-20'), false);
   assert.equal(api.deductionFullWeek('2026-09-08', '2026-09-13'), false);
   assert.equal(api.deductionNextMonth('2026-12-31'), '2027-01');
+});
+test('EPF auto-schedules the first four Thursdays and moves a Wednesday-holiday week to Friday', () => {
+  const api = runtime(), schedule = api.deductionEpfSchedule('2026-09', new Set(['2026-09-16']));
+  assert.deepEqual(Array.from(schedule, item => item.dueDate), ['2026-09-03', '2026-09-10', '2026-09-18', '2026-09-24']);
+  assert.equal(schedule[2].shifted, true);
+  assert.equal(schedule.length, 4);
 });
 test('settlement defaults follow earned commission week, not payment or due date', () => {
   const api = runtime();

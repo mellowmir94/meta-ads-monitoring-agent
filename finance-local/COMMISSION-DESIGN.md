@@ -8,7 +8,7 @@ Build the rider settlement surface used by Finance after filtering a commission 
 - Use the existing `--surface`, `--surface-strong`, `--text`, `--text-soft` and `--line` pairs for cards, fields and modal surfaces in both themes. Green is reserved for the settlement strip and applied state. Amber means pending or attention, never confirmed money.
 - The signature is the ledger-style **Gross − Applied = Net** strip beneath four compact selectable deduction cards. Selected-request amounts are explicitly a preview, not an applied reduction.
 - Use an 8px spacing rhythm, restrained borders and existing radii. The deduction header binds the rider to the commission period. History sits bottom left; the request action sits bottom right.
-- The request dialog shows rider, period and gross as readable facts. Editable fields are amount, applicable plan, payment date, self-declared creator and remarks. Put payment schedule previews next to the decisions that control them.
+- The request dialog shows rider, period and gross as readable facts. EPF uses a compact four-week schedule: RM25 × 4, first four Thursday weeks, lock/unlock dates, and an explicit RM100 total. Put payment schedule previews next to the decisions that control them.
 - History prioritizes rider/reference, plan, applied/remaining amounts, next due date and status. Details expose the immutable audit trail without making every row excessively wide.
 - At 768px and 390px, cards and form fields stack. Only the data table scrolls horizontally. Fullscreen contains the table toolbar and settlement controls, never the dashboard navigation overlaid on top.
 

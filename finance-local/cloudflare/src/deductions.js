@@ -21,11 +21,30 @@ const date = (value, label) => {
 };
 const addDays = (value, days) => { const next = new Date(value + 'T00:00:00Z'); next.setUTCDate(next.getUTCDate() + days); return next.toISOString().slice(0, 10); };
 const nextMonth = value => { const next = new Date(value + 'T00:00:00Z'); next.setUTCMonth(next.getUTCMonth() + 1, 1); return next.toISOString().slice(0, 7); };
+const weekBounds = value => { const current = new Date(value + 'T00:00:00Z'); const start = addDays(value, -((current.getUTCDay() + 6) % 7)); return { start, end: addDays(start, 6) }; };
+const firstFourThursdayWeeks = month => {
+  if (!/^\d{4}-\d{2}$/.test(month)) throw new Error('EPF schedule month must be valid.');
+  const first = `${month}-01`, firstDate = new Date(first + 'T00:00:00Z');
+  if (!Number.isFinite(firstDate.getTime()) || firstDate.toISOString().slice(0, 7) !== month) throw new Error('EPF schedule month must be valid.');
+  const day = firstDate.getUTCDay(), firstThursday = addDays(first, (4 - day + 7) % 7);
+  return Array.from({ length: 4 }, (_, index) => weekBounds(addDays(firstThursday, index * 7)));
+};
+const validateEpfScheduleDates = (values, month) => {
+  if (!Array.isArray(values) || values.length !== 4) throw new Error('EPF requires four weekly deduction dates.');
+  const weeks = firstFourThursdayWeeks(month), dates = values.map((value, index) => {
+    const parsed = date(value, `EPF week ${index + 1} deduction date`);
+    if (parsed.slice(0, 7) !== month || !weeks[index] || parsed < weeks[index].start || parsed > weeks[index].end) throw new Error(`EPF week ${index + 1} must stay within ${weeks[index].start} to ${weeks[index].end}.`);
+    return parsed;
+  });
+  if (new Set(dates).size !== 4 || dates.some((value, index) => index && value <= dates[index - 1])) throw new Error('EPF deduction dates must be unique and chronological.');
+  return dates;
+};
 const publicRecord = record => { const { creatorSession, ...value } = record; return value; };
 const duplicateKey = record => 'duplicate:' + encodeURIComponent([record.riderKey, record.type, record.subtype, record.pricingMode, record.installmentCount, record.periodStart, record.periodEnd, record.amountCents, record.deductionDate].join('|'));
 const inactive = record => ['rejected', 'cancelled', 'reversed'].includes(record.status);
-const epfHoldMonth = record => (record.installments?.find(item => item.status === 'applied')?.paymentDate || record.deductionDate).slice(0, 7);
+const epfHoldMonth = record => record.epfScheduleMonth || record.deductionDate.slice(0, 7);
 const epfWeekKey = record => 'epf-week:' + encodeURIComponent([record.riderKey, record.periodStart, record.periodEnd].join('|'));
+const epfMonthKey = record => 'epf-month:' + encodeURIComponent([record.riderKey, epfHoldMonth(record)].join('|'));
 const settlementWeek = input => {
   const settlementPeriodStart = date(input.settlementPeriodStart, 'Settlement commission week start');
   const settlementPeriodEnd = date(input.settlementPeriodEnd, 'Settlement commission week end');
@@ -52,7 +71,7 @@ export function validateDeduction(input) {
   if (type === 'battery-tester' && pricingMode !== 'manual' && (installmentCount !== batteryPlans[pricingMode].count || amountCents !== batteryPlans[pricingMode].amountCents)) throw new Error(pricingMode === 'fixed-2' ? 'The 2-payment Battery Tester plan is RM50 per payment.' : 'The 7-payment Battery Tester plan is RM40 per payment.');
   const validBatteryInstallments = pricingMode === 'manual' ? installmentCount >= 1 && installmentCount <= 52 : installmentCount === batteryPlans[pricingMode]?.count;
   const validSpecialInstallments = type === 'manual' && installmentCount >= 1 && installmentCount <= 52;
-  if (!Number.isInteger(installmentCount) || (type === 'insurance' && installmentCount !== 2) || (type === 'battery-tester' && !validBatteryInstallments) || (type === 'manual' && !validSpecialInstallments) || (type === 'epf' && installmentCount !== 1)) throw new Error(type === 'insurance' ? 'Insurance requires 2 weekly deductions.' : type === 'battery-tester' && pricingMode === 'manual' ? 'Manual Battery Tester requires 1 to 52 weekly payments.' : type === 'battery-tester' ? 'Battery Tester requires the selected fixed plan schedule.' : type === 'manual' ? 'Special Case requires 1 to 52 weekly payments.' : 'EPF is a single deduction.');
+  if (!Number.isInteger(installmentCount) || (type === 'insurance' && installmentCount !== 2) || (type === 'battery-tester' && !validBatteryInstallments) || (type === 'manual' && !validSpecialInstallments) || (type === 'epf' && installmentCount !== 4)) throw new Error(type === 'insurance' ? 'Insurance requires 2 weekly deductions.' : type === 'battery-tester' && pricingMode === 'manual' ? 'Manual Battery Tester requires 1 to 52 weekly payments.' : type === 'battery-tester' ? 'Battery Tester requires the selected fixed plan schedule.' : type === 'manual' ? 'Special Case requires 1 to 52 weekly payments.' : 'EPF requires four weekly RM25 deductions.');
   const orderId = String(input.orderId || '').trim();
   if (orderId.length > 100) throw new Error('Order ID is too long.');
   const periodStart = input.periodStart ? date(input.periodStart, 'Period start') : '';
@@ -65,14 +84,16 @@ export function validateDeduction(input) {
     if (!periodStart || new Date(periodStart).getUTCDay() !== 1 || Date.parse(periodEnd) - Date.parse(periodStart) !== 6 * 86400000) throw new Error('EPF requires a full Monday-Sunday commission week.');
     if (!/^\d+(\.\d{1,2})?$/.test(String(input.weeklyCommission || '')) || Number(input.weeklyCommission) < 300 || Number(input.weeklyCommission) > 100000000) throw new Error('EPF requires recorded weekly commission of RM300 or more.');
   }
-  const installments = Array.from({ length: installmentCount }, (_, index) => ({ index, dueDate: addDays(deductionDate, index * 7), status: 'scheduled', appliedAt: null, appliedBy: null, reversedAt: null, reversedBy: null }));
+  const epfScheduleMonth = type === 'epf' ? required(input.epfScheduleMonth || deductionDate.slice(0, 7), 'EPF schedule month', 7) : null;
+  const installmentDates = type === 'epf' ? validateEpfScheduleDates(input.installmentDates, epfScheduleMonth) : Array.from({ length: installmentCount }, (_, index) => addDays(deductionDate, index * 7));
+  const installments = installmentDates.map((dueDate, index) => ({ index, dueDate, status: 'scheduled', appliedAt: null, appliedBy: null, reversedAt: null, reversedBy: null }));
   return {
     rider, riderKey: rider.normalize('NFKC').toLowerCase().replace(/\s+/g, ' '), orderId, periodStart, periodEnd, type, subtype: input.subtype,
     codes: type === 'insurance' ? [2] : type === 'battery-tester' ? [2, 7] : [], pricingMode, amountCents, installmentCount, installmentIntervalDays: installmentCount > 1 ? 7 : 0,
     scheduledAmountCents: amountCents * installmentCount, installments,
     reportedWeeklyCommissionCents: type === 'epf' ? Math.round(Number(input.weeklyCommission) * 100) : null, weeklyCommissionVerified: false,
     grossCommissionCents: Math.max(0, Math.round(Number(input.grossCommission || 0) * 100)),
-    reason: optional(input.reason, 'Reason / remarks'), deductionDate, epfContributionMonth: type === 'epf' ? nextMonth(deductionDate) : null,
+    reason: optional(input.reason, 'Reason / remarks'), deductionDate: type === 'epf' ? installmentDates[0] : deductionDate, epfScheduleMonth, epfContributionMonth: type === 'epf' ? nextMonth(installmentDates[0]) : null,
     createdBy, source: 'finance-manual', identityVerified: false, status: 'approved', approvalStatus: 'approved', approvedBy: createdBy, approvedAt: null,
     eligibility: type === 'epf' ? 'Filtered weekly commission of at least RM300 was recorded when Finance created the request.' : 'Active Finance deduction schedule.'
   };
@@ -123,7 +144,7 @@ export class DeductionRegister {
         return reply({ found: true, result: prior.result });
       }
       if (!/^[a-z0-9-]{16,80}$/i.test(input.requestId || '')) return reply({ error: 'A valid request ID is required.' }, 400);
-      if (!['/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/delete-batch'].includes(url.pathname)) return reply({ error: 'Deduction action not found.' }, 404);
+      if (!['/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/delete-batch'].includes(url.pathname)) return reply({ error: 'Deduction action not found.' }, 404);
       const signature = requestSignature(url.pathname, input);
       const result = await this.storage.transaction(async tx => {
         const prior = await tx.get('request:' + input.requestId);
@@ -142,6 +163,7 @@ export class DeductionRegister {
             await tx.delete('record:' + record.id); await tx.delete(duplicateKey(record));
             if (record.type === 'epf') {
               await tx.delete(epfWeekKey(record));
+              await tx.delete(epfMonthKey(record));
               const bucket = 'epf:' + encodeURIComponent(record.riderKey) + ':' + epfHoldMonth(record), remaining = (await tx.get(bucket) || []).filter(id => id !== record.id);
               if (remaining.length) await tx.put(bucket, remaining); else await tx.delete(bucket);
             }
@@ -169,17 +191,20 @@ export class DeductionRegister {
               const previous = await tx.list({ prefix: 'record:' });
               for (const record of previous.values()) {
                 if (record.type === 'epf' && record.riderKey === data.riderKey && record.periodStart === data.periodStart && record.periodEnd === data.periodEnd && !inactive(record)) throw new Error(`An EPF deduction already exists for this rider and commission week (${record.reference || record.id}).`);
+                if (record.type === 'epf' && record.riderKey === data.riderKey && epfHoldMonth(record) === data.epfScheduleMonth && !inactive(record)) throw new Error(`An EPF monthly plan already exists for this rider in ${data.epfScheduleMonth} (${record.reference || record.id}).`);
               }
-              const paymentMonth = now.slice(0, 7), bucket = 'epf:' + encodeURIComponent(data.riderKey) + ':' + paymentMonth;
-              const active = [...previous.values()].filter(record => record.type === 'epf' && record.riderKey === data.riderKey && !inactive(record) && epfHoldMonth(record) === paymentMonth).map(record => record.id);
-              if (active.length >= 4) throw new Error('This rider already has four active EPF deductions for this month.');
-              await tx.put(bucket, [...active, `${input.requestId}-${index + 1}`]);
+              const bucket = 'epf:' + encodeURIComponent(data.riderKey) + ':' + data.epfScheduleMonth;
+              await tx.put(bucket, [`${input.requestId}-${index + 1}`]);
               await tx.put(epfWeekKey(data), `${input.requestId}-${index + 1}`);
+              await tx.put(epfMonthKey(data), `${input.requestId}-${index + 1}`);
             }
             const counter = Number(await tx.get('counter:reference') || 0) + 1; await tx.put('counter:reference', counter);
             const id = `${input.requestId}-${index + 1}`; const reference = `DED-${now.slice(0, 7).replace('-', '')}-${String(counter).padStart(6, '0')}`;
-            const installments = data.installments.map(item => ({ ...item, status: 'applied', appliedAt: now, appliedBy: data.createdBy, paymentDate: now.slice(0, 10), settlementPeriodStart: data.periodStart, settlementPeriodEnd: data.periodEnd, ...(data.type === 'epf' ? { epfContributionMonth: nextMonth(now.slice(0, 10)) } : {}) }));
-            const record = { ...data, installments, ...(data.type === 'epf' ? { epfContributionMonth: nextMonth(now.slice(0, 10)) } : {}), status: 'applied', approvalStatus: 'applied', approvedBy: data.createdBy, approvedAt: now, id, batchId: input.requestId, reference, createdAt: now, creatorSession: actor.sessionId, audit: [{ action: 'created-and-applied', at: now, by: data.createdBy, role: actor.role, identityVerified: false, selfDeclared: true, amountCents: data.scheduledAmountCents, ...(data.type === 'epf' ? { recordedWeeklyCommissionCents: data.reportedWeeklyCommissionCents } : {}), reason: data.reason || 'Finance saved and applied this deduction' }] };
+            const installments = data.installments.map(item => {
+              const settlement = data.type === 'epf' ? weekBounds(item.dueDate) : { start: data.periodStart, end: data.periodEnd };
+              return { ...item, status: 'applied', appliedAt: now, appliedBy: data.createdBy, paymentDate: data.type === 'epf' ? item.dueDate : now.slice(0, 10), settlementPeriodStart: settlement.start, settlementPeriodEnd: settlement.end, ...(data.type === 'epf' ? { epfContributionMonth: nextMonth(item.dueDate) } : {}) };
+            });
+            const record = { ...data, installments, status: 'applied', approvalStatus: 'applied', approvedBy: data.createdBy, approvedAt: now, id, batchId: input.requestId, reference, createdAt: now, creatorSession: actor.sessionId, audit: [{ action: 'created-and-applied', at: now, by: data.createdBy, role: actor.role, identityVerified: false, selfDeclared: true, amountCents: data.scheduledAmountCents, ...(data.type === 'epf' ? { recordedWeeklyCommissionCents: data.reportedWeeklyCommissionCents, installmentDates: data.installments.map(item => item.dueDate) } : {}), reason: data.reason || 'Finance saved and applied this deduction' }] };
             await tx.put('record:' + id, record); await tx.put(duplicateKey(data), id); created.push({ id, reference, type: data.type, status: 'applied' });
           }
           result = { batchId: input.requestId, records: created, id: created[0].id, reference: created[0].reference, approvalStatus: 'applied' };
@@ -190,7 +215,19 @@ export class DeductionRegister {
           const alreadyProceeded = url.pathname === '/approve' && ['approved', 'applied'].includes(record.status);
           if (!alreadyProceeded && ['/approve', '/reject', '/reverse'].includes(url.pathname) && !checker) throw new Error('Authorized Finance checker access is required.');
           if (!alreadyProceeded && ['/approve', '/reject'].includes(url.pathname) && record.creatorSession === actor.sessionId) throw new Error('Maker-checker rule: the creator cannot approve or reject their own request.');
-          if (url.pathname === '/approve') {
+          if (url.pathname === '/update-schedule') {
+            if (record.type !== 'epf' || Number(record.installmentCount) !== 4) throw new Error('Only four-payment EPF schedules can be edited.');
+            const scheduleMonth = record.epfScheduleMonth || record.deductionDate.slice(0, 7), installmentDates = validateEpfScheduleDates(input.installmentDates, scheduleMonth);
+            const previousDates = record.installments.map(item => item.dueDate), oldDuplicateKey = duplicateKey(record);
+            record.installments = record.installments.map((item, index) => {
+              const dueDate = installmentDates[index], settlement = weekBounds(dueDate);
+              return { ...item, dueDate, ...(item.status === 'applied' ? { paymentDate: dueDate, settlementPeriodStart: settlement.start, settlementPeriodEnd: settlement.end, epfContributionMonth: nextMonth(dueDate) } : {}) };
+            });
+            record.deductionDate = installmentDates[0]; record.epfScheduleMonth = scheduleMonth; record.epfContributionMonth = nextMonth(installmentDates[0]);
+            record.audit.push({ action: 'schedule-updated', at: now, by: actor.name, role: actor.role, identityVerified: true, amountCents: record.scheduledAmountCents, previousDates, installmentDates, reason: reason || 'Finance updated and locked the EPF deduction dates' });
+            await tx.delete(oldDuplicateKey); await tx.put(duplicateKey(record), record.id);
+            result = { id: record.id, reference: record.reference, status: record.status, approvalStatus: record.status, installmentDates };
+          } else if (url.pathname === '/approve') {
             if (alreadyProceeded) { result = { id: record.id, reference: record.reference, status: record.status, approvalStatus: record.status }; }
             else if (record.status !== 'pending') throw new Error('Only active deduction schedules can be confirmed.');
             if (result) { /* Compatibility no-op for records already proceeded by Finance. */ }
@@ -246,7 +283,7 @@ export class DeductionRegister {
             record.reversals = [...(record.reversals || []), record.reversal];
             record.audit.push({ action: 'reversed', at: now, by: actor.name, role: actor.role, identityVerified: true, amountCents: record.reversal.amountCents, installmentIndexes: record.reversal.installmentIndexes, cancelledIndexes, reason: reversalReason });
           }
-          await tx.put('record:' + record.id, record); result = { id: record.id, reference: record.reference, status: record.status, approvalStatus: record.status };
+          await tx.put('record:' + record.id, record); result ||= { id: record.id, reference: record.reference, status: record.status, approvalStatus: record.status };
         }
         await tx.put('request:' + input.requestId, { signature, session: actor.sessionId, result });
         await tx.put('counter:revision', Number(await tx.get('counter:revision') || 0) + 1);
@@ -266,7 +303,7 @@ export async function deductionsApi(request, env, actor, context) {
     if (request.headers.get('origin') !== url.origin || !request.headers.get('content-type')?.startsWith('application/json')) return reply({ error: 'Same-origin JSON request required.' }, 403);
   }
   const path = url.pathname.slice('/api/deductions'.length) || '/';
-  if (!['/', '/eligibility', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/delete-batch'].includes(path)) return reply({ error: 'Deduction action not found.' }, 404);
+  if (!['/', '/eligibility', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/delete-batch'].includes(path)) return reply({ error: 'Deduction action not found.' }, 404);
   const readOnly = path === '/' || path === '/eligibility';
   if ((readOnly && request.method !== 'GET') || (!readOnly && request.method !== 'POST')) return reply({ error: 'Method not allowed.' }, 405);
   try {

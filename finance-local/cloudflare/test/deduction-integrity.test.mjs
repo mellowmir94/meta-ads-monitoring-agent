@@ -18,7 +18,8 @@ const fixedNow = () => new Date('2026-09-23T12:00:00.000Z');
 const actor = { sessionId: 'maker-session', name: 'Finance Maker', role: 'maker' };
 const checker = { sessionId: 'checker-session', name: 'Finance Checker', role: 'checker' };
 const base = { rider: 'Rider A', periodStart: '2026-09-07', periodEnd: '2026-09-13', type: 'insurance', subtype: 'insurance', amount: '50', installmentCount: 2, deductionDate: '2026-09-14', createdBy: 'Self-declared Finance', reason: 'Policy repayment' };
-const epf = { ...base, type: 'epf', subtype: 'EPF', amount: '25', installmentCount: 1, deductionDate: '2026-09-14', weeklyCommission: '999999' };
+const epfSchedule = ['2026-09-03', '2026-09-10', '2026-09-17', '2026-09-24'];
+const epf = { ...base, type: 'epf', subtype: 'EPF', amount: '25', installmentCount: 4, deductionDate: epfSchedule[0], epfScheduleMonth: '2026-09', installmentDates: epfSchedule, weeklyCommission: '999999' };
 function setup(rows = [{ rider_name: 'Rider A', commission: 350, created_at: '2026-09-10 12:00:00', order_id: '1' }]) {
   const storage = new MemoryStorage();
   const register = new DeductionRegister({ storage }, {}, { now: fixedNow });
@@ -74,11 +75,11 @@ test('EPF creation does not depend on Grafana but keeps the recorded RM300 and f
 test('same rider week cannot be duplicated by changing hold date or month, including legacy records', async () => {
   const state = setup(); const created = await call(state.env, '/create', epf);
   assert.equal(created.status, 201);
-  const second = await call(state.env, '/create', { ...epf, rider: '  RIDER  A ', deductionDate: '2026-10-01' });
+  const second = await call(state.env, '/create', { ...epf, rider: '  RIDER  A ', deductionDate: '2026-10-01', epfScheduleMonth: '2026-10', installmentDates: ['2026-10-01', '2026-10-08', '2026-10-15', '2026-10-22'] });
   assert.equal(second.status, 400);
   assert.match(second.body.error, /week|duplicate/i);
   for (const key of [...state.storage.data.keys()]) if (key.startsWith('epf-week:')) state.storage.data.delete(key);
-  assert.equal((await call(state.env, '/create', { ...epf, deductionDate: '2026-11-01' })).status, 400);
+  assert.equal((await call(state.env, '/create', { ...epf, deductionDate: '2026-11-05', epfScheduleMonth: '2026-11', installmentDates: ['2026-11-05', '2026-11-12', '2026-11-19', '2026-11-26'] })).status, 400);
 });
 test('creation applies every installment immediately to the selected earned commission week', async () => {
   const state = setup(); const created = await call(state.env, '/create', base);
@@ -172,31 +173,39 @@ test('backup failure never misreports an already committed deduction as a failed
 });
 test('EPF uniqueness remains atomic when same-week requests use different dates concurrently', async () => {
   const state = setup();
-  const results = await Promise.all(['2026-09-14', '2026-10-01'].map(deductionDate => call(state.env, '/create', { ...epf, deductionDate })));
+  const results = await Promise.all(['2026-09-03', '2026-09-04'].map(deductionDate => call(state.env, '/create', { ...epf, deductionDate })));
   assert.equal(results.filter(result => result.status === 201).length, 1);
   assert.equal(results.filter(result => result.status === 400).length, 1);
 });
-test('direct-applied EPF uses the save month for its four-hold cap and next-month allocation', async () => {
+test('direct-applied EPF creates one four-week monthly plan and blocks a second plan in that month', async () => {
   const state = setup();
   state.env.GRAFANA_PROXY.fetch = async request => {
     const query = new URL(request.url).searchParams;
     const rows = [{ rider_name: 'Rider A', commission: 350, created_at: query.get('from') + ' 12:00:00' }];
     return Response.json({ ok: true, source: 'Grafana Finance', panel: 'commission-main', part: 'primary', rows, rowCount: 1, from: query.get('from') + ' 00:00:00', to: query.get('to') + ' 23:59:59', truncated: false });
   };
-  const weeks = [['2026-07-27', '2026-08-02'], ['2026-08-03', '2026-08-09'], ['2026-08-10', '2026-08-16'], ['2026-08-17', '2026-08-23'], ['2026-08-24', '2026-08-30']];
-  const ids = [], outcomes = [];
-  for (let index = 0; index < weeks.length; index += 1) {
-    const [periodStart, periodEnd] = weeks[index];
-    const created = await call(state.env, '/create', { ...epf, periodStart, periodEnd, deductionDate: index === 4 ? '2026-08-31' : '2026-09-14' });
-    outcomes.push(created); if (created.status === 201) ids.push(created.body.id);
-  }
-  assert.equal(outcomes.filter(result => result.status === 201).length, 4);
-  assert.equal(outcomes.at(-1).status, 400);
-  assert.match(outcomes.at(-1).body.error, /four.*month/i);
-  const record = await state.storage.get('record:' + ids[0]);
+  const created = await call(state.env, '/create', epf);
+  assert.equal(created.status, 201);
+  const duplicateMonth = await call(state.env, '/create', { ...epf, periodStart: '2026-09-14', periodEnd: '2026-09-20' });
+  assert.equal(duplicateMonth.status, 400); assert.match(duplicateMonth.body.error, /monthly plan.*2026-09/i);
+  const record = await state.storage.get('record:' + created.body.id);
+  assert.equal(record.scheduledAmountCents, 10000);
+  assert.deepEqual(record.installments.map(item => item.dueDate), epfSchedule);
   assert.equal(record.epfContributionMonth, '2026-10');
   assert.equal(record.installments[0].epfContributionMonth, '2026-10');
-  assert.equal(record.installments[0].settlementPeriodStart, weeks[0][0]);
+  assert.equal(record.installments[0].settlementPeriodStart, '2026-08-31');
+});
+test('Finance can unlock and save four EPF dates while week five remains unavailable', async () => {
+  const state = setup(), created = await call(state.env, '/create', epf);
+  const editedDates = ['2026-09-04', '2026-09-11', '2026-09-18', '2026-09-25'];
+  const updated = await call(state.env, '/update-schedule', { recordId: created.body.id, installmentDates: editedDates });
+  assert.equal(updated.status, 201); assert.deepEqual(updated.body.installmentDates, editedDates);
+  const record = await state.storage.get('record:' + created.body.id);
+  assert.deepEqual(record.installments.map(item => item.dueDate), editedDates);
+  assert.deepEqual(record.installments.map(item => item.paymentDate), editedDates);
+  assert.equal(record.audit.at(-1).action, 'schedule-updated');
+  const fifthWeek = await call(state.env, '/update-schedule', { recordId: created.body.id, installmentDates: ['2026-09-04', '2026-09-11', '2026-09-18', '2026-09-30'] });
+  assert.equal(fifthWeek.status, 400); assert.match(fifthWeek.body.error, /week 4.*2026-09-21 to 2026-09-27/i);
 });
 test('a qualifying row in the final fractional second of Sunday is included', async () => {
   const state = setup([{ rider_name: 'Rider A', commission: 300, created_at: '2026-09-13T23:59:59.999Z' }]);
@@ -211,13 +220,12 @@ test('a complete backup and restore retain more than one thousand storage keys',
   const restored = new MemoryStorage(); await restoreDeductionSnapshot(restored, snapshot);
   assert.equal(restored.data.size, state.storage.data.size);
 });
-test('EPF is applied directly to its recorded earning week', async () => {
+test('EPF is applied across its four monthly schedule weeks', async () => {
   const state = setup(); const created = await call(state.env, '/create', epf);
   const record = await state.storage.get('record:' + created.body.id);
   assert.equal(record.status, 'applied');
-  assert.equal(record.installments[0].settlementPeriodStart, '2026-09-07');
-  assert.equal(record.installments[0].settlementPeriodEnd, '2026-09-13');
-  assert.equal(record.installments[0].paymentDate, '2026-09-23');
+  assert.deepEqual(record.installments.map(item => item.settlementPeriodStart), ['2026-08-31', '2026-09-07', '2026-09-14', '2026-09-21']);
+  assert.deepEqual(record.installments.map(item => item.paymentDate), epfSchedule);
 });
 
 export { MemoryStorage, setup, call, base, epf, actor, checker };

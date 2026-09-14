@@ -6155,6 +6155,20 @@
 .deduction-workflow-dialog .deduction-line-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .deduction-workflow-dialog .deduction-line-rule { margin: 12px 0; color: var(--text-soft); font-size: .7rem; line-height: 1.5; }
 .deduction-workflow-dialog .deduction-line-reason { width: 100%; }
+.deduction-schedule-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 16px 0 10px; padding-top: 14px; border-top: 1px solid var(--line); }
+.deduction-schedule-head > div:first-child { display: grid; gap: 3px; min-width: 0; }
+.deduction-schedule-head strong, .deduction-schedule-head h4 { margin: 0; color: var(--text); font-size: .8rem; }
+.deduction-schedule-head span { color: var(--text-soft); font-size: .68rem; line-height: 1.45; }
+.deduction-schedule-head > div:last-child { display: flex; flex-shrink: 0; gap: 8px; }
+.deduction-epf-schedule { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.deduction-epf-date { padding: 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-muted, var(--surface)); }
+.deduction-epf-date > span { color: var(--text); font-weight: 750; }
+.deduction-epf-date small { min-height: 2.8em; color: var(--text-soft); font-size: .62rem; font-weight: 500; line-height: 1.4; }
+.deduction-epf-date input { min-height: 34px; padding: 7px 8px; font-variant-numeric: tabular-nums; }
+.deduction-calendar-note { margin: 9px 0 12px; color: var(--text-soft); font-size: .66rem; line-height: 1.45; }
+.deduction-calendar-note.is-warning { color: var(--warning); }
+.deduction-details-schedule-head { margin-top: 8px; }
+.deduction-detail-date { min-width: 140px !important; min-height: 32px !important; padding: 6px 8px !important; font-variant-numeric: tabular-nums; }
 .deduction-workflow-dialog .deduction-submit-bar { position: sticky; bottom: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; margin: 18px 0 0; border-top: 1px solid var(--line); background: var(--surface); }
 .deduction-submit-bar strong { font-size: .78rem; color: var(--text); }
 .deduction-submit-bar [data-deduction-error] { font-size: .7rem; color: var(--danger); margin: 5px 0 0; line-height: 1.5; }
@@ -6234,11 +6248,19 @@
   .deduction-workflow-dialog .deduction-request-context { grid-template-columns: 1fr 1fr; gap: 14px; }
   .deduction-workflow-dialog .deduction-request-context > div:first-child { grid-column: 1 / -1; }
   .deduction-workflow-dialog .deduction-line-fields, .deduction-workflow-dialog .deduction-action-form { grid-template-columns: 1fr; }
+  .deduction-epf-schedule { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .deduction-schedule-head { align-items: flex-start; }
   .deduction-workflow-dialog .deduction-line { padding: 12px; }
   .deduction-workflow-dialog .deduction-submit-bar { flex-direction: column; align-items: stretch; gap: 10px; }
   .deduction-submit-bar button { width: 100%; }
   .deduction-history-view .deduction-history-toolbar, .deduction-history-view .deduction-history-kpis { grid-template-columns: 1fr; }
   .deduction-type-cell { min-width: 200px; }
+}
+@media (max-width: 420px) {
+  .deduction-epf-schedule { grid-template-columns: 1fr; }
+  .deduction-schedule-head { flex-direction: column; }
+  .deduction-schedule-head > div:last-child { width: 100%; }
+  .deduction-schedule-head button { flex: 1; }
 }
 
 </style>
@@ -15275,6 +15297,7 @@ const deductionStatus = record => record.status || record.approvalStatus || 'app
 const deductionDisplayStatus = value => ({ approved: 'applied', pending: 'applied' }[typeof value === 'string' ? value : deductionStatus(value)] || (typeof value === 'string' ? value : deductionStatus(value)));
 const deductionDrafts = new Map();
 const deductionHistorySelected = new Set();
+const deductionHolidayCache = new Map();
 
 async function deductionRequest(path = '', body) {
   const response = await fetch('/api/deductions' + path, { method: body ? 'POST' : 'GET', credentials: 'same-origin', headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
@@ -15320,6 +15343,26 @@ function deductionNextMonth(value) {
   const date = new Date(String(value || '').slice(0, 10) + 'T00:00:00Z');
   if (!Number.isFinite(date.getTime())) return '';
   date.setUTCMonth(date.getUTCMonth() + 1, 1); return date.toISOString().slice(0, 7);
+}
+function deductionFirstFourThursdayWeeks(month) {
+  const first = String(month || '').slice(0, 7) + '-01', date = new Date(first + 'T00:00:00Z');
+  if (!/^\d{4}-\d{2}-01$/.test(first) || !Number.isFinite(date.getTime())) return [];
+  const firstThursday = deductionAddDays(first, (4 - date.getUTCDay() + 7) % 7);
+  return Array.from({ length: 4 }, (_, index) => deductionWeekBounds(deductionAddDays(firstThursday, index * 7)));
+}
+function deductionEpfSchedule(month, holidays = new Set()) {
+  return deductionFirstFourThursdayWeeks(month).map(week => {
+    const thursday = deductionAddDays(week.start, 3), wednesday = deductionAddDays(thursday, -1), shifted = holidays.has(wednesday);
+    return { dueDate: shifted ? deductionAddDays(thursday, 1) : thursday, thursday, wednesday, shifted, week };
+  });
+}
+async function deductionPublicHolidays(year) {
+  if (!deductionHolidayCache.has(year)) deductionHolidayCache.set(year, fetch('/api/public-holidays?year=' + encodeURIComponent(year), { credentials: 'same-origin' }).then(async response => {
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Holiday calendar unavailable.');
+    return { dates: new Set(Array.isArray(data.dates) ? data.dates : []), warning: data.warning || '', source: data.source || 'Government of Malaysia' };
+  }).catch(() => ({ dates: new Set(), warning: 'The official holiday calendar could not be checked. Review the four dates before saving.', source: 'Government of Malaysia' })));
+  return deductionHolidayCache.get(year);
 }
 function deductionSingleRider(rows) {
   const riders = new Map();
@@ -15393,7 +15436,7 @@ function deductionSummaryMarkup(dataRows, tableId) {
   const error = summary.error || (!rider.valid ? rider.message : '');
   return '<section class="commission-deduction-summary deduction-workspace" data-deduction-table="' + esc(tableId) + '" aria-label="Commission deduction calculation"><header class="deduction-workspace-head"><div><span class="deduction-eyebrow">Commission deduction formula</span><h3>' + esc(rider.valid ? rider.rider : 'Select one rider to prepare deductions') + '</h3><p>' + esc(String(dates.start || '').slice(0, 10) + ' — ' + String(dates.end || '').slice(0, 10)) + ' <span>· ' + formatNumber(dataRows.length) + ' filtered rows</span></p></div></header>' +
     (error ? '<div class="deduction-feedback is-error" role="alert">' + esc(error) + (summary.error ? ' <button type="button" data-deduction-retry>Retry register</button>' : '') + '</div>' : !summary.loaded ? '<div class="deduction-feedback" role="status">Loading deduction register…</div>' : '') +
-    '<div class="deduction-choice-grid">' + card('epf', field('epf', '25.00', true), 'Fixed hold · next month’s EPF<br>Full-week table total ≥ RM300 · max 4/month') + card('insurance', field('insurance', draft.amounts.insurance), 'Amount per payment · 2 weekly payments') +
+    '<div class="deduction-choice-grid">' + card('epf', field('epf', '25.00', true), 'RM25 × first 4 weeks · RM100 monthly<br>Thursday; Friday when Wednesday is a holiday') + card('insurance', field('insurance', draft.amounts.insurance), 'Amount per payment · 2 weekly payments') +
     card('battery-tester', '<select aria-label="Battery Tester payment plan" data-deduction-inline-battery-plan' + disabled + '><option value="fixed-2"' + (draft.batteryPlan === 'fixed-2' ? ' selected' : '') + '>2 × RM50 · RM100 total</option><option value="fixed-7"' + (draft.batteryPlan === 'fixed-7' ? ' selected' : '') + '>7 × RM40 · RM280 total</option><option value="manual"' + (draft.batteryPlan === 'manual' ? ' selected' : '') + '>Manual · set amount and payments</option></select>' + field('battery-tester', draft.batteryPlan === 'manual' ? draft.amounts['battery-tester'] : draft.batteryPlan === 'fixed-7' ? '40.00' : '50.00', draft.batteryPlan !== 'manual') + '<label class="deduction-payment-count"><span>Payments</span><input aria-label="Battery Tester number of payments" type="number" min="1" max="52" step="1" inputmode="numeric" data-deduction-inline-battery-count value="' + esc(draft.batteryPlan === 'fixed-7' ? '7' : draft.batteryPlan === 'fixed-2' ? '2' : String(draft.batteryCount || 3)) + '"' + (draft.batteryPlan !== 'manual' ? ' readonly' : '') + disabled + '></label>', 'Fixed weekly schedule or Finance-set weekly payments') + card('manual', field('manual', draft.amounts.manual, false, true) + '<label class="deduction-payment-count"><span>Payments</span><input aria-label="Special Case number of payments" type="number" min="1" max="52" step="1" inputmode="numeric" data-deduction-inline-manual-count value="' + esc(String(draft.manualCount || 1)) + '"' + disabled + '></label><strong class="deduction-payment-breakdown" data-deduction-inline-breakdown="manual"></strong>', 'Enter the total deduction, then split it into weekly payments') + '</div>' +
     '<div class="deduction-settlement-strip"><div><span>Gross commission</span><strong>' + esc(deductionMoney(summary.grossCents)) + '</strong></div><span class="deduction-equation-sign" aria-hidden="true">−</span><div><span>Applied deductions</span><strong>' + esc(enabled ? deductionMoney(summary.approvedCents) : '—') + '</strong><small>' + esc(enabled ? 'Saved deductions are applied immediately' : 'Requires one rider and a complete register') + '</small></div><span class="deduction-equation-sign" aria-hidden="true">=</span><div class="commission-net-total' + (summary.netCents < 0 ? ' is-negative' : '') + '"><span>Net commission</span><strong>' + esc(enabled ? deductionMoney(summary.netCents) : '—') + '</strong></div></div>' +
     (summary.legacyCount ? '<p class="deduction-legacy-note">' + summary.legacyCount + ' legacy applied payment(s) use their original due date for this report.</p>' : '') +
@@ -15412,7 +15455,7 @@ function deductionUpdateInline(summary) {
   for (const type of draft.selected) {
     const amount = Number(draft.amounts[type]);
     if (!(amount > 0) || amount > 1000000 || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.00001) valid = false;
-    const count = type === 'insurance' ? 2 : type === 'battery-tester' ? draft.batteryPlan === 'fixed-7' ? 7 : draft.batteryPlan === 'fixed-2' ? 2 : draft.batteryCount : type === 'manual' ? draft.manualCount : 1;
+    const count = type === 'insurance' ? 2 : type === 'battery-tester' ? draft.batteryPlan === 'fixed-7' ? 7 : draft.batteryPlan === 'fixed-2' ? 2 : draft.batteryCount : type === 'manual' ? draft.manualCount : type === 'epf' ? 4 : 1;
     if (!Number.isInteger(count) || count < 1 || count > 52) valid = false;
     const cents = Math.round((amount || 0) * 100);
     if (type === 'manual') {
@@ -15448,7 +15491,7 @@ async function deductionRefreshAfterSave(body, records, backupWarning = '') {
 }
 function deductionCreate(id, row, requestedType = 'manual', draft = {}) { return deductionCreateBatch(id, [requestedType || 'manual'], { [requestedType || 'manual']: draft }); }
 
-function deductionCreateBatch(id, selectedTypes, drafts = {}) {
+async function deductionCreateBatch(id, selectedTypes, drafts = {}) {
   const candidates = deductionRows(id, true), rider = deductionSingleRider(candidates), types = [...new Set(selectedTypes)].filter(type => deductionTypes[type]);
   const dialog = deductionDialog('Create deduction request'), body = dialog.querySelector('[data-deduction-body]');
   if (!rider.valid || !deductionState.loaded || !types.length) {
@@ -15456,11 +15499,24 @@ function deductionCreateBatch(id, selectedTypes, drafts = {}) {
   }
   const dates = auditCapture(id)?.scope?.dates || {}, periodStart = String(dates.start || '').slice(0, 10), periodEnd = String(dates.end || '').slice(0, 10);
   const gross = candidates.reduce((sum, row) => sum + numberValue(row.commission), 0), monday = deductionNextMonday(periodEnd), today = deductionToday();
+  // Use the month containing the commission week's Thursday. This keeps a
+  // Monday-Sunday week that crosses a month boundary in the operational month.
+  const epfScheduleMonth = deductionAddDays(periodStart, 3).slice(0, 7); let holidayData = { dates: new Set(), warning: '', source: 'Government of Malaysia' };
+  if (types.includes('epf')) {
+    body.innerHTML = '<div class="deduction-feedback" role="status">Preparing the four-week EPF schedule…</div>';
+    holidayData = await deductionPublicHolidays(Number(epfScheduleMonth.slice(0, 4)));
+    if (!dialog.isConnected) return;
+  }
+  const epfSchedule = deductionEpfSchedule(epfScheduleMonth, holidayData.dates);
   const lineMarkup = types.map(type => {
     const plan = type === 'battery-tester' ? drafts[type]?.pricingMode || 'fixed-2' : type === 'epf' ? 'fixed-epf' : 'manual';
-    const count = type === 'insurance' ? 2 : type === 'battery-tester' ? plan === 'fixed-7' ? 7 : plan === 'fixed-2' ? 2 : Math.max(1, Math.min(52, Number(drafts[type]?.installmentCount) || 3)) : type === 'manual' ? Math.max(1, Math.min(52, Number(drafts[type]?.installmentCount) || 1)) : 1;
+    const count = type === 'insurance' ? 2 : type === 'battery-tester' ? plan === 'fixed-7' ? 7 : plan === 'fixed-2' ? 2 : Math.max(1, Math.min(52, Number(drafts[type]?.installmentCount) || 3)) : type === 'manual' ? Math.max(1, Math.min(52, Number(drafts[type]?.installmentCount) || 1)) : type === 'epf' ? 4 : 1;
     const amount = type === 'epf' ? '25.00' : type === 'battery-tester' && plan !== 'manual' ? plan === 'fixed-7' ? '40.00' : '50.00' : drafts[type]?.amount || '';
     const fixedSchedule = type === 'insurance' || type === 'battery-tester' && plan !== 'manual', subtype = { epf: 'EPF', insurance: 'insurance', 'battery-tester': 'battery tester' }[type];
+    if (type === 'epf') {
+      const scheduleRows = epfSchedule.map((item, index) => '<label class="deduction-epf-date"><span>Week ' + (index + 1) + '</span><input type="date" data-line-epf-date value="' + esc(item.dueDate) + '" min="' + esc(item.week.start) + '" max="' + esc(item.week.end) + '" readonly required><small>' + esc(item.shifted ? 'Wednesday holiday · shifted to Friday' : 'Thursday') + '</small></label>').join('');
+      return '<fieldset class="deduction-line deduction-epf-line" data-deduction-line="epf"><legend>EPF · RM100 monthly</legend><div class="deduction-line-fields"><label>Weekly deduction (RM)<input data-line-amount type="number" value="25.00" readonly required></label><label>Schedule month<input data-line-epf-month value="' + esc(epfScheduleMonth) + '" readonly></label><label>Total<input value="RM100.00 · 4 payments" readonly></label><input type="hidden" data-line-date value="' + esc(epfSchedule[0]?.dueDate || '') + '"><input type="hidden" data-line-count value="4"><input type="hidden" data-line-subtype value="EPF"></div><div class="deduction-schedule-head"><div><strong>Four weekly dates</strong><span>First four Thursday weeks only; no fifth-week deduction.</span></div><button type="button" data-epf-schedule-toggle aria-pressed="false">Unlock dates</button></div><div class="deduction-epf-schedule" data-epf-schedule-editor>' + scheduleRows + '</div><p class="deduction-line-rule" data-line-rule></p><p class="deduction-calendar-note' + (holidayData.warning ? ' is-warning' : '') + '">' + esc(holidayData.warning || 'National Wednesday holidays are checked against ' + holidayData.source + '. State holidays can be adjusted after unlocking.') + '</p><label class="deduction-line-reason">Reason / remarks <span>(optional)</span><textarea data-line-reason maxlength="2000" rows="2" placeholder="Add supporting notes if needed"></textarea></label></fieldset>';
+    }
     return '<fieldset class="deduction-line" data-deduction-line="' + type + '"><legend>' + esc(deductionTypes[type]) + '</legend><div class="deduction-line-fields">' +
       (type === 'battery-tester' ? '<label>Payment plan<select data-line-plan><option value="fixed-2"' + (plan === 'fixed-2' ? ' selected' : '') + '>2 × RM50 · RM100 total</option><option value="fixed-7"' + (plan === 'fixed-7' ? ' selected' : '') + '>7 × RM40 · RM280 total</option><option value="manual"' + (plan === 'manual' ? ' selected' : '') + '>Manual · set amount and payments</option></select></label>' : '') +
       '<label>' + (type === 'epf' ? 'Fixed hold (RM)' : type === 'manual' ? 'Total deduction (RM)' : 'Amount per payment (RM)') + '<input data-line-amount type="number" min="0.01" max="1000000" step="0.01" value="' + esc(amount) + '"' + (type === 'epf' || type === 'battery-tester' && plan !== 'manual' ? ' readonly' : '') + ' required></label>' +
@@ -15470,7 +15526,7 @@ function deductionCreateBatch(id, selectedTypes, drafts = {}) {
       (type === 'battery-tester' || type === 'manual' ? '' : '<input type="hidden" data-line-count value="' + count + '">') + '</div><p class="deduction-line-rule" data-line-rule></p><label class="deduction-line-reason">Reason / remarks <span>(optional)</span><textarea data-line-reason maxlength="2000" rows="2" placeholder="Add supporting notes if needed"></textarea></label></fieldset>';
   }).join('');
   const epfBlocked = types.includes('epf') && (!deductionFullWeek(periodStart, periodEnd) || gross < 300);
-  const epfStatus = !types.includes('epf') ? '' : '<div class="deduction-eligibility' + (epfBlocked ? ' is-error' : '') + '" role="status" data-deduction-eligibility>' + (deductionFullWeek(periodStart, periodEnd) ? (gross >= 300 ? 'EPF eligible · recorded table commission ' + esc(formatMoney(gross)) + '. Saving activates the schedule.' : 'EPF requires at least RM300 commission in this filtered week.') : 'EPF requires exactly one full Monday–Sunday week. Change this table’s date range, then reopen this request.') + '</div>';
+  const epfStatus = !types.includes('epf') ? '' : '<div class="deduction-eligibility' + (epfBlocked ? ' is-error' : '') + '" role="status" data-deduction-eligibility>' + (deductionFullWeek(periodStart, periodEnd) ? (gross >= 300 ? 'EPF eligible · ' + esc(formatMoney(gross)) + ' recorded for the selected week. This creates four RM25 deductions for ' + esc(epfScheduleMonth) + '.' : 'EPF requires at least RM300 commission in this filtered week.') : 'EPF requires exactly one full Monday–Sunday week. Change this table’s date range, then reopen this request.') + '</div>';
   body.innerHTML = '<form class="deduction-batch-form"><div class="deduction-request-context"><div><span>Rider</span><strong>' + esc(rider.rider) + '</strong></div><div><span>Commission period</span><strong>' + esc(periodStart + ' — ' + periodEnd) + '</strong></div><div><span>Filtered gross commission</span><strong>' + esc(formatMoney(gross)) + '</strong></div><div><span>Result</span><strong>Applied immediately</strong></div></div><p class="deduction-note">Each selected type becomes its own auditable record. Saving applies the full amount and immediately reduces net commission.</p><label class="deduction-maker-field">Created by (self-declared)<input name="createdBy" maxlength="200" autocomplete="name" required placeholder="Finance staff name"></label>' + epfStatus + '<div class="deduction-lines">' + lineMarkup + '</div><div class="deduction-submit-bar"><div><strong data-deduction-request-total></strong><p role="alert" data-deduction-error></p></div><button type="submit"' + (epfBlocked ? ' disabled' : '') + '>Save and apply</button></div></form>';
   const form = body.querySelector('form'), identity = deductionRequestIdentity(), submit = form.querySelector('[type="submit"]'); let saving = false;
   const updateLines = () => {
@@ -15481,8 +15537,8 @@ function deductionCreateBatch(id, selectedTypes, drafts = {}) {
       const evenlySplit = !manualTotal || Number.isInteger(count) && count > 0 && enteredCents % count === 0;
       amount.setCustomValidity(evenlySplit ? '' : 'Total must split evenly across payments to the nearest cent.');
       total += manualTotal ? enteredCents : enteredCents * count;
-      const monthCount = deductionState.records.filter(record => record.type === 'epf' && (record.riderKey || deductionRiderKey(record.rider)) === rider.key && String(record.deductionDate || '').slice(0, 7) === date.slice(0, 7) && !['rejected', 'cancelled', 'reversed'].includes(deductionStatus(record))).length;
-      line.querySelector('[data-line-rule]').textContent = type === 'epf' ? 'Held on ' + date + ' → EPF contribution ' + deductionNextMonth(date) + ' · ' + monthCount + '/4 active holds in payment month' : manualTotal && count > 1 && evenlySplit ? deductionMoney(enteredCents / count) + ' × ' + count + ' = ' + deductionMoney(enteredCents) + ' total · final payment ' + deductionAddDays(date, 7 * (count - 1)) : count > 1 ? deductionMoney(enteredCents) + ' × ' + count + ' = ' + deductionMoney(enteredCents * count) + ' total · final payment ' + deductionAddDays(date, 7 * (count - 1)) : 'One-off payment · ' + deductionMoney(enteredCents);
+      const epfDates = [...line.querySelectorAll('[data-line-epf-date]')].map(input => input.value);
+      line.querySelector('[data-line-rule]').textContent = type === 'epf' ? 'RM25 × 4 = RM100.00 · ' + epfDates.join(' · ') + ' · contribution ' + deductionNextMonth(date) : manualTotal && count > 1 && evenlySplit ? deductionMoney(enteredCents / count) + ' × ' + count + ' = ' + deductionMoney(enteredCents) + ' total · final payment ' + deductionAddDays(date, 7 * (count - 1)) : count > 1 ? deductionMoney(enteredCents) + ' × ' + count + ' = ' + deductionMoney(enteredCents * count) + ' total · final payment ' + deductionAddDays(date, 7 * (count - 1)) : 'One-off payment · ' + deductionMoney(enteredCents);
     });
     form.querySelector('[data-deduction-request-total]').textContent = 'Total applied: ' + deductionMoney(total);
   };
@@ -15491,12 +15547,20 @@ function deductionCreateBatch(id, selectedTypes, drafts = {}) {
     amount.value = manual ? '' : select.value === 'fixed-7' ? '40.00' : '50.00'; amount.readOnly = !manual; count.value = manual ? '3' : select.value === 'fixed-7' ? '7' : '2'; count.readOnly = !manual; date.value = manual ? today : monday; date.readOnly = !manual;
     date.removeAttribute('max'); updateLines();
   }; });
+  form.querySelectorAll('[data-epf-schedule-toggle]').forEach(button => { button.onclick = () => {
+    const line = button.closest('[data-deduction-line]'), unlock = button.getAttribute('aria-pressed') !== 'true';
+    button.setAttribute('aria-pressed', String(unlock)); button.textContent = unlock ? 'Lock dates' : 'Unlock dates';
+    line.querySelectorAll('[data-line-epf-date]').forEach(input => { input.readOnly = !unlock; });
+  }; });
+  form.querySelectorAll('[data-line-epf-date]').forEach(input => { input.onchange = () => {
+    const line = input.closest('[data-deduction-line]'), first = line.querySelector('[data-line-epf-date]'); line.querySelector('[data-line-date]').value = first?.value || ''; updateLines();
+  }; });
   form.addEventListener('input', updateLines); form.addEventListener('change', updateLines); updateLines();
   form.onsubmit = async event => {
     event.preventDefault(); const error = form.querySelector('[data-deduction-error]'); if (saving || epfBlocked || !form.reportValidity()) return;
     const current = deductionSingleRider(deductionRows(id, true)), currentDates = auditCapture(id)?.scope?.dates || {};
     if (!current.valid || current.key !== rider.key || String(currentDates.start || '').slice(0, 10) !== periodStart || String(currentDates.end || '').slice(0, 10) !== periodEnd) { error.textContent = 'The table rider or period changed. Close and reopen the request.'; return; }
-    const lines = [...form.querySelectorAll('[data-deduction-line]')].map(line => { const type = line.dataset.deductionLine, count = Number(line.querySelector('[data-line-count]').value), entered = Number(line.querySelector('[data-line-amount]').value); return { type, subtype: line.querySelector('[data-line-subtype]').value, pricingMode: line.querySelector('[data-line-plan]')?.value || (type === 'epf' ? 'fixed-epf' : 'manual'), amount: type === 'manual' ? (entered / count).toFixed(2) : entered.toFixed(2), installmentCount: String(count), deductionDate: line.querySelector('[data-line-date]').value, periodStart, periodEnd, ...(type === 'epf' ? { weeklyCommission: gross.toFixed(2) } : {}), reason: line.querySelector('[data-line-reason]').value.trim() }; });
+    const lines = [...form.querySelectorAll('[data-deduction-line]')].map(line => { const type = line.dataset.deductionLine, count = Number(line.querySelector('[data-line-count]').value), entered = Number(line.querySelector('[data-line-amount]').value); return { type, subtype: line.querySelector('[data-line-subtype]').value, pricingMode: line.querySelector('[data-line-plan]')?.value || (type === 'epf' ? 'fixed-epf' : 'manual'), amount: type === 'manual' ? (entered / count).toFixed(2) : entered.toFixed(2), installmentCount: String(count), deductionDate: line.querySelector('[data-line-date]').value, periodStart, periodEnd, ...(type === 'epf' ? { weeklyCommission: gross.toFixed(2), epfScheduleMonth: line.querySelector('[data-line-epf-month]').value, installmentDates: [...line.querySelectorAll('[data-line-epf-date]')].map(input => input.value) } : {}), reason: line.querySelector('[data-line-reason]').value.trim() }; });
     const input = { rider: rider.rider, orderId: '', grossCommission: gross.toFixed(2), periodStart, periodEnd, createdBy: form.elements.createdBy.value.trim(), lines };
     saving = true; submit.disabled = true; error.textContent = 'Applying deduction…';
     try { const saved = await deductionRequest('/create-batch', { ...input, requestId: identity(input) }); deductionDrafts.delete(id); await deductionRefreshAfterSave(body, saved.records || [], saved.backupWarning); }
@@ -15545,7 +15609,7 @@ function deductionHistoryGroups(records) {
   }).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 }
 function deductionPlanLabel(record) {
-  if (record.type === 'epf') return 'Held ' + (record.deductionDate || '—') + ' · EPF ' + (record.epfContributionMonth || deductionNextMonth(record.deductionDate));
+  if (record.type === 'epf') return Number(record.installmentCount || 1) === 4 ? 'RM25 × 4 = RM100 total · ' + (record.epfScheduleMonth || String(record.deductionDate || '').slice(0, 7)) : 'Held ' + (record.deductionDate || '—') + ' · EPF ' + (record.epfContributionMonth || deductionNextMonth(record.deductionDate));
   const count = Number(record.installmentCount || 1), amount = Number(record.amountCents || 0), calculation = deductionMoney(amount) + ' × ' + count + ' = ' + deductionMoney(amount * count) + ' total';
   if (record.type === 'insurance') return calculation + ' · weekly';
   if (record.type === 'battery-tester') return calculation + (record.pricingMode === 'manual' ? ' · Finance-set' : '');
@@ -15637,7 +15701,24 @@ function deductionActionDialog(recordId, action) {
   const dialog = deductionDialog(labels[action] || 'Deduction action'), body = dialog.querySelector('[data-deduction-body]');
   const context = '<div class="deduction-action-context"><strong>' + esc(record.rider) + '</strong><span>' + esc(record.reference || record.id) + ' · ' + esc(deductionTypes[record.type] || record.type) + '</span></div>';
   if (action === 'view') {
-    body.innerHTML = context + '<p class="deduction-note">' + esc(deductionPlanLabel(record)) + ' · ' + esc(record.reason || '') + '</p>' + (record.type === 'epf' && record.reportedWeeklyCommissionCents ? '<p class="deduction-eligibility">Recorded weekly commission ' + esc(deductionMoney(record.reportedWeeklyCommissionCents)) + ' · current filtered table at request time</p>' : '') + '<h4>Payment schedule</h4><div class="deduction-audit-table"><table><thead><tr><th>Payment</th><th>Due</th><th>Amount</th><th>Status</th><th>Paid / commission period</th></tr></thead><tbody>' + progress.items.map((item, index) => '<tr><td>' + (index + 1) + '</td><td>' + esc(item.dueDate) + '</td><td>' + esc(deductionMoney(deductionInstallmentAmount(record, item))) + '</td><td>' + esc(item.status) + '</td><td>' + esc(item.paymentDate || '—') + '<small>' + esc(item.settlementPeriodStart ? item.settlementPeriodStart + ' — ' + item.settlementPeriodEnd : item.status === 'applied' ? 'Legacy · due-date reporting' : '') + '</small></td></tr>').join('') + '</tbody></table></div><h4>Audit trail</h4><ol class="deduction-audit-list">' + (record.audit || []).map(item => '<li><div><strong>' + esc(item.action) + '</strong><span>' + esc(formatGrafanaTimestamp(item.at) || item.at) + '</span></div><p>' + esc(item.by || '—') + ' · ' + esc(item.reason || 'No additional remarks') + '</p>' + (item.amountCents != null ? '<small>' + esc(deductionMoney(item.amountCents)) + '</small>' : '') + '<details><summary>Full event details</summary><pre>' + esc(JSON.stringify(item, null, 2)) + '</pre></details></li>').join('') + '</ol>'; return;
+    const editableEpf = record.type === 'epf' && progress.items.length === 4, scheduleMonth = record.epfScheduleMonth || record.deductionDate.slice(0, 7), epfWeeks = editableEpf ? deductionFirstFourThursdayWeeks(scheduleMonth) : [];
+    const scheduleHead = editableEpf ? '<div class="deduction-schedule-head deduction-details-schedule-head"><div><h4>Monthly EPF schedule</h4><span>RM25 × 4 = RM100.00 · dates are locked by default.</span></div><div><button type="button" data-epf-detail-toggle aria-pressed="false">Unlock dates</button><button type="button" data-epf-detail-save hidden>Save and lock</button></div></div><p class="deduction-calendar-note">Edit only when Finance needs a state-holiday or operational adjustment. Week 5 is never included.</p><p class="deduction-feedback" data-epf-detail-feedback hidden></p>' : '<h4>Payment schedule</h4>';
+    body.innerHTML = context + '<p class="deduction-note">' + esc(deductionPlanLabel(record)) + (record.reason ? ' · ' + esc(record.reason) : '') + '</p>' + (record.type === 'epf' && record.reportedWeeklyCommissionCents ? '<p class="deduction-eligibility">Recorded weekly commission ' + esc(deductionMoney(record.reportedWeeklyCommissionCents)) + ' · current filtered table at request time</p>' : '') + scheduleHead + '<div class="deduction-audit-table"><table><thead><tr><th>Payment</th><th>Deduction date</th><th>Amount</th><th>Status</th><th>Commission week</th></tr></thead><tbody>' + progress.items.map((item, index) => '<tr><td>' + (index + 1) + '</td><td>' + (editableEpf ? '<input class="deduction-detail-date" type="date" data-epf-detail-date value="' + esc(item.dueDate) + '" min="' + esc(epfWeeks[index].start) + '" max="' + esc(epfWeeks[index].end) + '" readonly required>' : esc(item.dueDate)) + '</td><td>' + esc(deductionMoney(deductionInstallmentAmount(record, item))) + '</td><td>' + esc(item.status) + '</td><td>' + esc(item.settlementPeriodStart ? item.settlementPeriodStart + ' — ' + item.settlementPeriodEnd : item.status === 'applied' ? 'Legacy · due-date reporting' : '—') + '</td></tr>').join('') + '</tbody></table></div><h4>Audit trail</h4><ol class="deduction-audit-list">' + (record.audit || []).map(item => '<li><div><strong>' + esc(item.action) + '</strong><span>' + esc(formatGrafanaTimestamp(item.at) || item.at) + '</span></div><p>' + esc(item.by || '—') + ' · ' + esc(item.reason || 'No additional remarks') + '</p>' + (item.amountCents != null ? '<small>' + esc(deductionMoney(item.amountCents)) + '</small>' : '') + '<details><summary>Full event details</summary><pre>' + esc(JSON.stringify(item, null, 2)) + '</pre></details></li>').join('') + '</ol>';
+    if (editableEpf) {
+      const toggle = body.querySelector('[data-epf-detail-toggle]'), save = body.querySelector('[data-epf-detail-save]'), inputs = [...body.querySelectorAll('[data-epf-detail-date]')], feedback = body.querySelector('[data-epf-detail-feedback]'), identity = deductionRequestIdentity(); let saving = false;
+      const lock = locked => { inputs.forEach(input => { input.readOnly = locked; }); toggle.setAttribute('aria-pressed', String(!locked)); toggle.textContent = locked ? 'Unlock dates' : 'Lock dates'; save.hidden = locked; };
+      toggle.onclick = () => lock(toggle.getAttribute('aria-pressed') === 'true');
+      save.onclick = async () => {
+        if (saving || inputs.some(input => !input.reportValidity())) return;
+        const installmentDates = inputs.map(input => input.value), payload = { recordId: record.id, installmentDates }; saving = true; save.disabled = true; feedback.hidden = false; feedback.textContent = 'Saving the four EPF dates…';
+        try {
+          const saved = await deductionRequest('/update-schedule', { ...payload, requestId: identity(payload) });
+          saved.installmentDates.forEach((value, index) => { inputs[index].value = value; }); lock(true); feedback.classList.remove('is-error'); feedback.textContent = 'EPF dates saved and locked.'; deductionState.loaded = false; await deductionLoad(); deductionHistoryRender();
+        } catch (error) { feedback.classList.add('is-error'); feedback.textContent = error.message; }
+        finally { saving = false; save.disabled = false; }
+      };
+    }
+    return;
   }
   const selectable = progress.items.map((item, index) => ({ ...item, index: item.index ?? index })).filter(item => action === 'reverse' ? item.status === 'applied' : item.status === 'scheduled' && item.dueDate <= deductionToday());
   if (['apply', 'reverse'].includes(action) && !selectable.length) { body.innerHTML = context + '<div class="deduction-feedback" role="status">' + (action === 'apply' ? 'No scheduled payment is due yet. Future payments cannot be applied.' : 'There are no applied payments to reverse.') + '</div>'; return; }

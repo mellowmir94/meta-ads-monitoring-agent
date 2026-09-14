@@ -5,7 +5,10 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 const base = { rider: 'Rider A', orderId: '123', type: 'insurance', subtype: 'insurance', amount: '12.35', installmentCount: '2', reason: 'Policy renewal', deductionDate: '2026-09-14', createdBy: 'Finance A' };
+const epfSchedule = ['2026-09-03', '2026-09-10', '2026-09-17', '2026-09-24'];
+const epfInput = { ...base, type: 'epf', subtype: 'EPF', amount: '25', installmentCount: '4', periodStart: '2026-08-31', periodEnd: '2026-09-06', deductionDate: epfSchedule[0], epfScheduleMonth: '2026-09', installmentDates: epfSchedule, weeklyCommission: '300' };
 const dashboardHtml = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
+const workerSource = readFileSync(new URL('../src/worker.js', import.meta.url), 'utf8');
 class MemoryStorage {
   constructor() { this.data = new Map(); this.queue = Promise.resolve(); }
   async get(key) { return structuredClone(this.data.get(key)); }
@@ -58,13 +61,19 @@ test('validates cents, required fields, subtype, dates and weekly EPF qualificat
   assert.throws(() => validateDeduction({ ...base, reason: 'x'.repeat(2001) }));
   for (const amount of ['-1', '0', '1.001', 'NaN', 'Infinity']) assert.throws(() => validateDeduction({ ...base, amount }));
   assert.throws(() => validateDeduction({ ...base, deductionDate: '2026-02-30' }));
-  const epf = { ...base, type: 'epf', subtype: 'EPF', amount: '25', installmentCount: '1', periodStart: '2026-08-31', periodEnd: '2026-09-06', deductionDate: '2026-09-11', weeklyCommission: '300' };
+  const epf = epfInput;
   assert.equal(validateDeduction(epf).reportedWeeklyCommissionCents, 30000);
   assert.equal(validateDeduction(epf).epfContributionMonth, '2026-10');
-  assert.equal(validateDeduction(epf).installments[0].dueDate, '2026-09-11');
+  assert.equal(validateDeduction(epf).scheduledAmountCents, 10000);
+  assert.deepEqual(validateDeduction(epf).installments.map(item => item.dueDate), epfSchedule);
   assert.throws(() => validateDeduction({ ...epf, weeklyCommission: '299.99' }));
   assert.throws(() => validateDeduction({ ...epf, amount: '26' }));
   assert.throws(() => validateDeduction({ ...epf, periodStart: '2026-09-01' }));
+});
+
+test('worker exposes the Malaysia government holiday calendar for EPF scheduling', () => {
+  assert.match(workerSource, /\/api\/public-holidays/);
+  assert.match(workerSource, /https:\/\/www\.malaysia\.gov\.my\/calendar/);
 });
 test('one rider request can create independent EPF and Insurance records atomically', async () => {
   const register = new DeductionRegister({ storage: new MemoryStorage() });
@@ -72,7 +81,7 @@ test('one rider request can create independent EPF and Insurance records atomica
   const result = await post(register, {
     requestId, rider: 'Rider A', orderId: '', periodStart: '2026-09-07', periodEnd: '2026-09-13', grossCommission: '555', createdBy: 'Finance A',
     lines: [
-      { type: 'epf', subtype: 'EPF', amount: '25', installmentCount: '1', deductionDate: '2026-09-11', weeklyCommission: '555', reason: 'Held for next month EPF' },
+      { type: 'epf', subtype: 'EPF', amount: '25', installmentCount: '4', deductionDate: epfSchedule[0], epfScheduleMonth: '2026-09', installmentDates: epfSchedule, weeklyCommission: '555', reason: 'Monthly EPF plan' },
       { type: 'insurance', subtype: 'insurance', amount: '12', installmentCount: '2', deductionDate: '2026-09-14', reason: 'Insurance repayment' }
     ]
   }, '/create-batch');
@@ -110,7 +119,7 @@ test('loading History finishes a partially applied legacy schedule with zero rem
   assert.equal(listed.records[0].installments.every(item => item.status === 'applied'), true);
   assert.equal(listed.records[0].installments.filter(item => item.paymentDate === '2026-09-23').length, 1);
 });
-test('saved deductions apply immediately, remain idempotent, support reversal and enforce the EPF month cap', async () => {
+test('saved deductions apply immediately, remain idempotent, support reversal and enforce one EPF plan per month', async () => {
   const storage = new MemoryStorage(); const register = new DeductionRegister({ storage }, {}, { now: () => new Date('2026-09-23T12:00:00Z') });
   const input = { ...base, requestId: crypto.randomUUID() };
   const first = await post(register, input); assert.equal(first.status, 201);
@@ -127,10 +136,10 @@ test('saved deductions apply immediately, remain idempotent, support reversal an
   const result = await (await register.fetch(listRequest)).json();
   assert.equal(result.records.some(record => record.status === 'reversed'), true);
   assert.equal(result.records.every(record => !('creatorSession' in record)), true);
-  const augustWeeks = [['2026-07-27','2026-08-02'],['2026-08-03','2026-08-09'],['2026-08-10','2026-08-16'],['2026-08-17','2026-08-23'],['2026-08-24','2026-08-30']];
-  const outcomes = await Promise.all(augustWeeks.map(([periodStart, periodEnd], index) => post(register, { ...base, type: 'epf', subtype: 'EPF', amount: '25', installmentCount: '1', periodStart, periodEnd, deductionDate: '2026-08-' + String(index + 1).padStart(2, '0'), weeklyCommission: '300', requestId: crypto.randomUUID(), reason: 'EPF ' + index })));
-  assert.equal(outcomes.filter(value => value.status === 201).length, 4);
-  assert.equal(outcomes.filter(value => value.status === 400).length, 1);
+  const firstPlan = await post(register, { ...epfInput, requestId: crypto.randomUUID() });
+  const secondPlan = await post(register, { ...epfInput, orderId: '', periodStart: '2026-09-07', periodEnd: '2026-09-13', requestId: crypto.randomUUID() });
+  assert.equal(firstPlan.status, 201); assert.equal(secondPlan.status, 400);
+  assert.match(secondPlan.body.error, /monthly plan.*2026-09/i);
 });
 test('gateway rejects cross-origin and non-JSON mutations', async () => {
   const actor = { sessionId: 's', name: 'Finance Maker', role: 'maker' };
@@ -172,8 +181,8 @@ test('only applied installments reduce rider commission; scheduled installments 
   const insurance = validateDeduction({ ...base, amount: '10', deductionDate: '2026-09-07' });
   insurance.status = insurance.approvalStatus = 'approved'; insurance.installments[0].status = 'applied';
   const scheduled = validateDeduction({ ...base, amount: '99', deductionDate: '2026-09-07' });
-  const epf = validateDeduction({ ...base, type: 'epf', subtype: 'EPF', amount: '25', installmentCount: '1', orderId: '', periodStart: '2026-09-07', periodEnd: '2026-09-13', deductionDate: '2026-09-11', weeklyCommission: '350' });
-  epf.status = epf.approvalStatus = 'applied'; epf.installments[0].status = 'applied';
+  const epf = validateDeduction({ ...epfInput, orderId: '', periodStart: '2026-09-07', periodEnd: '2026-09-13', weeklyCommission: '350' });
+  epf.status = epf.approvalStatus = 'applied'; epf.installments.forEach(item => { item.status = 'applied'; item.settlementPeriodStart = item.dueDate === '2026-09-10' ? '2026-09-07' : '2026-01-01'; item.settlementPeriodEnd = item.dueDate === '2026-09-10' ? '2026-09-13' : '2026-01-07'; });
   context.registerState.records = [insurance, scheduled, epf];
   const rows = [{ rider_name: 'Rider A', created_at: '2026-09-10 10:00:00', commission: 350 }];
   const result = context.deductionSummaryForRows(rows, { start: '2026-09-07 00:00:00', end: '2026-09-13 23:59:59' });
@@ -221,10 +230,14 @@ test('Commission Rider uses the green rider-level deduction form and has no tool
   assert.match(dashboardHtml, /More than 1 rider_name found\. Filter to one rider/);
   assert.match(dashboardHtml, /class="button row-detail-action"/);
   assert.match(dashboardHtml, /Commission deduction formula/);
-  assert.match(dashboardHtml, /Full-week table total ≥ RM300/);
+  assert.match(dashboardHtml, /RM25 × first 4 weeks · RM100 monthly/);
   assert.doesNotMatch(dashboardHtml, /Checking the rider’s complete weekly commission/);
   assert.doesNotMatch(dashboardHtml, /deductionRequest\('\/eligibility\?rider='/);
-  assert.match(dashboardHtml, /next month’s EPF/);
+  assert.match(dashboardHtml, /Thursday; Friday when Wednesday is a holiday/);
+  assert.match(dashboardHtml, /data-epf-schedule-toggle/);
+  assert.match(dashboardHtml, /data-epf-detail-toggle/);
+  assert.match(dashboardHtml, /data-epf-detail-save/);
+  assert.match(dashboardHtml, /deductionRequest\('\/update-schedule'/);
   assert.match(dashboardHtml, /foot: payload\.footerRows/);
   assert.match(dashboardHtml, /payload\.exportSummaryRows/);
 });
