@@ -134,7 +134,7 @@ export class DeductionRegister {
         return reply({ found: true, result: prior.result });
       }
       if (!/^[a-z0-9-]{16,80}$/i.test(input.requestId || '')) return reply({ error: 'A valid request ID is required.' }, 400);
-      if (!['/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/delete-batch'].includes(url.pathname)) return reply({ error: 'Deduction action not found.' }, 404);
+      if (!['/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/delete-batch'].includes(url.pathname)) return reply({ error: 'Deduction action not found.' }, 404);
       const signature = requestSignature(url.pathname, input);
       const result = await this.storage.transaction(async tx => {
         const prior = await tx.get('request:' + input.requestId);
@@ -205,7 +205,28 @@ export class DeductionRegister {
           const alreadyProceeded = url.pathname === '/approve' && ['approved', 'applied'].includes(record.status);
           if (!alreadyProceeded && ['/approve', '/reject', '/reverse'].includes(url.pathname) && !checker) throw new Error('Authorized Finance checker access is required.');
           if (!alreadyProceeded && ['/approve', '/reject'].includes(url.pathname) && record.creatorSession === actor.sessionId) throw new Error('Maker-checker rule: the creator cannot approve or reject their own request.');
-          if (url.pathname === '/update-schedule') {
+          if (url.pathname === '/update-details') {
+            const values = input.installmentDates;
+            if (!Array.isArray(values) || values.length !== record.installments.length) throw new Error(`This deduction requires exactly ${record.installments.length} payment date${record.installments.length === 1 ? '' : 's'}.`);
+            const installmentDates = record.type === 'epf'
+              ? validateEpfScheduleDates(values, record.epfScheduleMonth || record.deductionDate.slice(0, 7))
+              : values.map((value, index) => date(value, `Payment ${index + 1} deduction date`));
+            if (new Set(installmentDates).size !== installmentDates.length || installmentDates.some((value, index) => index && value <= installmentDates[index - 1])) throw new Error('Payment dates must be unique and chronological.');
+            const updatedReason = optional(input.reason, 'Reason / remarks'), previousDates = record.installments.map(item => item.dueDate), previousReason = record.reason || '', oldDuplicateKey = duplicateKey(record), nextDuplicateKey = duplicateKey({ ...record, deductionDate: installmentDates[0] });
+            const collision = await tx.get(nextDuplicateKey);
+            if (collision && collision !== record.id) throw new Error('An identical deduction already exists for this rider and period.');
+            record.installments = record.installments.map((item, index) => {
+              const dueDate = installmentDates[index];
+              if (record.type !== 'epf' || item.status !== 'applied') return { ...item, dueDate };
+              const settlement = weekBounds(dueDate);
+              return { ...item, dueDate, paymentDate: dueDate, settlementPeriodStart: settlement.start, settlementPeriodEnd: settlement.end, epfContributionMonth: record.epfContributionMonth };
+            });
+            record.deductionDate = installmentDates[0]; record.reason = updatedReason;
+            record.audit.push({ action: 'details-updated', at: now, by: actor.name, role: actor.role, identityVerified: true, amountCents: record.scheduledAmountCents, previousDates, installmentDates, previousReason, reason: updatedReason || 'Finance updated the deduction details' });
+            if (oldDuplicateKey !== nextDuplicateKey) await tx.delete(oldDuplicateKey);
+            await tx.put(nextDuplicateKey, record.id);
+            result = { id: record.id, reference: record.reference, status: record.status, approvalStatus: record.status, installmentDates, reason: record.reason };
+          } else if (url.pathname === '/update-schedule') {
             if (record.type !== 'epf' || Number(record.installmentCount) !== 4) throw new Error('Only four-payment EPF schedules can be edited.');
             const scheduleMonth = record.epfScheduleMonth || record.deductionDate.slice(0, 7), installmentDates = validateEpfScheduleDates(input.installmentDates, scheduleMonth);
             const previousDates = record.installments.map(item => item.dueDate), oldDuplicateKey = duplicateKey(record);
@@ -293,7 +314,7 @@ export async function deductionsApi(request, env, actor, context) {
     if (request.headers.get('origin') !== url.origin || !request.headers.get('content-type')?.startsWith('application/json')) return reply({ error: 'Same-origin JSON request required.' }, 403);
   }
   const path = url.pathname.slice('/api/deductions'.length) || '/';
-  if (!['/', '/eligibility', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/delete-batch'].includes(path)) return reply({ error: 'Deduction action not found.' }, 404);
+  if (!['/', '/eligibility', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/delete-batch'].includes(path)) return reply({ error: 'Deduction action not found.' }, 404);
   const readOnly = path === '/' || path === '/eligibility';
   if ((readOnly && request.method !== 'GET') || (!readOnly && request.method !== 'POST')) return reply({ error: 'Method not allowed.' }, 405);
   try {

@@ -210,6 +210,22 @@ test('Finance can unlock and save four chronological EPF dates across calendar m
   const outOfOrder = await call(state.env, '/update-schedule', { recordId: created.body.id, installmentDates: ['2026-10-02', '2026-09-18', '2026-10-16', '2026-11-06'] });
   assert.equal(outOfOrder.status, 400); assert.match(outOfOrder.body.error, /chronological/i);
 });
+test('History owns deduction date and optional remarks editing for every deduction type', async () => {
+  const state = setup(), created = await call(state.env, '/create', base);
+  const dates = ['2026-09-21', '2026-10-05'];
+  const updated = await call(state.env, '/update-details', { recordId: created.body.id, installmentDates: dates, reason: 'Adjusted by Finance in History' });
+  assert.equal(updated.status, 201);
+  assert.deepEqual(updated.body.installmentDates, dates);
+  assert.equal(updated.body.reason, 'Adjusted by Finance in History');
+  const record = await state.storage.get('record:' + created.body.id);
+  assert.deepEqual(record.installments.map(item => item.dueDate), dates);
+  assert.equal(record.installments.every(item => item.paymentDate === '2026-09-23'), true);
+  assert.equal(record.reason, 'Adjusted by Finance in History');
+  assert.equal(record.audit.at(-1).action, 'details-updated');
+  const duplicate = await call(state.env, '/update-details', { recordId: created.body.id, installmentDates: [dates[0], dates[0]], reason: '' });
+  assert.equal(duplicate.status, 400);
+  assert.match(duplicate.body.error, /unique|chronological/i);
+});
 test('a qualifying row in the final fractional second of Sunday is included', async () => {
   const state = setup([{ rider_name: 'Rider A', commission: 300, created_at: '2026-09-13T23:59:59.999Z' }]);
   assert.equal((await call(state.env, '/create', epf)).status, 201);

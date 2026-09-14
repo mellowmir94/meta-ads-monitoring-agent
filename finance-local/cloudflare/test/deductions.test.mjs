@@ -220,15 +220,12 @@ test('Commission Rider uses the green rider-level deduction form and has no tool
   assert.doesNotMatch(dashboardHtml, /data-line-reason[^>]*required/);
   assert.match(dashboardHtml, /type === 'manual' \? draft\.manualCount/);
   assert.match(dashboardHtml, /type === 'manual' \? \{ installmentCount: draft\.manualCount \}/);
-  assert.match(dashboardHtml, />Review deduction<\/button>/);
+  assert.match(dashboardHtml, />Proceed<\/button>/);
   assert.match(dashboardHtml, /type="checkbox"[^>]+data-deduction-inline-type/);
-  assert.match(dashboardHtml, /deductionCreateBatch/);
-  assert.match(dashboardHtml, /\.audit-template-dialog\.deduction-workflow-dialog\s*\{[^}]*width: min\(900px/);
-  assert.match(dashboardHtml, /\.deduction-workflow-dialog \.deduction-lines\s*\{\s*display: grid/);
-  assert.match(dashboardHtml, /class="deduction-request-context"/);
-  assert.match(dashboardHtml, /Commission period/);
-  assert.match(dashboardHtml, /Each selected type becomes its own auditable record/);
-  assert.match(dashboardHtml, /class="deduction-submit-bar"/);
+  assert.match(dashboardHtml, /deductionProceedBatch/);
+  assert.doesNotMatch(dashboardHtml, /deductionDialog\('Create deduction request'\)/);
+  assert.match(dashboardHtml, /await deductionHistoryOpen\(\)/);
+  assert.match(dashboardHtml, /createdBy: deductionState\.actor\?\.name/);
   assert.match(dashboardHtml, /More than 1 rider_name found\. Filter to one rider/);
   assert.match(dashboardHtml, /class="button row-detail-action"/);
   assert.match(dashboardHtml, /Commission deduction formula/);
@@ -236,10 +233,9 @@ test('Commission Rider uses the green rider-level deduction form and has no tool
   assert.doesNotMatch(dashboardHtml, /Checking the rider’s complete weekly commission/);
   assert.doesNotMatch(dashboardHtml, /deductionRequest\('\/eligibility\?rider='/);
   assert.match(dashboardHtml, /Thursday; Friday when Wednesday is a holiday/);
-  assert.match(dashboardHtml, /data-epf-schedule-toggle/);
-  assert.match(dashboardHtml, /data-epf-detail-toggle/);
-  assert.match(dashboardHtml, /data-epf-detail-save/);
-  assert.match(dashboardHtml, /deductionRequest\('\/update-schedule'/);
+  assert.match(dashboardHtml, /data-deduction-detail-toggle/);
+  assert.match(dashboardHtml, /data-deduction-detail-save/);
+  assert.match(dashboardHtml, /deductionRequest\('\/update-details'/);
   assert.match(dashboardHtml, /foot: payload\.footerRows/);
   assert.match(dashboardHtml, /payload\.exportSummaryRows/);
 });
@@ -293,7 +289,7 @@ test('deduction history is a dedicated Commission Rider view launched from the g
 
 test('Special Case treats Finance input as the total and shows the per-payment split', () => {
   assert.match(dashboardHtml, /total \? ' total amount' : ' amount per payment'/);
-  assert.match(dashboardHtml, /Total deduction \(RM\)/);
-  assert.match(dashboardHtml, /deductionMoney\(enteredCents \/ count\) \+ ' × ' \+ count/);
-  assert.match(dashboardHtml, /amount: type === 'manual' \? \(entered \/ count\)\.toFixed\(2\)/);
+  assert.match(dashboardHtml, /deductionMoney\(cents \/ count\) \+ ' × ' \+ count/);
+  assert.match(dashboardHtml, /const amount = type === 'manual' \? entered \/ count : entered/);
+  assert.match(dashboardHtml, /amount: amount\.toFixed\(2\)/);
 });

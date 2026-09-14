@@ -4,7 +4,7 @@ The green Commission Deduction Formula works only when the current Line Item Aud
 
 Rules:
 
-- EPF: one plan per rider/month, RM25 across four deductions (RM100 total) beginning in the current operating week, or the selected commission week when it is in the future. Thursday is the default. If the preceding Wednesday is a national public holiday on Malaysia's official government calendar, only that week's default moves to Friday; later dates return to Thursday. Finance can unlock the four dates in the request or Details, move them across weeks or calendar months, then save and lock; dates must remain unique and chronological and every change is audited. The selected commission period must be a full Monday–Sunday week with at least RM300 recorded commission.
+- EPF: one plan per rider/month, RM25 across four deductions (RM100 total) beginning in the current operating week, or the selected commission week when it is in the future. Thursday is the default. If the preceding Wednesday is a national public holiday on Malaysia's official government calendar, only that week's default moves to Friday; later dates return to Thursday. Finance can edit the four dates from History Details and move them across weeks or calendar months; dates must remain unique and chronological and every change is audited. The selected commission period must be a full Monday–Sunday week with at least RM300 recorded commission.
 - Insurance: Finance enters the amount per payment; exactly two weekly payments are scheduled.
 - OBD / Battery Tester: choose two weekly payments at RM50 each, seven weekly payments at RM40 each, or let Finance set the total and number of weekly payments.
 - Special Case: Finance sets the total and number of weekly payments.
@@ -15,7 +15,7 @@ Records use the `DEDUCTIONS` Durable Object as the primary store and R2 as backu
 
 ## Applying and correcting deductions
 
-Saving applies every selected deduction immediately. For EPF, each of the four RM25 installments is assigned to the Monday–Sunday week containing its configured deduction date. The Details editor updates the four dates, their settlement weeks and the audit trail atomically.
+The green panel's `Proceed` action applies every selected deduction immediately without a review dialog, then opens Rider Deduction History. The signed-in Finance name is recorded as the creator. History Details is the only editor for payment dates and optional remarks across all deduction types. For EPF, each of the four RM25 installments is assigned to the Monday–Sunday week containing its configured deduction date. Details updates dates, remarks, settlement weeks and the audit trail atomically.
 
 Reversing an explicit installment affects only that applied installment. A whole-plan reversal preserves the original application events and adds a separate reversal history. PIN-authorized deletion removes the active request and leaves a tombstone for recovery and audit operations.
 
