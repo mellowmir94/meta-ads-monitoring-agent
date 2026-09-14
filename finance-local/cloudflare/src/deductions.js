@@ -10,6 +10,11 @@ const required = (value, label, max = 200) => {
   if (typeof value !== 'string' || !value.trim() || value.trim().length > max) throw new Error(`${label} is required (maximum ${max} characters).`);
   return value.trim();
 };
+const optional = (value, label, max = 2000) => {
+  if (value == null || value === '') return '';
+  if (typeof value !== 'string' || value.trim().length > max) throw new Error(`${label} must be no more than ${max} characters.`);
+  return value.trim();
+};
 const date = (value, label) => {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0, 10) !== value) throw new Error(`${label} must be a valid date.`);
   return value;
@@ -67,7 +72,7 @@ export function validateDeduction(input) {
     scheduledAmountCents: amountCents * installmentCount, installments,
     reportedWeeklyCommissionCents: type === 'epf' ? Math.round(Number(input.weeklyCommission) * 100) : null, weeklyCommissionVerified: false,
     grossCommissionCents: Math.max(0, Math.round(Number(input.grossCommission || 0) * 100)),
-    reason: required(input.reason, 'Reason / remarks', 2000), deductionDate, epfContributionMonth: type === 'epf' ? nextMonth(deductionDate) : null,
+    reason: optional(input.reason, 'Reason / remarks'), deductionDate, epfContributionMonth: type === 'epf' ? nextMonth(deductionDate) : null,
     createdBy, source: 'finance-manual', identityVerified: false, status: 'pending', approvalStatus: 'pending', approvedBy: null, approvedAt: null,
     eligibility: type === 'epf' ? 'Weekly commission of at least RM300 must be verified before approval.' : 'Pending checker review.'
   };

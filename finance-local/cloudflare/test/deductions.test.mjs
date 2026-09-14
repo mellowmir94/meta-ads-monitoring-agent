@@ -51,7 +51,10 @@ test('validates cents, required fields, subtype, dates and weekly EPF qualificat
   assert.throws(() => validateDeduction({ ...base, type: 'battery-tester', subtype: 'battery tester', pricingMode: 'fixed-2', amount: '40', installmentCount: '2' }));
   assert.throws(() => validateDeduction({ ...base, type: 'battery-tester', subtype: 'battery tester', pricingMode: 'fixed-7', amount: '40', installmentCount: '3' }));
   assert.throws(() => validateDeduction({ ...base, deductionDate: '2026-09-15' }));
-  for (const field of ['rider', 'reason', 'createdBy']) assert.throws(() => validateDeduction({ ...base, [field]: '' }));
+  for (const field of ['rider', 'createdBy']) assert.throws(() => validateDeduction({ ...base, [field]: '' }));
+  assert.equal(validateDeduction({ ...base, reason: '' }).reason, '');
+  assert.equal(validateDeduction({ ...base, reason: '  ' }).reason, '');
+  assert.throws(() => validateDeduction({ ...base, reason: 'x'.repeat(2001) }));
   for (const amount of ['-1', '0', '1.001', 'NaN', 'Infinity']) assert.throws(() => validateDeduction({ ...base, amount }));
   assert.throws(() => validateDeduction({ ...base, deductionDate: '2026-02-30' }));
   const epf = { ...base, type: 'epf', subtype: 'EPF', amount: '25', installmentCount: '1', periodStart: '2026-08-31', periodEnd: '2026-09-06', deductionDate: '2026-09-11', weeklyCommission: '300' };
@@ -179,6 +182,8 @@ test('Commission Rider uses the green rider-level deduction form and has no tool
   assert.match(dashboardHtml, /7 × RM40/);
   assert.match(dashboardHtml, /Manual · set amount and payments/);
   assert.match(dashboardHtml, /aria-label="Special Case number of payments"/);
+  assert.match(dashboardHtml, /Reason \/ remarks <span>\(optional\)<\/span>/);
+  assert.doesNotMatch(dashboardHtml, /data-line-reason[^>]*required/);
   assert.match(dashboardHtml, /type === 'manual' \? draft\.manualCount/);
   assert.match(dashboardHtml, /type === 'manual' \? \{ installmentCount: draft\.manualCount \}/);
   assert.match(dashboardHtml, />Review deduction request<\/button>/);
