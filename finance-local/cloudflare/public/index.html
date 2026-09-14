@@ -595,9 +595,7 @@
     .ledger-head h4 { margin: 0; font-size: .92rem; font-weight: 600; }
     .ledger-actions { display: flex; align-items: center; gap: 7px; }
     .ledger-actions button { min-height: 32px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 3px; background: var(--surface-lowest); color: var(--text); font-size: .64rem; }
-    .table-fullscreen-button, .table-header-filter-reset-button { display: inline-grid; flex: 0 0 38px; width: 38px; min-width: 38px; height: 38px; min-height: 38px !important; place-items: center; padding: 0 !important; font-size: 1.15rem !important; font-weight: 700; line-height: 1; }
-    .table-header-filter-reset-button { color: var(--text-soft); }
-    .table-header-filter-reset-button:hover { border-color: var(--danger); background: var(--danger-soft); color: var(--danger); }
+    .table-fullscreen-button { display: inline-grid; flex: 0 0 38px; width: 38px; min-width: 38px; place-items: center; padding: 0 !important; font-size: 1rem !important; }
     body.finance-table-fullscreen { overflow: hidden; }
     .finance-table-fullscreen-layer { position: fixed; inset: 0; z-index: 10020; display: flex; box-sizing: border-box; width: 100vw; height: 100dvh; background: var(--surface-strong); overflow: hidden; }
     .finance-table-fullscreen-layer > .ledger-card.is-table-fullscreen { position: relative !important; inset: auto !important; z-index: auto; box-sizing: border-box; display: flex !important; flex-direction: column; gap: 0; width: 100% !important; height: 100% !important; max-width: none !important; max-height: none !important; margin: 0 !important; border: 0; border-radius: 0; background: var(--surface-strong); overflow: hidden; }
@@ -11846,7 +11844,7 @@
             ${financeControlCenterMarkup(panel)}
             <div class="dashboard-chart-grid finance-arrange-container" data-visual-panel="${esc(panel.id)}">${initialLoading ? "" : decisionKpiMarkup(panel)}${chartPanel(panel)}${trendVisual(panel)}${grafanaSourceTablesMarkup(panel)}${tableDashboardVisualsMarkup(panel)}
             <div class="ledger-card finance-visual${singleRiderScope ? " is-single-rider-scope" : ""}${fullscreenTableId === panel.id ? " is-table-fullscreen" : ""}" data-visual-key="${esc(panel.id)}:table" data-default-columns="12" data-min-height="${tableMinHeight}" id="${esc(panel.id)}-ledger">
-              <div class="ledger-head"><div><h4>${esc(ledgerTitle)}</h4><span class="ledger-grain">${esc(ledgerGrain(panel))}</span></div><div class="ledger-actions">${tableColumnMenuMarkup(panel.id, panel.columns, { tableTitle: ledgerTitle, compactPanelId: panel.id })}${TABLE_HEADER_FILTER_PANELS.has(panel.id) ? tableExportMenuMarkup(panel.id, { tableTitle: ledgerTitle }) : `<button type="button" data-table-export="${esc(panel.id)}" title="Export all filtered rows with source, period, and active filters">Export</button>`}<div class="ledger-search"><input type="search" placeholder="${esc(searchPlaceholder(panel.id))}" value="${esc(state.searchDraft[panel.id] ?? state.search[panel.id] ?? "")}" data-search="${esc(panel.id)}" aria-label="Search ${esc(ledgerTitle)}"><button type="button" data-search-submit="${esc(panel.id)}" aria-label="Apply table search">&#128269;</button></div>${panel.id === "commission-main" ? `<button class="table-header-filter-reset-button" type="button" data-table-header-filter-reset="${esc(tableFilterId(panel.id))}" title="Reset all Line Item Audit header filters" aria-label="Reset all Line Item Audit header filters">×</button><button class="table-fullscreen-button" type="button" data-table-fullscreen="${esc(panel.id)}" title="${fullscreenTableId === panel.id ? "Exit full screen" : "Full-screen table"}" aria-label="${fullscreenTableId === panel.id ? "Exit full-screen table" : "Full-screen table"}" aria-pressed="${fullscreenTableId === panel.id}">${fullscreenTableId === panel.id ? "×" : "⛶"}</button>` : ""}</div></div>
+              <div class="ledger-head"><div><h4>${esc(ledgerTitle)}</h4><span class="ledger-grain">${esc(ledgerGrain(panel))}</span></div><div class="ledger-actions">${tableColumnMenuMarkup(panel.id, panel.columns, { tableTitle: ledgerTitle, compactPanelId: panel.id })}${TABLE_HEADER_FILTER_PANELS.has(panel.id) ? tableExportMenuMarkup(panel.id, { tableTitle: ledgerTitle }) : `<button type="button" data-table-export="${esc(panel.id)}" title="Export all filtered rows with source, period, and active filters">Export</button>`}<div class="ledger-search"><input type="search" placeholder="${esc(searchPlaceholder(panel.id))}" value="${esc(state.searchDraft[panel.id] ?? state.search[panel.id] ?? "")}" data-search="${esc(panel.id)}" aria-label="Search ${esc(ledgerTitle)}"><button type="button" data-search-submit="${esc(panel.id)}" aria-label="Apply table search">&#128269;</button></div>${panel.id === "commission-main" ? `<button class="table-fullscreen-button" type="button" data-table-fullscreen="${esc(panel.id)}" title="${fullscreenTableId === panel.id ? "Exit full screen" : "Full-screen table"}" aria-label="${fullscreenTableId === panel.id ? "Exit full-screen table" : "Full-screen table"}" aria-pressed="${fullscreenTableId === panel.id}">${fullscreenTableId === panel.id ? "×" : "⛶"}</button>` : ""}</div></div>
             <div class="table-wrap ${state.compactTables[panel.id] ? "compact" : ""}" tabindex="0" role="region" aria-label="${esc(ledgerTitle)} scrollable data table" aria-describedby="${esc(panel.id)}-scroll-status" data-scroll-ledger="${esc(panel.id)}" data-table-id="${esc(tableFilterId(panel.id))}" data-rendered-rows="${renderedCount}" data-rows-complete="${renderedCount >= dataRows.length ? "true" : "false"}">
               <table aria-rowcount="${dataRows.length}">
                 <caption class="sr-only">${esc(`${ledgerTitle}. ${ledgerGrain(panel)}. Active period ${periodLabel(panel)}.`)}</caption>
@@ -13817,17 +13815,6 @@
         const resetVisualLayout = event.target.closest("#resetVisualLayoutButton");
         if (resetVisualLayout) {
           resetFinanceVisualLayout();
-          return;
-        }
-        const tableHeaderFilterReset = event.target.closest("[data-table-header-filter-reset]");
-        if (tableHeaderFilterReset) {
-          const tableId = tableHeaderFilterReset.dataset.tableHeaderFilterReset;
-          state.tableColumnFilters[tableId] = {};
-          delete state.tableColumnFilterDrafts[tableId];
-          if (state.openTableFilter?.tableId === tableId) state.openTableFilter = null;
-          state.pages.commission-main = 1;
-          setStatus("Table header filters reset", "Line Item Audit is following the active dashboard filters again.");
-          render();
           return;
         }
         const tableFilterTrigger = event.target.closest("[data-table-filter-trigger]");

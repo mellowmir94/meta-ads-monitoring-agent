@@ -13,15 +13,6 @@ test('Commission Rider table has a dedicated fullscreen control after search', (
   assert.match(html, /ledger-card\.is-table-fullscreen > \.table-wrap/);
   assert.match(html, /event\.key === "Escape" && fullscreenTableId/);
   assert.match(html, /aria-label="\$\{fullscreenTableId === panel\.id \? "Exit full-screen table" : "Full-screen table"\}"/);
-  assert.match(html, /class="table-header-filter-reset-button"[^>]+data-table-header-filter-reset="\$\{esc\(tableFilterId\(panel\.id\)\)\}"/);
-  assert.match(html, /\.table-fullscreen-button, \.table-header-filter-reset-button\s*\{[^}]*place-items: center;/);
-});
-
-test('reset table filters clears only the current table header filters', () => {
-  assert.match(html, /const tableHeaderFilterReset = event\.target\.closest\("\[data-table-header-filter-reset\]"\);/);
-  assert.match(html, /state\.tableColumnFilters\[tableId\] = \{\};/);
-  assert.match(html, /delete state\.tableColumnFilterDrafts\[tableId\];/);
-  assert.match(html, /Table header filters reset/);
 });
 
 test('table fullscreen remains scoped to the selected table surface', () => {
