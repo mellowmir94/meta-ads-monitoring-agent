@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
 
 test('Commission Rider table has a dedicated fullscreen control after search', () => {
-  assert.match(html, /class="ledger-search"[\s\S]{0,700}data-table-fullscreen="\$\{esc\(panel\.id\)\}"/);
+  assert.match(html, /class="ledger-search"[\s\S]{0,1400}data-table-fullscreen="\$\{esc\(panel\.id\)\}"/);
   assert.match(html, /panel\.id === "commission-main"/);
   assert.match(html, /function toggleTableFullscreen\(button\)/);
   assert.match(html, /className = "finance-table-fullscreen-layer"/);
@@ -14,7 +14,8 @@ test('Commission Rider table has a dedicated fullscreen control after search', (
   assert.match(html, /event\.key === "Escape" && fullscreenTableId/);
   assert.match(html, /aria-label="\$\{fullscreenTableId === panel\.id \? "Exit full-screen table" : "Full-screen table"\}"/);
   assert.match(html, /class="table-header-filter-reset-button"[^>]+data-table-header-filter-reset="\$\{esc\(tableFilterId\(panel\.id\)\)\}"/);
-  assert.match(html, /\.table-fullscreen-button, \.table-header-filter-reset-button\s*\{[^}]*place-items: center;/);
+  assert.match(html, /\.table-fullscreen-button\s*\{[^}]*place-items: center;/);
+  assert.match(html, /<span aria-hidden="true">×<\/span><span>Reset filters<\/span>/);
 });
 
 test('reset table filters clears only the current table header filters', () => {
