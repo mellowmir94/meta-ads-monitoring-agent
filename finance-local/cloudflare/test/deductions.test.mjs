@@ -304,6 +304,30 @@ test('Commission Rider PDF exports one Battery Tester payment for fixed 2 and fi
   assert.ok(Array.from(sevenPayments.footerRows, row => Array.from(row)).some(row => row[0] === 'OBD / BATTERY TESTER' && row[1] === '- RM 40.00'));
 });
 
+test('Commission Rider PDF exports the entered Insurance amount once', () => {
+  const start = dashboardHtml.indexOf('function financeCommissionExportMeta');
+  const end = dashboardHtml.indexOf('function financeTableExportPayload', start);
+  const source = dashboardHtml.slice(start, end);
+  const columns = [{ key: 'rider_name', value: row => row.rider_name }, { key: 'commission', value: row => row.commission }];
+  const rows = [{ rider_name: 'Rider A', commission: 100 }];
+  const context = vm.createContext({
+    columns,
+    rows,
+    formatMoney: value => `RM ${Number(value).toFixed(2)}`,
+    formatNumber: value => String(value),
+    numberValue: value => Number(value || 0),
+    deductionSummaryForRows: () => ({ loaded: true, grossCents: 10000, amounts: { epf: 0, insurance: 3888, 'battery-tester': 0, manual: 0 }, statementAmounts: { epf: 0, insurance: 1944, 'battery-tester': 0, manual: 0 }, approvedCents: 3888, pendingCents: 0, netCents: 6112 }),
+    auditCapture: () => ({ scope: { dates: { start: '2026-09-07', end: '2026-09-13' } } }),
+    tableFilterId: () => 'commission-main-ledger',
+    state: { dates: {} },
+  });
+  vm.runInContext(source + '\nthis.result = financeCommissionExportMeta({ id: "commission-main" }, columns, rows, "commission-main-ledger");', context);
+  const footerValues = Array.from(context.result.footerRows, row => Array.from(row));
+  assert.ok(footerValues.some(row => row[0] === 'INSURANCE' && row[1] === '- RM 19.44'));
+  assert.ok(footerValues.some(row => row[0] === 'Total Deducted' && row[1] === '- RM 19.44'));
+  assert.equal(context.result.summary.value, 'RM 80.56');
+});
+
 test('deduction history is a dedicated Commission Rider view launched from the green formula footer', () => {
   assert.doesNotMatch(dashboardHtml, /className = 'nav-button deduction-history-nav'/);
   assert.match(dashboardHtml, /data-deduction-history-open>History<\/button>/);

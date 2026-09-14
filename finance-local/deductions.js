@@ -99,6 +99,7 @@ function deductionInstallmentAmount(record, item) { return Number(item.amountCen
 function deductionStatementAmountForRecord(record, items) {
   if (!items.length) return 0;
   if (record.type === 'epf') return 2500;
+  if (record.type === 'insurance') return deductionInstallmentAmount(record, items[0]);
   if (record.type === 'battery-tester') {
     if (record.pricingMode === 'fixed-2' || Number(record.installmentCount) === 2 && Number(record.amountCents) === 5000) return 5000;
     if (record.pricingMode === 'fixed-7' || Number(record.installmentCount) === 7 && Number(record.amountCents) === 4000) return 4000;

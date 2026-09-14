@@ -150,6 +150,22 @@ test('History Rider PDF exports one Battery Tester payment for fixed 2 and fixed
   assert.ok(twoPayments.footerRows.some(row => row[0] === 'OBD / BATTERY TESTER (applied)' && row[1] === '- RM 50.00'));
   assert.ok(sevenPayments.footerRows.some(row => row[0] === 'OBD / BATTERY TESTER (applied)' && row[1] === '- RM 40.00'));
 });
+test('History Rider PDF exports the entered Insurance amount once', () => {
+  const tableRows = [{ rider_name: 'Rider A', commission: 100 }];
+  const columns = [{ key: 'rider_name', label: 'Rider', value: row => row.rider_name }, { key: 'commission', label: 'Commission', value: row => row.commission }];
+  const api = runtime({ financeTableExportPayload: () => ({ title: 'Line Item Audit', panelTitle: 'Commission Rider', filename: 'Commission', columns, rows: tableRows, footer: ['Filtered total', 'RM 100.00'], period: '2026-09-07 - 2026-09-13' }) });
+  const insurance = record({ amountCents: 1944, installmentCount: 2, installments: [
+    { index: 0, dueDate: '2026-09-07', status: 'applied', amountCents: 1944, settlementPeriodStart: '2026-09-07', settlementPeriodEnd: '2026-09-13' },
+    { index: 1, dueDate: '2026-09-08', status: 'applied', amountCents: 1944, settlementPeriodStart: '2026-09-07', settlementPeriodEnd: '2026-09-13' },
+  ] });
+  api.deductionState.loaded = true;
+  api.deductionState.records = [insurance];
+  assert.equal(api.deductionSummaryForRows([{ rider_name: 'Rider A', created_at: '2026-09-07', commission: 100 }], { start: '2026-09-07', end: '2026-09-13' }).statementAmounts.insurance, 1944);
+  const payload = api.deductionHistoryStatementPayload([insurance]);
+  assert.ok(payload.footerRows.some(row => row[0] === 'INSURANCE (applied)' && row[1] === '- RM 19.44'));
+  assert.ok(payload.footerRows.some(row => row[0] === 'APPLIED DEDUCTIONS' && row[1] === '- RM 19.44'));
+  assert.equal(payload.summary.value, 'RM 80.56');
+});
 test('same request payload retries keep idempotency ID; changed payload gets a new one', () => {
   const identify = runtime().deductionRequestIdentity(), first = identify({ rider: 'A', amount: 25 });
   assert.equal(identify({ rider: 'A', amount: 25 }), first);
