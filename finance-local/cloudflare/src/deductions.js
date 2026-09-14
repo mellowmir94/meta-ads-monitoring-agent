@@ -206,26 +206,37 @@ export class DeductionRegister {
           if (!alreadyProceeded && ['/approve', '/reject', '/reverse'].includes(url.pathname) && !checker) throw new Error('Authorized Finance checker access is required.');
           if (!alreadyProceeded && ['/approve', '/reject'].includes(url.pathname) && record.creatorSession === actor.sessionId) throw new Error('Maker-checker rule: the creator cannot approve or reject their own request.');
           if (url.pathname === '/update-details') {
+            const pricingMode = record.type === 'battery-tester' ? required(input.pricingMode || record.pricingMode, 'Battery Tester plan') : record.pricingMode;
+            const installmentCount = Number(input.installmentCount ?? record.installmentCount), amount = required(String(input.amount ?? record.amountCents / 100), 'Amount', 15);
+            if (!/^\d+(\.\d{1,2})?$/.test(amount)) throw new Error('Enter a positive amount with up to two decimal places.');
+            const amountCents = Math.round(Number(amount) * 100);
+            if (!Number.isSafeInteger(amountCents) || amountCents <= 0 || amountCents > 100000000) throw new Error('Enter an amount between RM0.01 and RM1,000,000.');
+            const plans = { 'fixed-2': { count: 2, amountCents: 5000 }, 'fixed-7': { count: 7, amountCents: 4000 } };
+            if (record.type === 'epf' && (installmentCount !== 4 || amountCents !== 2500)) throw new Error('EPF remains fixed at four RM25 deductions.');
+            if (record.type === 'insurance' && installmentCount !== 2) throw new Error('Insurance remains fixed at two payments.');
+            if (record.type === 'battery-tester' && !['fixed-2', 'fixed-7', 'manual'].includes(pricingMode)) throw new Error('Choose a valid Battery Tester plan.');
+            if (record.type === 'battery-tester' && pricingMode !== 'manual' && (installmentCount !== plans[pricingMode].count || amountCents !== plans[pricingMode].amountCents)) throw new Error(pricingMode === 'fixed-2' ? 'The 2-payment Battery Tester plan is RM50 per payment.' : 'The 7-payment Battery Tester plan is RM40 per payment.');
+            if (!Number.isInteger(installmentCount) || installmentCount < 1 || installmentCount > 52) throw new Error('Choose between 1 and 52 payments.');
             const values = input.installmentDates;
-            if (!Array.isArray(values) || values.length !== record.installments.length) throw new Error(`This deduction requires exactly ${record.installments.length} payment date${record.installments.length === 1 ? '' : 's'}.`);
+            if (!Array.isArray(values) || values.length !== installmentCount) throw new Error(`This deduction requires exactly ${installmentCount} payment date${installmentCount === 1 ? '' : 's'}.`);
             const installmentDates = record.type === 'epf'
               ? validateEpfScheduleDates(values, record.epfScheduleMonth || record.deductionDate.slice(0, 7))
               : values.map((value, index) => date(value, `Payment ${index + 1} deduction date`));
             if (new Set(installmentDates).size !== installmentDates.length || installmentDates.some((value, index) => index && value <= installmentDates[index - 1])) throw new Error('Payment dates must be unique and chronological.');
-            const updatedReason = optional(input.reason, 'Reason / remarks'), previousDates = record.installments.map(item => item.dueDate), previousReason = record.reason || '', oldDuplicateKey = duplicateKey(record), nextDuplicateKey = duplicateKey({ ...record, deductionDate: installmentDates[0] });
+            const structuralChange = amountCents !== Number(record.amountCents) || installmentCount !== Number(record.installmentCount) || pricingMode !== record.pricingMode;
+            if (structuralChange && record.installments.some(item => item.status !== 'applied')) throw new Error('Amount, plan, or payment count cannot change after a payment is reversed or cancelled.');
+            const updatedReason = optional(input.reason, 'Reason / remarks'), previousDates = record.installments.map(item => item.dueDate), previousReason = record.reason || '', previousAmountCents = record.amountCents, previousInstallmentCount = record.installmentCount, previousPricingMode = record.pricingMode, oldDuplicateKey = duplicateKey(record), nextDuplicateKey = duplicateKey({ ...record, pricingMode, installmentCount, amountCents, deductionDate: installmentDates[0] });
             const collision = await tx.get(nextDuplicateKey);
             if (collision && collision !== record.id) throw new Error('An identical deduction already exists for this rider and period.');
-            record.installments = record.installments.map((item, index) => {
-              const dueDate = installmentDates[index];
-              if (record.type !== 'epf' || item.status !== 'applied') return { ...item, dueDate };
-              const settlement = weekBounds(dueDate);
-              return { ...item, dueDate, paymentDate: dueDate, settlementPeriodStart: settlement.start, settlementPeriodEnd: settlement.end, epfContributionMonth: record.epfContributionMonth };
+            record.installments = installmentDates.map((dueDate, index) => {
+              const item = record.installments[index], settlement = record.type === 'epf' ? weekBounds(dueDate) : { start: record.periodStart, end: record.periodEnd };
+              return { ...(item || {}), index, dueDate, amountCents, status: item?.status || 'applied', appliedAt: item?.appliedAt || now, appliedBy: item?.appliedBy || actor.name, paymentDate: record.type === 'epf' ? dueDate : item?.paymentDate || now.slice(0, 10), settlementPeriodStart: settlement.start, settlementPeriodEnd: settlement.end, ...(record.type === 'epf' ? { epfContributionMonth: record.epfContributionMonth } : {}) };
             });
-            record.deductionDate = installmentDates[0]; record.reason = updatedReason;
-            record.audit.push({ action: 'details-updated', at: now, by: actor.name, role: actor.role, identityVerified: true, amountCents: record.scheduledAmountCents, previousDates, installmentDates, previousReason, reason: updatedReason || 'Finance updated the deduction details' });
+            record.deductionDate = installmentDates[0]; record.reason = updatedReason; record.amountCents = amountCents; record.installmentCount = installmentCount; record.installmentIntervalDays = installmentCount > 1 ? 7 : 0; record.scheduledAmountCents = amountCents * installmentCount; record.pricingMode = pricingMode; record.codes = record.type === 'battery-tester' ? [2, 7] : record.codes;
+            record.audit.push({ action: 'details-updated', at: now, by: actor.name, role: actor.role, identityVerified: true, amountCents: record.scheduledAmountCents, previousAmountCents, previousInstallmentCount, previousPricingMode, previousDates, installmentDates, previousReason, reason: updatedReason || 'Finance updated the deduction details' });
             if (oldDuplicateKey !== nextDuplicateKey) await tx.delete(oldDuplicateKey);
             await tx.put(nextDuplicateKey, record.id);
-            result = { id: record.id, reference: record.reference, status: record.status, approvalStatus: record.status, installmentDates, reason: record.reason };
+            result = { id: record.id, reference: record.reference, status: record.status, approvalStatus: record.status, amountCents, installmentCount, pricingMode, installmentDates, reason: record.reason };
           } else if (url.pathname === '/update-schedule') {
             if (record.type !== 'epf' || Number(record.installmentCount) !== 4) throw new Error('Only four-payment EPF schedules can be edited.');
             const scheduleMonth = record.epfScheduleMonth || record.deductionDate.slice(0, 7), installmentDates = validateEpfScheduleDates(input.installmentDates, scheduleMonth);

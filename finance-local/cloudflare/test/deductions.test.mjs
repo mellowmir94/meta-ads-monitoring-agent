@@ -235,6 +235,9 @@ test('Commission Rider uses the green rider-level deduction form and has no tool
   assert.match(dashboardHtml, /Thursday; Friday when Wednesday is a holiday/);
   assert.match(dashboardHtml, /data-deduction-detail-toggle/);
   assert.match(dashboardHtml, /data-deduction-detail-save/);
+  assert.match(dashboardHtml, /data-deduction-detail-amount/);
+  assert.match(dashboardHtml, /data-deduction-detail-count/);
+  assert.match(dashboardHtml, /data-deduction-detail-plan/);
   assert.match(dashboardHtml, /deductionRequest\('\/update-details'/);
   assert.match(dashboardHtml, /foot: payload\.footerRows/);
   assert.match(dashboardHtml, /payload\.exportSummaryRows/);

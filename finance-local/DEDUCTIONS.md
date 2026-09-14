@@ -15,7 +15,7 @@ Records use the `DEDUCTIONS` Durable Object as the primary store and R2 as backu
 
 ## Applying and correcting deductions
 
-The green panel's `Proceed` action applies every selected deduction immediately without a review dialog, then opens Rider Deduction History. The signed-in Finance name is recorded as the creator. History Details is the only editor for payment dates and optional remarks across all deduction types. For EPF, each of the four RM25 installments is assigned to the Monday–Sunday week containing its configured deduction date. Details updates dates, remarks, settlement weeks and the audit trail atomically.
+The green panel's `Proceed` action applies every selected deduction immediately without a review dialog, then opens Rider Deduction History. The signed-in Finance name is recorded as the creator. History Details is the only editor for Finance-entered amounts, manual payment counts, payment dates and optional remarks. EPF remains fixed at RM25 × 4; Insurance remains fixed at two payments; fixed Battery Tester plans retain their prescribed amount/count unless changed to Manual. For EPF, each installment is assigned to the Monday–Sunday week containing its configured deduction date. Details updates the record, settlement information and audit trail atomically.
 
 Reversing an explicit installment affects only that applied installment. A whole-plan reversal preserves the original application events and adds a separate reversal history. PIN-authorized deletion removes the active request and leaves a tombstone for recovery and audit operations.
 
