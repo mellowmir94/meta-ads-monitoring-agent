@@ -337,11 +337,11 @@ async function financeDataApi(request, env, context) {
   }
 }
 
-export async function malaysiaPublicHolidaysApi(url, fetcher = fetch) {
+async function malaysiaPublicHolidaysApi(url) {
   const year = Number(url.searchParams.get("year"));
   if (!Number.isInteger(year) || year < 2020 || year > 2100) return json({ error: "Choose a valid holiday year." }, 400);
   try {
-    const response = await fetcher("https://www.malaysia.gov.my/calendar", { headers: { accept: "text/html", "accept-language": "en-MY,en;q=0.9", "user-agent": "Mozilla/5.0 (compatible; BaterikuFinance/1.0; +https://bateriku.com)" }, cf: { cacheEverything: true, cacheTtl: 21600 } });
+    const response = await fetch("https://www.malaysia.gov.my/calendar", { headers: { accept: "text/html" }, cf: { cacheEverything: true, cacheTtl: 21600 } });
     if (!response.ok) throw new Error("Official calendar unavailable");
     const page = await response.text(), dates = [...page.matchAll(/startDate\\?":\\?"(\d{4}-\d{2}-\d{2})T/g)].map(match => match[1]).filter(value => value.startsWith(`${year}-`));
     return json({ dates: [...new Set(dates)].sort(), source: "Government of Malaysia", sourceUrl: "https://www.malaysia.gov.my/calendar" });

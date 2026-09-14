@@ -10,13 +10,7 @@ const deductionHistorySelected = new Set();
 const deductionHolidayCache = new Map();
 
 async function deductionRequest(path = '', body) {
-  const options = { method: body ? 'POST' : 'GET', credentials: 'same-origin', headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined };
-  let response;
-  try { response = await fetch('/api/deductions' + path, options); }
-  catch {
-    try { response = await fetch('/api/deductions' + path, options); }
-    catch { throw new Error('The connection was interrupted after an automatic retry. Check your connection and try again; the same request reference will be reused.'); }
-  }
+  const response = await fetch('/api/deductions' + path, { method: body ? 'POST' : 'GET', credentials: 'same-origin', headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
   const payload = await response.json().catch(() => ({ error: 'Deduction service is unavailable. Please retry.' }));
   if (!response.ok) throw new Error(payload.error || 'Unable to load deductions.');
   return payload;
@@ -78,9 +72,7 @@ async function deductionPublicHolidays(year) {
     if (!response.ok) throw new Error(data.error || 'Holiday calendar unavailable.');
     return { dates: new Set(Array.isArray(data.dates) ? data.dates : []), warning: data.warning || '', source: data.source || 'Government of Malaysia' };
   }).catch(() => ({ dates: new Set(), warning: 'The official holiday calendar could not be checked. Review the four dates before saving.', source: 'Government of Malaysia' })));
-  const result = await deductionHolidayCache.get(year);
-  if (result.warning) deductionHolidayCache.delete(year);
-  return result;
+  return deductionHolidayCache.get(year);
 }
 function deductionSingleRider(rows) {
   const riders = new Map();

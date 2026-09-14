@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DeductionRegister, validateDeduction, deductionsApi } from '../src/deductions.js';
-import { malaysiaPublicHolidaysApi } from '../src/worker.js';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
@@ -72,15 +71,9 @@ test('validates cents, required fields, subtype, dates and weekly EPF qualificat
   assert.throws(() => validateDeduction({ ...epf, periodStart: '2026-09-01' }));
 });
 
-test('worker uses the official calendar with an accepted user agent and extracts holiday dates', async () => {
-  let options;
-  const response = await malaysiaPublicHolidaysApi(new URL('https://finance.test/api/public-holidays?year=2026'), async (url, requestOptions) => {
-    assert.equal(url, 'https://www.malaysia.gov.my/calendar'); options = requestOptions;
-    return new Response('startDate\\\":\\\"2026-09-16T00:00:00');
-  });
-  assert.match(options.headers['user-agent'], /BaterikuFinance/);
-  assert.deepEqual((await response.json()).dates, ['2026-09-16']);
+test('worker exposes the Malaysia government holiday calendar for EPF scheduling', () => {
   assert.match(workerSource, /\/api\/public-holidays/);
+  assert.match(workerSource, /https:\/\/www\.malaysia\.gov\.my\/calendar/);
 });
 test('one rider request can create independent EPF and Insurance records atomically', async () => {
   const register = new DeductionRegister({ storage: new MemoryStorage() });

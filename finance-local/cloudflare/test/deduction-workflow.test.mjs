@@ -15,7 +15,7 @@ function runtime(extra = {}) {
     auditCapture: () => ({ scope: { dates: { start: '2026-09-07', end: '2026-09-13' } } }),
     ...extra,
   });
-  vm.runInContext(source + '\nthis.api = { deductionState, deductionRequest, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionFirstFourThursdayWeeks, deductionEpfSchedule, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionHistoryGroups, deductionHistoryStatementPayload, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
+  vm.runInContext(source + '\nthis.api = { deductionState, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionFirstFourThursdayWeeks, deductionEpfSchedule, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionHistoryGroups, deductionHistoryStatementPayload, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
   return context.api;
 }
 const rows = [{ rider_name: 'Rider A', created_at: '2026-09-07', commission: 300 }, { rider_name: 'Rider A', created_at: '2026-09-08', commission: 255 }];
@@ -106,23 +106,6 @@ test('same request payload retries keep idempotency ID; changed payload gets a n
   const identify = runtime().deductionRequestIdentity(), first = identify({ rider: 'A', amount: 25 });
   assert.equal(identify({ rider: 'A', amount: 25 }), first);
   assert.notEqual(identify({ rider: 'A', amount: 26 }), first);
-});
-test('a transient network failure retries the unchanged deduction request exactly once', async () => {
-  const calls = [], body = { requestId: 'epf-retry-request-0001', rider: 'Rider A' };
-  const api = runtime({ fetch: async (url, options) => {
-    calls.push({ url, body: options.body });
-    if (calls.length === 1) throw new TypeError('Failed to fetch');
-    return { ok: true, json: async () => ({ id: 'saved' }) };
-  } });
-  assert.deepEqual(await api.deductionRequest('/create-batch', body), { id: 'saved' });
-  assert.equal(calls.length, 2);
-  assert.equal(calls[0].body, calls[1].body);
-});
-test('two network failures replace the raw browser error with a safe recovery message', async () => {
-  let calls = 0;
-  const api = runtime({ fetch: async () => { calls += 1; throw new TypeError('Failed to fetch'); } });
-  await assert.rejects(api.deductionRequest('/create-batch', { requestId: 'epf-retry-request-0002' }), /automatic retry.*same request reference/i);
-  assert.equal(calls, 2);
 });
 test('incomplete or repeated-page register fails closed without exposing partial records', async () => {
   const api = runtime({ fetch: async () => ({ ok: true, json: async () => ({ records: [record()], next: 'same-cursor' }) }) });
