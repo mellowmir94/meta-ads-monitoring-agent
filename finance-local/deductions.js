@@ -291,6 +291,15 @@ function deductionHistoryProgress(record, today = deductionToday()) {
   const nextDue = scheduled.map(item => item.dueDate).filter(Boolean).sort()[0] || '';
   return { items, paidCount: applied.length, count: items.length, nextDue, due: scheduled.some(item => item.dueDate <= today), overdue: scheduled.some(item => item.dueDate < today), appliedCents: applied.reduce((sum, item) => sum + deductionInstallmentAmount(record, item), 0), remainingCents: scheduled.reduce((sum, item) => sum + deductionInstallmentAmount(record, item), 0), reversedCents: items.filter(item => item.status === 'reversed').reduce((sum, item) => sum + deductionInstallmentAmount(record, item), 0) };
 }
+function deductionScheduleNotice(record, today = deductionToday()) {
+  const items = deductionInstallments(record).map((item, index) => ({ ...item, index: Number.isInteger(Number(item.index)) ? Number(item.index) : index })).filter(item => item.dueDate).sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)));
+  if (!items.length) return null;
+  const currentIndex = items.findLastIndex(item => item.dueDate <= today);
+  const index = currentIndex >= 0 ? currentIndex : 0, item = items[index], next = items[index + 1];
+  if (currentIndex < 0) return { state: 'upcoming', payment: index + 1, count: items.length, start: item.dueDate, end: next ? deductionAddDays(next.dueDate, -1) : item.dueDate };
+  if (!next && today > item.dueDate) return { state: 'complete', payment: index + 1, count: items.length, start: item.dueDate, end: item.dueDate };
+  return { state: 'current', payment: index + 1, count: items.length, start: item.dueDate, end: next ? deductionAddDays(next.dueDate, -1) : item.dueDate };
+}
 function deductionFilteredHistory(records, filters, today = deductionToday()) {
   return records.filter(record => {
     if (filters.status && deductionStatus(record) !== filters.status || filters.type && record.type !== filters.type) return false;
@@ -338,8 +347,8 @@ function deductionHistoryActions(record, checker) {
 }
 function deductionHistoryTypeCell(group, type, checker) {
   const record = group.records.find(item => item.type === type); if (!record) return '<td class="deduction-type-cell is-empty">—</td>';
-  const progress = deductionHistoryProgress(record), total = progress.items.reduce((sum, installment) => sum + deductionInstallmentAmount(record, installment), 0);
-  return '<td class="deduction-type-cell" data-deduction-record-id="' + esc(record.id) + '"><strong>' + esc(deductionMoney(total)) + '</strong><small>' + esc(deductionPlanLabel(record)) + '</small><span class="deduction-history-status ' + esc(deductionStatus(record)) + '">' + esc(deductionDisplayStatus(record)) + '</span>' + (record.reason ? '<small>Reason: ' + esc(record.reason) + '</small>' : '') + '<div class="deduction-type-actions">' + deductionHistoryActions(record, checker) + '</div></td>';
+  const progress = deductionHistoryProgress(record), total = progress.items.reduce((sum, installment) => sum + deductionInstallmentAmount(record, installment), 0), notice = deductionScheduleNotice(record), noticeLabel = notice ? notice.state === 'current' ? 'Ongoing · Payment ' + notice.payment + '/' + notice.count : notice.state === 'upcoming' ? 'Next · Payment ' + notice.payment + '/' + notice.count : 'Completed · Payment ' + notice.payment + '/' + notice.count : '';
+  return '<td class="deduction-type-cell" data-deduction-record-id="' + esc(record.id) + '"><strong>' + esc(deductionMoney(total)) + '</strong><small>' + esc(deductionPlanLabel(record)) + '</small>' + (notice ? '<span class="deduction-payment-notice ' + esc(notice.state) + '">' + esc(noticeLabel) + '<small>' + esc(deductionDateLabel(notice.start) + (notice.end && notice.end !== notice.start ? ' – ' + deductionDateLabel(notice.end) : '')) + '</small></span>' : '') + '<span class="deduction-history-status ' + esc(deductionStatus(record)) + '">' + esc(deductionDisplayStatus(record)) + '</span>' + (record.reason ? '<small>Reason: ' + esc(record.reason) + '</small>' : '') + '<div class="deduction-type-actions">' + deductionHistoryActions(record, checker) + '</div></td>';
 }
 function deductionHistoryEnsure() {
   const commission = document.getElementById('tab-commission'); if (!commission) return null;

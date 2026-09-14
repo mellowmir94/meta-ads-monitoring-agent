@@ -9,6 +9,11 @@ test('all PDF table sections inherit centred cell alignment', () => {
   assert.match(pdf, /styles: \{ font: "helvetica", halign: "center", valign: "middle"/);
   assert.doesNotMatch(pdf, /(?:headStyles|bodyStyles|footStyles): \{[^}]*halign: "(?:left|right)"/);
 });
+test('PDF export remains available when the optional Bateriku logo cannot be decoded', () => {
+  const pdf = html.slice(html.indexOf('      async function downloadPdfTable('), html.indexOf('      async function exportFinanceTable('));
+  assert.match(pdf, /let logo = null;[\s\S]*?try \{\s*logo = await financePdfLogo\(\);[\s\S]*?catch \(error\)/u);
+  assert.match(pdf, /if \(logo\) doc\.addImage\(logo, "PNG", 28, 16, 122, 18\.8\);[\s\S]*?else \{[\s\S]*?BATERIKU\.COM/u);
+});
 const source = name => {
   const start = html.indexOf(`      function ${name}(`);
   assert.ok(start >= 0);

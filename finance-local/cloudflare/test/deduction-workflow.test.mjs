@@ -15,7 +15,7 @@ function runtime(extra = {}) {
     auditCapture: () => ({ scope: { dates: { start: '2026-09-07', end: '2026-09-13' } } }),
     ...extra,
   });
-  vm.runInContext(source + '\nthis.api = { deductionState, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionFirstFourThursdayWeeks, deductionEpfSchedule, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionHistoryGroups, deductionHistoryStatementPayload, deductionPaymentStatementPayload, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
+  vm.runInContext(source + '\nthis.api = { deductionState, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionFirstFourThursdayWeeks, deductionEpfSchedule, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionHistoryGroups, deductionHistoryStatementPayload, deductionPaymentStatementPayload, deductionScheduleNotice, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
   return context.api;
 }
 const rows = [{ rider_name: 'Rider A', created_at: '2026-09-07', commission: 300 }, { rider_name: 'Rider A', created_at: '2026-09-08', commission: 255 }];
@@ -120,6 +120,16 @@ test('rider statement PDF keeps all filtered table rows and subtracts only appli
   assert.ok(payload.footerRows.some(row => row[0] === 'EPF (applied)' && row[1] === '- RM 25.00'));
   assert.ok(payload.footerRows.some(row => row[0] === 'APPLIED DEDUCTIONS' && row[1] === '- RM 37.00'));
   assert.equal(payload.footerRows.some(row => row[0].includes('SCHEDULED')), false);
+});
+test('History marks the payment active for today without confusing it with the applied record status', () => {
+  const api = runtime();
+  const dates = ['2026-09-14', '2026-09-21', '2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26'];
+  const notice = api.deductionScheduleNotice(record({ installmentCount: 7, installments: dates.map((dueDate, index) => ({ index, dueDate, status: 'applied' })) }), '2026-09-15');
+  assert.equal(notice.state, 'current');
+  assert.equal(notice.payment, 1);
+  assert.equal(notice.count, 7);
+  assert.equal(notice.start, '2026-09-14');
+  assert.equal(notice.end, '2026-09-20');
 });
 test('rider statement PDF allocates later EPF payments to their configured weeks', () => {
   const tableRows = [{ rider_name: 'Rider A', commission: 100 }];

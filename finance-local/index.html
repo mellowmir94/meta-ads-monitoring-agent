@@ -6227,6 +6227,10 @@
 .deduction-type-cell { min-width: 220px; }
 .deduction-type-cell > strong { display: block; font-size: .76rem; font-variant-numeric: tabular-nums; }
 .deduction-type-cell > .deduction-history-status { display: inline-flex; margin-top: 8px; }
+.deduction-payment-notice { display: grid; width: fit-content; gap: 2px; margin-top: 9px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-muted, var(--surface)); color: var(--text-soft); font-size: .65rem; font-weight: 750; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.deduction-payment-notice small { color: inherit; font-size: .6rem; font-weight: 500; }
+.deduction-payment-notice.current { border-color: color-mix(in srgb, var(--success) 55%, var(--line)); background: color-mix(in srgb, var(--success) 14%, var(--surface)); color: var(--success); }
+.deduction-payment-notice.upcoming { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); color: var(--accent); }
 .deduction-type-cell.is-empty { color: var(--text-soft); text-align: center; }
 .deduction-type-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line); }
 .deduction-type-actions button { min-height: 29px; }
@@ -11085,7 +11089,14 @@
         const jsPDF = window.jspdf?.jsPDF;
         if (!jsPDF) throw new Error("The PDF export library could not be loaded.");
         if (payload.rows.length > 5000 && !window.confirm(`This PDF contains ${formatNumber(payload.rows.length)} rows and may take a while to prepare. Export the complete filtered table?`)) return false;
-        const logo = await financePdfLogo();
+        // The logo is decorative. A browser image-decoding or edge-cache issue must
+        // never block Finance from downloading a statement.
+        let logo = null;
+        try {
+          logo = await financePdfLogo();
+        } catch (error) {
+          console.warn("Finance PDF logo unavailable; using text mark.", error);
+        }
         const format = payload.columns.length > 12 ? "a3" : "a4";
         const orientation = payload.columns.length > 6 ? "landscape" : "portrait";
         const doc = new jsPDF({ orientation, unit: "pt", format, compress: true, putOnlyUsedFonts: true });
@@ -11095,7 +11106,11 @@
         }
         if (typeof doc.autoTable !== "function") throw new Error("The PDF table formatter could not be loaded.");
         const pageWidth = doc.internal.pageSize.getWidth();
-        doc.addImage(logo, "PNG", 28, 16, 122, 18.8);
+        if (logo) doc.addImage(logo, "PNG", 28, 16, 122, 18.8);
+        else {
+          doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(99, 190, 17);
+          doc.text("BATERIKU.COM", 28, 31);
+        }
         doc.setFont("helvetica", "bold"); doc.setFontSize(payload.panelTitle === "Commission Rider" ? 11 : 14); doc.text(payload.panelTitle, 28, 52);
         if (payload.summary) {
           doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(7, 91, 67);
@@ -15598,6 +15613,15 @@ function deductionHistoryProgress(record, today = deductionToday()) {
   const nextDue = scheduled.map(item => item.dueDate).filter(Boolean).sort()[0] || '';
   return { items, paidCount: applied.length, count: items.length, nextDue, due: scheduled.some(item => item.dueDate <= today), overdue: scheduled.some(item => item.dueDate < today), appliedCents: applied.reduce((sum, item) => sum + deductionInstallmentAmount(record, item), 0), remainingCents: scheduled.reduce((sum, item) => sum + deductionInstallmentAmount(record, item), 0), reversedCents: items.filter(item => item.status === 'reversed').reduce((sum, item) => sum + deductionInstallmentAmount(record, item), 0) };
 }
+function deductionScheduleNotice(record, today = deductionToday()) {
+  const items = deductionInstallments(record).map((item, index) => ({ ...item, index: Number.isInteger(Number(item.index)) ? Number(item.index) : index })).filter(item => item.dueDate).sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)));
+  if (!items.length) return null;
+  const currentIndex = items.findLastIndex(item => item.dueDate <= today);
+  const index = currentIndex >= 0 ? currentIndex : 0, item = items[index], next = items[index + 1];
+  if (currentIndex < 0) return { state: 'upcoming', payment: index + 1, count: items.length, start: item.dueDate, end: next ? deductionAddDays(next.dueDate, -1) : item.dueDate };
+  if (!next && today > item.dueDate) return { state: 'complete', payment: index + 1, count: items.length, start: item.dueDate, end: item.dueDate };
+  return { state: 'current', payment: index + 1, count: items.length, start: item.dueDate, end: next ? deductionAddDays(next.dueDate, -1) : item.dueDate };
+}
 function deductionFilteredHistory(records, filters, today = deductionToday()) {
   return records.filter(record => {
     if (filters.status && deductionStatus(record) !== filters.status || filters.type && record.type !== filters.type) return false;
@@ -15645,8 +15669,8 @@ function deductionHistoryActions(record, checker) {
 }
 function deductionHistoryTypeCell(group, type, checker) {
   const record = group.records.find(item => item.type === type); if (!record) return '<td class="deduction-type-cell is-empty">—</td>';
-  const progress = deductionHistoryProgress(record), total = progress.items.reduce((sum, installment) => sum + deductionInstallmentAmount(record, installment), 0);
-  return '<td class="deduction-type-cell" data-deduction-record-id="' + esc(record.id) + '"><strong>' + esc(deductionMoney(total)) + '</strong><small>' + esc(deductionPlanLabel(record)) + '</small><span class="deduction-history-status ' + esc(deductionStatus(record)) + '">' + esc(deductionDisplayStatus(record)) + '</span>' + (record.reason ? '<small>Reason: ' + esc(record.reason) + '</small>' : '') + '<div class="deduction-type-actions">' + deductionHistoryActions(record, checker) + '</div></td>';
+  const progress = deductionHistoryProgress(record), total = progress.items.reduce((sum, installment) => sum + deductionInstallmentAmount(record, installment), 0), notice = deductionScheduleNotice(record), noticeLabel = notice ? notice.state === 'current' ? 'Ongoing · Payment ' + notice.payment + '/' + notice.count : notice.state === 'upcoming' ? 'Next · Payment ' + notice.payment + '/' + notice.count : 'Completed · Payment ' + notice.payment + '/' + notice.count : '';
+  return '<td class="deduction-type-cell" data-deduction-record-id="' + esc(record.id) + '"><strong>' + esc(deductionMoney(total)) + '</strong><small>' + esc(deductionPlanLabel(record)) + '</small>' + (notice ? '<span class="deduction-payment-notice ' + esc(notice.state) + '">' + esc(noticeLabel) + '<small>' + esc(deductionDateLabel(notice.start) + (notice.end && notice.end !== notice.start ? ' – ' + deductionDateLabel(notice.end) : '')) + '</small></span>' : '') + '<span class="deduction-history-status ' + esc(deductionStatus(record)) + '">' + esc(deductionDisplayStatus(record)) + '</span>' + (record.reason ? '<small>Reason: ' + esc(record.reason) + '</small>' : '') + '<div class="deduction-type-actions">' + deductionHistoryActions(record, checker) + '</div></td>';
 }
 function deductionHistoryEnsure() {
   const commission = document.getElementById('tab-commission'); if (!commission) return null;
