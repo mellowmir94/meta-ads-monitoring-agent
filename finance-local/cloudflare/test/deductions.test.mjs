@@ -198,7 +198,9 @@ test('Commission Rider uses the green rider-level deduction form and has no tool
   assert.match(dashboardHtml, /More than 1 rider_name found\. Filter to one rider/);
   assert.match(dashboardHtml, /class="button row-detail-action"/);
   assert.match(dashboardHtml, /Commission deduction formula/);
-  assert.match(dashboardHtml, /Verified full week ≥ RM300/);
+  assert.match(dashboardHtml, /Full-week table total ≥ RM300/);
+  assert.doesNotMatch(dashboardHtml, /Checking the rider’s complete weekly commission/);
+  assert.doesNotMatch(dashboardHtml, /deductionRequest\('\/eligibility\?rider='/);
   assert.match(dashboardHtml, /next month’s EPF/);
   assert.match(dashboardHtml, /foot: payload\.footerRows/);
   assert.match(dashboardHtml, /payload\.exportSummaryRows/);

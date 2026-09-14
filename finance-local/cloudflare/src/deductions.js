@@ -1,6 +1,6 @@
 // Commission Rider deduction register. Durable Object storage is the source of truth;
 // optional R2 writes in the gateway are append-only disaster-recovery snapshots.
-import { verifyWeeklyCommission, requireEpfVerification } from './deduction-verification.js';
+import { verifyWeeklyCommission } from './deduction-verification.js';
 import { createDeductionSnapshot } from './deduction-backup.js';
 const types = ['insurance', 'battery-tester', 'manual', 'epf'];
 const subtypes = ['accident', 'ganti rugi lost item', 'repair accident', 'insurance', 'battery tester', 'EPF', 'other'];
@@ -63,7 +63,7 @@ export function validateDeduction(input) {
   if (type === 'epf') {
     if (amountCents !== 2500) throw new Error('EPF must be RM25.00 per deduction.');
     if (!periodStart || new Date(periodStart).getUTCDay() !== 1 || Date.parse(periodEnd) - Date.parse(periodStart) !== 6 * 86400000) throw new Error('EPF requires a full Monday-Sunday commission week.');
-    if (!/^\d+(\.\d{1,2})?$/.test(String(input.weeklyCommission || '')) || Number(input.weeklyCommission) < 300 || Number(input.weeklyCommission) > 100000000) throw new Error('EPF requires reported weekly commission of RM300 or more, subject to checker verification.');
+    if (!/^\d+(\.\d{1,2})?$/.test(String(input.weeklyCommission || '')) || Number(input.weeklyCommission) < 300 || Number(input.weeklyCommission) > 100000000) throw new Error('EPF requires recorded weekly commission of RM300 or more.');
   }
   const installments = Array.from({ length: installmentCount }, (_, index) => ({ index, dueDate: addDays(deductionDate, index * 7), status: 'scheduled', appliedAt: null, appliedBy: null, reversedAt: null, reversedBy: null }));
   return {
@@ -74,7 +74,7 @@ export function validateDeduction(input) {
     grossCommissionCents: Math.max(0, Math.round(Number(input.grossCommission || 0) * 100)),
     reason: optional(input.reason, 'Reason / remarks'), deductionDate, epfContributionMonth: type === 'epf' ? nextMonth(deductionDate) : null,
     createdBy, source: 'finance-manual', identityVerified: false, status: 'pending', approvalStatus: 'pending', approvedBy: null, approvedAt: null,
-    eligibility: type === 'epf' ? 'Weekly commission of at least RM300 must be verified before approval.' : 'Pending checker review.'
+    eligibility: type === 'epf' ? 'Filtered weekly commission of at least RM300 was recorded when Finance created the request.' : 'Pending checker review.'
   };
 }
 
@@ -123,13 +123,7 @@ export class DeductionRegister {
           const lines = url.pathname === '/create-batch' ? input.lines : [input];
           if (!Array.isArray(lines) || !lines.length || lines.length > 4) throw new Error('Choose between one and four deduction types.');
           if (new Set(lines.map(line => line.type)).size !== lines.length) throw new Error('Each deduction type can be selected only once per request.');
-          const validated = lines.map(line => {
-            const merged = { ...common, ...line };
-            if (merged.type !== 'epf') return validateDeduction(merged);
-            if (request.headers.get('x-deduction-internal') !== '1') throw new Error('Server-side EPF verification is required.');
-            const verification = requireEpfVerification(merged.epfVerification, merged);
-            return { ...validateDeduction({ ...merged, weeklyCommission: (verification.amountCents / 100).toFixed(2) }), epfVerification: verification };
-          });
+          const validated = lines.map(line => validateDeduction({ ...common, ...line }));
           if (new Set(validated.map(line => line.riderKey)).size !== 1) throw new Error('All deductions in one request must belong to the same rider.');
           const created = [];
           for (let index = 0; index < validated.length; index += 1) {
@@ -149,7 +143,7 @@ export class DeductionRegister {
             }
             const counter = Number(await tx.get('counter:reference') || 0) + 1; await tx.put('counter:reference', counter);
             const id = `${input.requestId}-${index + 1}`; const reference = `DED-${now.slice(0, 7).replace('-', '')}-${String(counter).padStart(6, '0')}`;
-            const record = { ...data, id, batchId: input.requestId, reference, createdAt: now, creatorSession: actor.sessionId, audit: [{ action: 'created', at: now, by: data.createdBy, role: actor.role, identityVerified: false, selfDeclared: true, amountCents: data.amountCents, ...(data.type === 'epf' ? { epfVerification: data.epfVerification } : {}), reason: data.reason }] };
+            const record = { ...data, id, batchId: input.requestId, reference, createdAt: now, creatorSession: actor.sessionId, audit: [{ action: 'created', at: now, by: data.createdBy, role: actor.role, identityVerified: false, selfDeclared: true, amountCents: data.amountCents, ...(data.type === 'epf' ? { recordedWeeklyCommissionCents: data.reportedWeeklyCommissionCents } : {}), reason: data.reason }] };
             await tx.put('record:' + id, record); await tx.put(duplicateKey(data), id); created.push({ id, reference, type: data.type, status: 'pending' });
           }
           result = { batchId: input.requestId, records: created, id: created[0].id, reference: created[0].reference, approvalStatus: 'pending' };
@@ -161,13 +155,8 @@ export class DeductionRegister {
           if (['/approve', '/reject'].includes(url.pathname) && record.creatorSession === actor.sessionId) throw new Error('Maker-checker rule: the creator cannot approve or reject their own request.');
           if (url.pathname === '/approve') {
             if (record.status !== 'pending') throw new Error('Only pending deductions can be approved.');
-            if (record.type === 'epf') {
-              if (request.headers.get('x-deduction-internal') !== '1') throw new Error('Server-side EPF verification is required.');
-              record.epfVerification = requireEpfVerification(input.epfVerification, record);
-              record.reportedWeeklyCommissionCents = record.epfVerification.amountCents;
-            }
-            record.status = record.approvalStatus = 'approved'; record.approvedBy = actor.name; record.approvedAt = now; record.weeklyCommissionVerified = record.type === 'epf';
-            record.audit.push({ action: 'approved', at: now, by: actor.name, role: actor.role, identityVerified: true, amountCents: record.amountCents, ...(record.type === 'epf' ? { epfVerification: record.epfVerification } : {}), reason: reason || 'Approved' });
+            record.status = record.approvalStatus = 'approved'; record.approvedBy = actor.name; record.approvedAt = now;
+            record.audit.push({ action: 'approved', at: now, by: actor.name, role: actor.role, identityVerified: true, amountCents: record.amountCents, ...(record.type === 'epf' ? { recordedWeeklyCommissionCents: record.reportedWeeklyCommissionCents } : {}), reason: reason || 'Approved' });
           } else if (url.pathname === '/reject') {
             if (record.status !== 'pending') throw new Error('Only pending deductions can be rejected.');
             record.status = record.approvalStatus = 'rejected'; record.rejectedBy = actor.name; record.rejectedAt = now;
@@ -185,7 +174,7 @@ export class DeductionRegister {
             if (paymentDate > now.slice(0, 10) || record.installments[index].dueDate > now.slice(0, 10) || paymentDate < record.installments[index].dueDate) throw new Error('Apply only a due installment using its actual payment date; future or early payments are not allowed.');
             const settlement = settlementWeek(input);
             if (record.type === 'epf') {
-              if (!record.weeklyCommissionVerified || settlement.settlementPeriodStart !== record.periodStart || settlement.settlementPeriodEnd !== record.periodEnd) throw new Error('EPF must be applied to its verified earning commission week.');
+              if (record.reportedWeeklyCommissionCents < 30000 || settlement.settlementPeriodStart !== record.periodStart || settlement.settlementPeriodEnd !== record.periodEnd) throw new Error('EPF must be applied to its recorded earning commission week.');
               const all = await tx.list({ prefix: 'record:' });
               const otherHolds = [...all.values()].filter(other => other.id !== record.id && other.type === 'epf' && other.riderKey === record.riderKey && !inactive(other) && epfHoldMonth(other) === paymentDate.slice(0, 7));
               if (otherHolds.length >= 4) throw new Error('This rider already has four active EPF holds for the actual payment month.');
@@ -255,21 +244,7 @@ export async function deductionsApi(request, env, actor, context) {
       const receipt = await receiptResponse.json();
       if (receipt.found) savedReceipt = receipt.result;
     }
-    if (!savedReceipt && (path === '/create' || path === '/create-batch')) {
-      const lines = path === '/create-batch' ? input.lines : [input];
-      if (!Array.isArray(lines) || !lines.length || lines.length > 4) return reply({ error: 'Choose between one and four deduction types.' }, 400);
-      for (const line of lines) {
-        if (line.type !== 'epf') continue;
-        const scope = { ...input, ...line };
-        line.epfVerification = requireEpfVerification(await verifyWeeklyCommission(env, scope), scope);
-      }
-    } else if (!savedReceipt && path === '/approve') {
-      if (!checkerRoles.has(actor.role)) return reply({ error: 'Authorized Finance checker access is required.' }, 403);
-      const current = await stub.fetch(new Request('https://deductions.internal/record?id=' + encodeURIComponent(required(input.recordId, 'Record ID', 90)), { headers }));
-      if (!current.ok) return current;
-      const record = await current.json();
-      if (record.type === 'epf') input.epfVerification = requireEpfVerification(await verifyWeeklyCommission(env, record), record);
-    }
+    if (!savedReceipt && path === '/create-batch' && (!Array.isArray(input.lines) || !input.lines.length || input.lines.length > 4)) return reply({ error: 'Choose between one and four deduction types.' }, 400);
     const response = savedReceipt ? reply(savedReceipt, 201) : await stub.fetch(new Request('https://deductions.internal' + path + url.search, { method: request.method, headers, ...(input ? { body: JSON.stringify(input) } : {}) }));
     if (input && response.ok && env.DEDUCTION_BACKUPS?.put) {
       try {

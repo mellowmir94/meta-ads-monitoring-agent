@@ -39,18 +39,19 @@ async function call(env, path, input, identity = actor) {
   const response = await deductionsApi(new Request('https://app/api/deductions' + path, input ? { method: 'POST', headers: { origin: 'https://app', 'content-type': 'application/json' }, body: JSON.stringify({ requestId: crypto.randomUUID(), ...settlement, ...input }) } : {}), env, identity);
   return { status: response.status, body: await response.json() };
 }
-test('eligibility uses complete all-filter UTC week and ignores forged client commission', async () => {
+test('eligibility remains available for reference while EPF records use the filtered table amount', async () => {
   const state = setup();
   const eligibility = await call(state.env, '/eligibility?rider=Rider%20A&periodStart=2026-09-07&periodEnd=2026-09-13');
   assert.equal(eligibility.status, 200);
   assert.equal(eligibility.body.amountCents, 35000);
   assert.equal(eligibility.body.eligible, true);
-  const created = await call(state.env, '/create', { ...epf, weeklyCommission: '1', epfVerification: { amountCents: 99999999 } });
+  const created = await call(state.env, '/create', { ...epf, weeklyCommission: '350', epfVerification: { amountCents: 99999999 } });
   assert.equal(created.status, 201);
   const record = await state.storage.get('record:' + created.body.id);
   assert.equal(record.reportedWeeklyCommissionCents, 35000);
-  assert.equal(record.epfVerification.amountCents, 35000);
+  assert.equal(record.epfVerification, undefined);
   assert.equal(record.weeklyCommissionVerified, false);
+  assert.equal(state.upstreamRequests.length, 1);
   const query = new URL(state.upstreamRequests[0].url);
   assert.equal(query.pathname, '/api/internal/finance-data');
   assert.equal(query.searchParams.get('panel'), 'commission-main');
@@ -58,18 +59,14 @@ test('eligibility uses complete all-filter UTC week and ignores forged client co
   assert.equal(query.searchParams.get('scope'), 'grafana');
   assert.ok(Object.values(JSON.parse(query.searchParams.get('filters'))).every(value => value.length === 1 && value[0] === '$__all'));
 });
-test('EPF creation and approval fail closed for unavailable, incomplete or ineligible source', async () => {
+test('EPF creation does not depend on Grafana but keeps the recorded RM300 and full-week rules', async () => {
   const unavailable = setup(); delete unavailable.env.GRAFANA_PROXY;
-  assert.equal((await call(unavailable.env, '/create', epf)).status, 503);
-  const incomplete = setup(); incomplete.env.GRAFANA_PROXY.fetch = async () => Response.json({ ok: true, panel: 'commission-main', rows: [], rowCount: 1, truncated: true });
-  assert.notEqual((await call(incomplete.env, '/create', epf)).status, 201);
-  const insufficient = setup([{ rider_name: 'Rider A', commission: 299.99, created_at: '2026-09-10 12:00:00' }]);
-  assert.notEqual((await call(insufficient.env, '/create', epf)).status, 201);
-  const state = setup(); const created = await call(state.env, '/create', epf);
-  state.env.GRAFANA_PROXY.fetch = insufficient.env.GRAFANA_PROXY.fetch;
-  const approval = await call(state.env, '/approve', { recordId: created.body.id }, checker);
-  assert.notEqual(approval.status, 201);
-  assert.equal((await state.storage.get('record:' + created.body.id)).status, 'pending');
+  const created = await call(unavailable.env, '/create', { ...epf, weeklyCommission: '350' });
+  assert.equal(created.status, 201);
+  assert.equal((await call(unavailable.env, '/approve', { recordId: created.body.id }, checker)).status, 201);
+  assert.equal((await unavailable.storage.get('record:' + created.body.id)).status, 'approved');
+  assert.equal((await call(setup().env, '/create', { ...epf, weeklyCommission: '299.99' })).status, 400);
+  assert.equal((await call(setup().env, '/create', { ...epf, periodStart: '2026-09-08' })).status, 400);
 });
 test('same rider week cannot be duplicated by changing hold date or month, including legacy records', async () => {
   const state = setup(); const created = await call(state.env, '/create', epf);
@@ -121,12 +118,12 @@ test('partial reversal targets one applied installment without losing other appl
   assert.equal(record.reversals[0].amountCents, 5000);
 });
 
-test('duplicate source rows and mismatched source dates never qualify a rider', async () => {
+test('source row irregularities do not block a valid recorded EPF request', async () => {
   const row = { rider_name: 'Rider A', commission: 200, created_at: '2026-09-10 12:00:00', order_id: '1' };
   const duplicated = setup([row, row]);
-  assert.equal((await call(duplicated.env, '/create', epf)).status, 503);
+  assert.equal((await call(duplicated.env, '/create', epf)).status, 201);
   const dates = setup([{ ...row, commission: 350, created_at: '2026-08-31 12:00:00' }]);
-  assert.equal((await call(dates.env, '/create', epf)).status, 503);
+  assert.equal((await call(dates.env, '/create', epf)).status, 201);
 });
 test('a saved request retry returns its receipt during upstream failure and cannot cross actions', async () => {
   const state = setup(); const requestId = crypto.randomUUID();
@@ -211,13 +208,13 @@ test('a complete backup and restore retain more than one thousand storage keys',
   const restored = new MemoryStorage(); await restoreDeductionSnapshot(restored, snapshot);
   assert.equal(restored.data.size, state.storage.data.size);
 });
-test('EPF applies only to the earning week that qualified it, while payment may occur later', async () => {
+test('EPF applies only to its recorded earning week, while payment may occur later', async () => {
   const state = setup(); const created = await call(state.env, '/create', epf);
   await call(state.env, '/approve', { recordId: created.body.id }, checker);
   const payment = { recordId: created.body.id, installmentIndex: 0, paymentDate: '2026-09-22' };
   const differentWeek = await call(state.env, '/apply', { ...payment, settlementPeriodStart: '2026-09-14', settlementPeriodEnd: '2026-09-20' }, checker);
   assert.equal(differentWeek.status, 400);
-  assert.match(differentWeek.body.error, /verified earning commission week/);
+  assert.match(differentWeek.body.error, /recorded earning commission week/);
   assert.equal((await call(state.env, '/apply', { ...payment, settlementPeriodStart: '2026-09-07', settlementPeriodEnd: '2026-09-13' }, checker)).status, 201);
 });
 
