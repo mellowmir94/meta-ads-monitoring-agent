@@ -328,7 +328,13 @@ function deductionGroupMatchesTypePaymentFilters(group, typeTimings = {}, today 
 function deductionHistoryPaymentOptions(group, today = deductionToday()) {
   return group.records.flatMap(record => {
     const progress = deductionHistoryProgress(record, today), count = progress.items.length;
-    return progress.items.map((item, index) => ({ record, item, index, count, key: record.id + '|' + index, label: (deductionTypes[record.type] || record.type) + ' · Payment ' + (index + 1) + '/' + count, amountCents: deductionInstallmentAmount(record, item), state: item.statementSentAt ? 'sent' : item.dueDate > today ? 'upcoming' : 'ready' }));
+    return progress.items.map((item, index) => {
+      // EPF payment 1 is the opening RM25 deduction for the selected
+      // commission statement. It is intentionally available immediately,
+      // while the PDF still discloses its scheduled deduction date.
+      const openingEpfPayment = record.type === 'epf' && index === 0;
+      return { record, item, index, count, key: record.id + '|' + index, label: (deductionTypes[record.type] || record.type) + ' · Payment ' + (index + 1) + '/' + count, amountCents: deductionInstallmentAmount(record, item), state: item.statementSentAt ? 'sent' : openingEpfPayment || item.dueDate <= today ? 'ready' : 'upcoming' };
+    });
   });
 }
 function deductionHistorySelectedPayment(group, type, today = deductionToday(), timing = '') {

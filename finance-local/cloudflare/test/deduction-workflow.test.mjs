@@ -159,6 +159,15 @@ test('History exposes every payment option while preventing early PDF downloads'
   const options = runtime().deductionHistoryPaymentOptions(group, '2026-09-15');
   assert.deepEqual(options.map(option => [option.label, option.state]), [['Insurance · Payment 1/2', 'ready'], ['Insurance · Payment 2/2', 'upcoming']]);
 });
+test('EPF payment 1 is ready for its opening RM25 statement before its scheduled date', () => {
+  const group = { records: [record({ type: 'epf', amountCents: 2500, installmentCount: 4, installments: [
+    { index: 0, dueDate: '2026-09-18', status: 'applied', settlementPeriodStart: '2026-09-07', settlementPeriodEnd: '2026-09-13' },
+    { index: 1, dueDate: '2026-09-24', status: 'applied', settlementPeriodStart: '2026-09-14', settlementPeriodEnd: '2026-09-20' },
+  ] })] };
+  const options = runtime().deductionHistoryPaymentOptions(group, '2026-09-15');
+  assert.equal(options[0].state, 'ready');
+  assert.equal(options[1].state, 'upcoming');
+});
 test('one History row combines its selected due payments into one PDF', async () => {
   const columns = [{ key: 'rider_name', label: 'Rider', value: row => row.rider_name }, { key: 'quantity', label: 'Quantity', value: row => row.quantity }, { key: 'commission', label: 'Commission', value: row => row.commission }];
   let requests = 0;
