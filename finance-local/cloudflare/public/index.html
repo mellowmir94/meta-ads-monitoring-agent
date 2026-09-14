@@ -6240,7 +6240,7 @@
 .deduction-history-view .deduction-history-kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .deduction-history-view [data-deduction-history-feedback] { font-size: .75rem; color: var(--text-soft); margin-bottom: 14px; }
 .deduction-history-table-wrap td > small { display: block; margin-top: 4px; color: var(--text-soft); font-size: .66rem; }
-.deduction-history-table-wrap td { max-width: 300px; overflow-wrap: anywhere; vertical-align: top; }
+.deduction-history-table-wrap td { max-width: 300px; overflow-wrap: anywhere; text-align: center; vertical-align: middle; }
 .deduction-history-table-wrap .deduction-overdue { color: var(--danger); }
 .deduction-history-table-wrap table { min-width: 1780px; }
 .deduction-history-table-wrap thead th { text-align: center; }
@@ -6257,24 +6257,24 @@
 .deduction-type-cell { min-width: 220px; }
 .deduction-type-cell > strong { display: block; font-size: .76rem; font-variant-numeric: tabular-nums; }
 .deduction-type-cell > .deduction-history-status { display: inline-flex; margin-top: 8px; }
-.deduction-payment-notice { display: grid; width: fit-content; gap: 2px; margin-top: 9px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-muted, var(--surface)); color: var(--text-soft); font-size: .65rem; font-weight: 750; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.deduction-payment-notice { display: grid; width: fit-content; gap: 2px; margin: 9px auto 0; padding: 5px 7px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-muted, var(--surface)); color: var(--text-soft); font-size: .65rem; font-weight: 750; line-height: 1.25; text-align: center; font-variant-numeric: tabular-nums; }
 .deduction-payment-notice small { color: inherit; font-size: .6rem; font-weight: 500; }
 .deduction-payment-notice.current { border-color: color-mix(in srgb, var(--success) 55%, var(--line)); background: color-mix(in srgb, var(--success) 14%, var(--surface)); color: var(--success); }
 .deduction-payment-notice.upcoming { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); color: var(--accent); }
 .deduction-type-cell.is-empty { color: var(--text-soft); text-align: center; }
-.deduction-type-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line); }
+.deduction-type-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line); }
 .deduction-type-actions button { min-height: 29px; }
 .deduction-payment-breakdown { display: block; margin-top: 9px; color: var(--accent); font-size: .72rem; font-variant-numeric: tabular-nums; }
 .deduction-history-status.mixed { color: var(--warning, #f0b429); }
 .deduction-history-progress > strong, .deduction-history-progress > small { display: block; }
 .deduction-history-progress > small { margin-top: 4px; color: var(--text-soft); font-size: .65rem; font-variant-numeric: tabular-nums; }
-.deduction-history-payment-picker { display: grid; gap: 5px; min-width: 220px; }
-.deduction-history-payment-picker > span { color: var(--text-soft); font-size: .62rem; font-weight: 750; text-transform: uppercase; letter-spacing: .04em; }
-.deduction-history-payment-picker select { width: 100%; min-height: 33px; font-size: .67rem; font-variant-numeric: tabular-nums; }
+.deduction-history-payment-picker { display: grid; justify-items: center; gap: 5px; min-width: 220px; margin: 9px auto 0; }
+.deduction-history-payment-picker > span { color: var(--text-soft); font-size: .62rem; font-weight: 750; letter-spacing: .04em; text-align: center; text-transform: uppercase; }
+.deduction-history-payment-picker select { width: min(100%, 230px); min-height: 33px; font-size: .67rem; font-variant-numeric: tabular-nums; }
 .deduction-history-pdf-include { display: inline-flex; align-items: center; gap: 6px; width: fit-content; margin-top: 2px; color: var(--text-soft); font-size: .66rem; font-weight: 750; cursor: pointer; }
 .deduction-history-pdf-include input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
 .deduction-history-download-cell { min-width: 180px; }
-.deduction-history-download-item { display: grid; gap: 5px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.deduction-history-download-item { display: grid; justify-items: center; gap: 5px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .deduction-history-download-item:first-child { padding-top: 0; }
 .deduction-history-download-item:last-child { padding-bottom: 0; border-bottom: 0; }
 .deduction-history-download-item > strong { font-size: .68rem; }
