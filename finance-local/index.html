@@ -13825,7 +13825,7 @@
           state.tableColumnFilters[tableId] = {};
           delete state.tableColumnFilterDrafts[tableId];
           if (state.openTableFilter?.tableId === tableId) state.openTableFilter = null;
-          state.pages.commission-main = 1;
+          state.pages["commission-main"] = 1;
           setStatus("Table header filters reset", "Line Item Audit is following the active dashboard filters again.");
           render();
           return;
