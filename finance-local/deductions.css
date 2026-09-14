@@ -185,6 +185,9 @@
 .deduction-history-payment-picker { display: grid; justify-items: center; gap: 5px; min-width: 220px; margin: 9px auto 0; }
 .deduction-history-payment-picker > span { color: var(--text-soft); font-size: .62rem; font-weight: 750; letter-spacing: .04em; text-align: center; text-transform: uppercase; }
 .deduction-history-payment-picker select { width: min(100%, 230px); min-height: 33px; font-size: .67rem; font-variant-numeric: tabular-nums; }
+.deduction-history-batch-payment-picker { display: grid; justify-items: center; gap: 5px; margin: 10px auto 0; }
+.deduction-history-batch-payment-picker > span { color: var(--text-soft); font-size: .62rem; font-weight: 750; letter-spacing: .04em; text-align: center; text-transform: uppercase; }
+.deduction-history-batch-payment-picker select { width: min(100%, 170px); min-height: 32px; font-size: .7rem; font-variant-numeric: tabular-nums; }
 .deduction-history-pdf-include { display: inline-flex; align-items: center; gap: 6px; width: fit-content; margin-top: 2px; color: var(--text-soft); font-size: .66rem; font-weight: 750; cursor: pointer; }
 .deduction-history-pdf-include input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
 .deduction-history-download-cell { min-width: 180px; }

@@ -6271,6 +6271,9 @@
 .deduction-history-payment-picker { display: grid; justify-items: center; gap: 5px; min-width: 220px; margin: 9px auto 0; }
 .deduction-history-payment-picker > span { color: var(--text-soft); font-size: .62rem; font-weight: 750; letter-spacing: .04em; text-align: center; text-transform: uppercase; }
 .deduction-history-payment-picker select { width: min(100%, 230px); min-height: 33px; font-size: .67rem; font-variant-numeric: tabular-nums; }
+.deduction-history-batch-payment-picker { display: grid; justify-items: center; gap: 5px; margin: 10px auto 0; }
+.deduction-history-batch-payment-picker > span { color: var(--text-soft); font-size: .62rem; font-weight: 750; letter-spacing: .04em; text-align: center; text-transform: uppercase; }
+.deduction-history-batch-payment-picker select { width: min(100%, 170px); min-height: 32px; font-size: .7rem; font-variant-numeric: tabular-nums; }
 .deduction-history-pdf-include { display: inline-flex; align-items: center; gap: 6px; width: fit-content; margin-top: 2px; color: var(--text-soft); font-size: .66rem; font-weight: 750; cursor: pointer; }
 .deduction-history-pdf-include input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
 .deduction-history-download-cell { min-width: 180px; }
@@ -15376,6 +15379,7 @@ const deductionDisplayStatus = value => ({ approved: 'applied', pending: 'applie
 const deductionDrafts = new Map();
 const deductionHistorySelected = new Set();
 const deductionHistoryPaymentSelections = new Map();
+const deductionHistoryBatchPaymentSelections = new Map();
 const deductionHistoryPdfExclusions = new Set();
 const deductionHistoryRangePicker = { open: false, anchor: '', month: '', draftStart: '', draftEnd: '', recent: [] };
 const deductionHolidayCache = new Map();
@@ -15724,14 +15728,25 @@ function deductionPaymentMatchesCommissionRange(option, periodStart = '', period
   const settlement = deductionInstallmentSettlement(option.record, option.item, option.index), start = settlement?.start || option.item.dueDate, end = settlement?.end || option.item.dueDate;
   return Boolean(start && end && (!periodStart || end >= periodStart) && (!periodEnd || start <= periodEnd));
 }
+function deductionHistoryBatchPaymentCount(group, today = deductionToday()) {
+  return Math.max(0, ...deductionHistoryPaymentOptions(group, today).map(option => option.count));
+}
+function deductionHistoryBatchPaymentPicker(group, today = deductionToday()) {
+  const count = deductionHistoryBatchPaymentCount(group, today);
+  if (count < 2) return '';
+  const selected = deductionHistoryBatchPaymentSelections.get(group.id), index = Number.isInteger(selected) && selected >= 0 && selected < count ? selected : 0;
+  return '<label class="deduction-history-batch-payment-picker"><span>Payment filter</span><select data-deduction-history-batch-payment-select aria-label="Select payment for ' + esc(group.rider) + '">' + Array.from({ length: count }, (_value, paymentIndex) => '<option value="' + (paymentIndex + 1) + '"' + (paymentIndex === index ? ' selected' : '') + '>Payment ' + (paymentIndex + 1) + '/' + count + '</option>').join('') + '</select></label>';
+}
 function deductionHistorySelectedPayment(group, type, today = deductionToday(), timing = '', periodStart = '', periodEnd = '') {
   const allOptions = deductionHistoryPaymentOptions(group, today).filter(option => option.record.type === type), options = allOptions.filter(option => deductionPaymentMatchesCommissionRange(option, periodStart, periodEnd)), selected = deductionHistoryPaymentSelections.get(group.id + '|' + type);
+  const batchPayment = deductionHistoryBatchPaymentSelections.get(group.id);
+  if (Number.isInteger(batchPayment)) return allOptions[batchPayment] || null;
   const queueState = timing === 'complete' ? 'sent' : timing;
   return allOptions.find(option => option.key === selected) || options.find(option => option.state === queueState) || options.find(option => option.state === 'ready') || options.find(option => option.state === 'upcoming') || allOptions.find(option => option.state === queueState) || allOptions.find(option => option.state === 'ready') || allOptions.find(option => option.state === 'upcoming') || allOptions[0] || null;
 }
 function deductionHistoryPaymentCell(group, type, today = deductionToday(), timing = '', periodStart = '', periodEnd = '') {
   const options = deductionHistoryPaymentOptions(group, today).filter(option => option.record.type === type), selected = deductionHistorySelectedPayment(group, type, today, timing, periodStart, periodEnd);
-  if (!selected) return '<strong>—</strong>';
+  if (!selected) return '<strong>—</strong><small>Not in this payment</small>';
   const status = selected.state === 'sent' ? '✓ Sent to rider' : selected.state === 'ready' ? 'Ready to download' : 'Upcoming';
   const pdfKey = deductionHistoryPdfSelectionKey(group, type, selected), included = !deductionHistoryPdfExclusions.has(pdfKey);
   return '<label class="deduction-history-payment-picker"><span>Payment</span><select data-deduction-history-type-payment-select data-deduction-history-payment-type="' + esc(type) + '">' + options.map(option => '<option value="' + esc(option.key) + '"' + (option.key === selected.key ? ' selected' : '') + '>' + esc('Payment ' + (option.index + 1) + '/' + option.count + ' · ' + deductionDateLabel(option.item.dueDate) + ' · ' + deductionMoney(option.amountCents)) + '</option>').join('') + '</select></label><label class="deduction-history-pdf-include"><input type="checkbox" data-deduction-history-pdf-include data-deduction-history-pdf-type="' + esc(type) + '" data-deduction-history-pdf-payment="' + esc(selected.key) + '"' + (included ? ' checked' : '') + '> Include in PDF</label><span class="deduction-download-ready ' + (selected.state === 'sent' ? 'is-sent' : selected.state === 'upcoming' ? 'is-upcoming' : '') + '">' + esc(status) + '</span>';
@@ -15807,8 +15822,9 @@ function deductionHistoryTypeHeader(_type, label) {
 }
 function deductionHistoryTypeCell(group, type, checker, timing = '', periodStart = '', periodEnd = '') {
   const record = group.records.find(item => item.type === type); if (!record) return '<td class="deduction-type-cell is-empty">—</td>';
-  const progress = deductionHistoryProgress(record), total = progress.items.reduce((sum, installment) => sum + deductionInstallmentAmount(record, installment), 0), selected = deductionHistorySelectedPayment(group, type, deductionToday(), timing, periodStart, periodEnd), noticeLabel = selected ? (selected.state === 'ready' ? 'Ongoing' : selected.state === 'sent' ? 'Sent to rider' : selected.state === 'upcoming' ? 'Upcoming' : 'Completed') + ' · Payment ' + (selected.index + 1) : '';
-  return '<td class="deduction-type-cell" data-deduction-record-id="' + esc(record.id) + '"><strong>' + esc(deductionMoney(total)) + '</strong><small>' + esc(deductionPlanLabel(record)) + '</small>' + (selected ? '<span class="deduction-payment-notice ' + esc(selected.state) + '">' + esc(noticeLabel) + '<small>' + esc(deductionDateLabel(selected.item.dueDate)) + '</small></span>' + deductionHistoryPaymentCell(group, type, deductionToday(), timing, periodStart, periodEnd) : '<small>No payment in this Commission Rider range.</small>') + '<span class="deduction-history-status ' + esc(deductionStatus(record)) + '">' + esc(deductionDisplayStatus(record)) + '</span>' + (record.reason ? '<small>Reason: ' + esc(record.reason) + '</small>' : '') + '<div class="deduction-type-actions">' + deductionHistoryActions(record, checker) + '</div></td>';
+  const progress = deductionHistoryProgress(record), total = progress.items.reduce((sum, installment) => sum + deductionInstallmentAmount(record, installment), 0), selected = deductionHistorySelectedPayment(group, type, deductionToday(), timing, periodStart, periodEnd), masterPayment = deductionHistoryBatchPaymentSelections.get(group.id), noticeLabel = selected ? (selected.state === 'ready' ? 'Ongoing' : selected.state === 'sent' ? 'Sent to rider' : selected.state === 'upcoming' ? 'Upcoming' : 'Completed') + ' · Payment ' + (selected.index + 1) : '';
+  const paymentContent = selected ? '<span class="deduction-payment-notice ' + esc(selected.state) + '">' + esc(noticeLabel) + '<small>' + esc(deductionDateLabel(selected.item.dueDate)) + '</small></span>' + deductionHistoryPaymentCell(group, type, deductionToday(), timing, periodStart, periodEnd) : Number.isInteger(masterPayment) ? '<strong>—</strong><small>Payment ' + (masterPayment + 1) + ' is not available</small>' : '<small>No payment in this Commission Rider range.</small>';
+  return '<td class="deduction-type-cell" data-deduction-record-id="' + esc(record.id) + '"><strong>' + esc(deductionMoney(total)) + '</strong><small>' + esc(deductionPlanLabel(record)) + '</small>' + paymentContent + '<span class="deduction-history-status ' + esc(deductionStatus(record)) + '">' + esc(deductionDisplayStatus(record)) + '</span>' + (record.reason ? '<small>Reason: ' + esc(record.reason) + '</small>' : '') + '<div class="deduction-type-actions">' + deductionHistoryActions(record, checker) + '</div></td>';
 }
 function deductionHistoryRangeDisplay(value, end = false) {
   const date = String(value || '').slice(0, 10); return date ? date + (end ? ' 23:59:59' : ' 00:00:00') : 'Select date';
@@ -15874,7 +15890,7 @@ function deductionHistoryRender() {
   view.querySelector('[data-deduction-history-kpis]').innerHTML = [['Total deducted', deductionMoney(totals.appliedCents)], ['Applied installments', formatNumber(totals.appliedInstallments)], ['Deduction records', formatNumber(totals.recordCount)], ['Remaining', deductionMoney(totals.remainingCents)], ['Reversed payments', deductionMoney(totals.reversedCents)]].map(([label, value]) => '<article><span>' + esc(label) + '</span><strong>' + esc(deductionState.loaded ? value : '—') + '</strong></article>').join('');
   view.querySelector('[data-deduction-history-body]').innerHTML = deductionState.loaded ? groups.map(group => {
     const p = group.progress;
-    return '<tr data-deduction-batch-id="' + esc(group.id) + '"><td class="deduction-export-check"><div class="deduction-row-controls"><input type="checkbox" data-deduction-history-select aria-label="Select ' + esc(group.rider) + ' request for Rider PDF"' + (deductionHistorySelected.has(group.id) ? ' checked' : '') + '><button type="button" data-deduction-delete-batch aria-label="Delete ' + esc(group.rider) + ' deduction request" title="Delete request">×</button></div></td><td><strong>' + esc(group.rider) + '</strong><small>' + group.records.length + ' deductions in one request</small><small>' + esc(group.references.join(' | ')) + '</small></td>' + deductionHistoryTypeCell(group, 'epf', checker, '', filters.periodStart, filters.periodEnd) + deductionHistoryTypeCell(group, 'insurance', checker, '', filters.periodStart, filters.periodEnd) + deductionHistoryTypeCell(group, 'battery-tester', checker, '', filters.periodStart, filters.periodEnd) + deductionHistoryTypeCell(group, 'manual', checker, '', filters.periodStart, filters.periodEnd) + deductionHistoryDownloadCell(group, {}, deductionToday(), filters.periodStart, filters.periodEnd) + '<td>' + esc((group.periodStart || '-') + ' - ' + (group.periodEnd || '-')) + '</td><td>' + esc(deductionMoney(p.appliedCents)) + '</td><td>' + esc(deductionMoney(p.remainingCents)) + '</td><td><span class="deduction-history-status ' + esc(group.status) + '">' + esc(deductionDisplayStatus(group.status)) + '</span></td><td>' + esc(group.createdBy || '-') + '<small>' + esc(formatGrafanaTimestamp(group.createdAt)) + '</small></td></tr>';
+    return '<tr data-deduction-batch-id="' + esc(group.id) + '"><td class="deduction-export-check"><div class="deduction-row-controls"><input type="checkbox" data-deduction-history-select aria-label="Select ' + esc(group.rider) + ' request for Rider PDF"' + (deductionHistorySelected.has(group.id) ? ' checked' : '') + '><button type="button" data-deduction-delete-batch aria-label="Delete ' + esc(group.rider) + ' deduction request" title="Delete request">×</button></div></td><td><strong>' + esc(group.rider) + '</strong><small>' + group.records.length + ' deductions in one request</small><small>' + esc(group.references.join(' | ')) + '</small>' + deductionHistoryBatchPaymentPicker(group) + '</td>' + deductionHistoryTypeCell(group, 'epf', checker, '', filters.periodStart, filters.periodEnd) + deductionHistoryTypeCell(group, 'insurance', checker, '', filters.periodStart, filters.periodEnd) + deductionHistoryTypeCell(group, 'battery-tester', checker, '', filters.periodStart, filters.periodEnd) + deductionHistoryTypeCell(group, 'manual', checker, '', filters.periodStart, filters.periodEnd) + deductionHistoryDownloadCell(group, {}, deductionToday(), filters.periodStart, filters.periodEnd) + '<td>' + esc((group.periodStart || '-') + ' - ' + (group.periodEnd || '-')) + '</td><td>' + esc(deductionMoney(p.appliedCents)) + '</td><td>' + esc(deductionMoney(p.remainingCents)) + '</td><td><span class="deduction-history-status ' + esc(group.status) + '">' + esc(deductionDisplayStatus(group.status)) + '</span></td><td>' + esc(group.createdBy || '-') + '<small>' + esc(formatGrafanaTimestamp(group.createdAt)) + '</small></td></tr>';
   }).join('') : '<tr><td colspan="12">History is unavailable until the full register loads. <button type="button" data-deduction-retry>Retry register</button></td></tr>';
   view.querySelector('[data-deduction-history-empty]').hidden = !deductionState.loaded || shown.length > 0;
 }
@@ -16181,9 +16197,20 @@ document.addEventListener('change', event => {
   if (paymentSelector) {
     const groupId = paymentSelector.closest('[data-deduction-batch-id]')?.dataset.deductionBatchId, type = paymentSelector.dataset.deductionHistoryPaymentType;
     if (!groupId || !type) return;
-    deductionHistoryPaymentSelections.set(groupId + '|' + type, paymentSelector.value);
+    deductionHistoryBatchPaymentSelections.delete(groupId); deductionHistoryPaymentSelections.set(groupId + '|' + type, paymentSelector.value);
     const group = deductionHistoryGroups(deductionState.records).find(item => item.id === groupId), option = deductionHistoryPaymentOptions(group || { records: [] }).find(item => item.key === paymentSelector.value);
     if (option) void Promise.allSettled([ensureFinanceExportBundle('pdf'), deductionPrefetchPaymentStatement(option.record, option.index)]);
+    return deductionHistoryRender();
+  }
+  const batchPaymentSelector = event.target.closest?.('[data-deduction-history-batch-payment-select]');
+  if (batchPaymentSelector) {
+    const groupId = batchPaymentSelector.closest('[data-deduction-batch-id]')?.dataset.deductionBatchId, paymentIndex = Number(batchPaymentSelector.value) - 1;
+    const group = deductionHistoryGroups(deductionState.records).find(item => item.id === groupId);
+    if (!groupId || !group || !Number.isInteger(paymentIndex) || paymentIndex < 0) return;
+    deductionHistoryBatchPaymentSelections.set(groupId, paymentIndex);
+    const options = deductionHistoryPaymentOptions(group).filter(option => option.index === paymentIndex);
+    options.forEach(option => deductionHistoryPaymentSelections.set(groupId + '|' + option.record.type, option.key));
+    void Promise.allSettled(options.map(option => deductionPrefetchPaymentStatement(option.record, option.index)));
     return deductionHistoryRender();
   }
   const summary = event.target.closest?.('.deduction-workspace'); if (!summary) return;

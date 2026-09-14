@@ -15,7 +15,7 @@ function runtime(extra = {}) {
     auditCapture: () => ({ scope: { dates: { start: '2026-09-07', end: '2026-09-13' } } }),
     ...extra,
   });
-  vm.runInContext(source + '\nthis.api = { deductionState, deductionHistoryPaymentSelections, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionFirstFourThursdayWeeks, deductionEpfSchedule, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionHistoryGroups, deductionGroupScheduleProgress, deductionGroupMatchesTiming, deductionGroupMatchesTypePaymentFilters, deductionHistoryPaymentOptions, deductionHistorySelectedPayment, deductionHistoryDownloadOptions, deductionRecordMatchesCommissionRange, deductionHistoryStatementPayload, deductionPaymentStatementPayload, deductionCombinedPaymentStatementPayload, deductionPrefetchPaymentStatement, deductionScheduleNotice, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
+  vm.runInContext(source + '\nthis.api = { deductionState, deductionHistoryPaymentSelections, deductionHistoryBatchPaymentSelections, deductionSingleRider, deductionFullWeek, deductionNextMonth, deductionFirstFourThursdayWeeks, deductionEpfSchedule, deductionDefaultSettlement, deductionSummaryForRows, deductionSummaryMarkup, deductionFilteredHistory, deductionHistoryProgress, deductionHistoryTotals, deductionHistoryGroups, deductionGroupScheduleProgress, deductionGroupMatchesTiming, deductionGroupMatchesTypePaymentFilters, deductionHistoryPaymentOptions, deductionHistorySelectedPayment, deductionHistoryDownloadOptions, deductionRecordMatchesCommissionRange, deductionHistoryStatementPayload, deductionPaymentStatementPayload, deductionCombinedPaymentStatementPayload, deductionPrefetchPaymentStatement, deductionScheduleNotice, deductionRequestIdentity, deductionLoad, deductionDraftFor };', context);
   return context.api;
 }
 const rows = [{ rider_name: 'Rider A', created_at: '2026-09-07', commission: 300 }, { rider_name: 'Rider A', created_at: '2026-09-08', commission: 255 }];
@@ -254,6 +254,24 @@ test('History keeps a manually selected later payment without changing the share
   const group = { id: 'independent-payment-batch', records: [recordWithFourPayments] };
   api.deductionHistoryPaymentSelections.set('independent-payment-batch|insurance', 'r1|2');
   assert.equal(api.deductionHistorySelectedPayment(group, 'insurance', '2026-09-15', '', '2026-09-07', '2026-09-13').index, 2);
+});
+test('batch payment filter synchronizes every type to its matching payment number', () => {
+  const api = runtime();
+  const installments = count => Array.from({ length: count }, (_value, index) => ({ index, dueDate: '2026-09-' + String(14 + index * 7).padStart(2, '0'), status: 'applied' }));
+  const group = { id: 'master-payment-batch', records: [
+    record({ id: 'epf-master', type: 'epf', installmentCount: 4, installments: installments(4) }),
+    record({ id: 'insurance-master', type: 'insurance', installmentCount: 2, installments: installments(2) }),
+    record({ id: 'battery-master', type: 'battery-tester', installmentCount: 7, installments: installments(7) }),
+    record({ id: 'manual-master', type: 'manual', installmentCount: 2, installments: installments(2) }),
+  ] };
+  api.deductionHistoryBatchPaymentSelections.set(group.id, 1);
+  assert.equal(api.deductionHistorySelectedPayment(group, 'epf').label, 'EPF · Payment 2/4');
+  assert.equal(api.deductionHistorySelectedPayment(group, 'insurance').label, 'Insurance · Payment 2/2');
+  assert.equal(api.deductionHistorySelectedPayment(group, 'battery-tester').label, 'OBD / Battery Tester · Payment 2/7');
+  assert.equal(api.deductionHistorySelectedPayment(group, 'manual').label, 'Special Case · Payment 2/2');
+  api.deductionHistoryBatchPaymentSelections.set(group.id, 2);
+  assert.equal(api.deductionHistorySelectedPayment(group, 'insurance'), null);
+  assert.equal(api.deductionHistorySelectedPayment(group, 'battery-tester').label, 'OBD / Battery Tester · Payment 3/7');
 });
 test('rider statement PDF allocates later EPF payments to their configured weeks', () => {
   const tableRows = [{ rider_name: 'Rider A', commission: 100 }];
