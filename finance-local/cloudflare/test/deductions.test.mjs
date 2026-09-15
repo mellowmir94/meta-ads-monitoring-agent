@@ -386,7 +386,8 @@ test('deduction history is a dedicated Commission Rider view launched from the g
   assert.doesNotMatch(dashboardHtml, /data-deduction-action="approve"/);
   assert.doesNotMatch(dashboardHtml, /data-deduction-action="apply">Apply payment/);
   assert.match(dashboardHtml, /data-deduction-action="reverse"/);
-  assert.match(dashboardHtml, /← Back to Commission Rider/);
+  assert.doesNotMatch(dashboardHtml, /← Back to Commission Rider/);
+  assert.match(dashboardHtml, /\.nav-button\[data-tab="commission"\]/);
   assert.doesNotMatch(dashboardHtml, /data-deduction-register>History<\/button>/);
 });
 

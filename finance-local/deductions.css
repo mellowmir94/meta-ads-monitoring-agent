@@ -83,6 +83,7 @@
 .deduction-calendar-note.is-warning { color: var(--warning); }
 .deduction-details-schedule-head { margin-top: 8px; }
 .deduction-detail-date { min-width: 140px !important; min-height: 32px !important; padding: 6px 8px !important; font-variant-numeric: tabular-nums; }
+.deduction-detail-payment-amount { width: 112px; min-height: 32px; padding: 6px 8px; text-align: right; font-variant-numeric: tabular-nums; }
 .deduction-statement-date { display: grid; width: 100%; min-width: 142px; gap: 3px; padding: 7px 9px !important; border: 1px solid var(--line) !important; border-radius: 5px; background: var(--surface-muted, var(--surface)) !important; color: var(--text); text-align: left; font-variant-numeric: tabular-nums; }
 .deduction-statement-date strong { font-size: .74rem; }
 .deduction-statement-date small { color: var(--text-soft); font-size: .6rem; }

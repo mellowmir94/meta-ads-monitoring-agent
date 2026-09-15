@@ -39,6 +39,11 @@ test('Deduction History marks its sidebar button active while open', () => {
   assert.match(source, /deductionHistorySyncNavigation\(true\)/);
   assert.match(source, /deductionHistorySyncNavigation\(false\)/);
 });
+test('editing deduction details unlocks each editable payment amount', () => {
+  assert.match(source, /data-deduction-detail-row-amount/);
+  assert.match(source, /amountEditable = !locked && record\.type !== 'epf'/);
+  assert.match(source, /amountInput\.value = \(nextCents \/ 100\)\.toFixed\(2\)/);
+});
 test('EPF requires the exact full week and next contribution month handles year boundary', () => {
   const api = runtime();
   assert.equal(api.deductionFullWeek('2026-09-07', '2026-09-13'), true);
