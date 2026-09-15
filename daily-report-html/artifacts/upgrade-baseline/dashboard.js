@@ -301,6 +301,9 @@
   function pitstopMatchKeys(value) {
     var raw = String(value || '').trim().toUpperCase(), variants = [raw, raw.replace(/\s*\([^)]*\)\s*/g, ' ').trim(), raw.split(',')[0].trim()];
     if (canonicalPitstopKey(raw) === 'BPJALANJOHORPONTIAN') variants.push('BP PONTIAN');
+    // Grafana still returns the legacy HQ KLANG label. The Summary reports
+    // the active location name HQ KAPAR while retaining the same sales row.
+    if (['HQKLANG', 'HQKAPAR'].indexOf(canonicalPitstopKey(raw)) !== -1) variants.push(canonicalPitstopKey(raw) === 'HQKLANG' ? 'HQ KAPAR' : 'HQ KLANG');
     // Grafana's live BP panel labels this location as
     // “BPM TAPAH - HUTAN/HUTANG MELINTANG”, while Pitstop Master uses the
     // active operational name “BP TAPAH”. Treat both spellings as aliases.
@@ -2280,7 +2283,7 @@
       'HQ SEREMBAN 2', 'HQ SIKAMAT', 'HQ MANTIN', 'HQ NILAI 3', 'HQ SENAWANG', 'HQ SENDAYAN',
       'HQ PRESINT 15 PUTRAJAYA',
       'HQ PUDU', 'HQ JALAN IPOH', 'HQ TRILIUM SUNGAI BESI', 'HQ TAMAN MELAWATI', 'HQ KEPONG', 'HQ JALAN GENTING KELANG', 'HQ SUNGAI PENCHALA', 'HQ SETAPAK', 'HQ PERMAISURI CHERAS', 'HQ SETIAWANGSA', 'HQ DESA PANDAN', 'HQ BANGSAR',
-      'HQ BALAKONG', 'HQ KELANA JAYA', 'HQ TAMAN MEDAN', 'WH KAJANG SG CHUA', 'HQ SS19', 'HQ COUNTRY HOMES RAWANG', 'HQ DENAI ALAM', 'HQ TAMAN TELUK PULAI', 'HQ TAMAN SRI MUDA', 'HQ SRI SERDANG', 'HQ SEKSYEN 32', 'HQ SUBANG PERDANA', 'HQ DAMANSARA DAMAI', 'HQ ECO MAJESTIC', 'HQ KLANG', 'HQ TAMAN SETIA RAWANG', 'HQ KOTA BAYUEMAS', 'HQ JENJAROM', 'HQ DATARAN SURIA', 'HQ BANDAR SERI PUTRA', 'HQ AMPANG', 'HQ BANDAR BUKIT RAJA', 'HQ UKAY PERDANA', 'HQ IJOK', 'HQ SEKSYEN 7', 'HQ TTDI JAYA WALK-IN CENTRE', 'HQ KAJANG TAMAN SRI JENARIS', 'HQ KINRARA', 'HQ PELANGI DAMANSARA', 'HQ GOMBAK', 'HQ DENGKIL', 'HQ EQUINE PARK', 'HQ MERU', 'HQ SAUJANA PUTRA', 'HQ SAUJANA UTAMA', 'HQ PUTRA PERDANA', 'HQ KLIA AVENUE',
+      'HQ BALAKONG', 'HQ KELANA JAYA', 'HQ TAMAN MEDAN', 'WH KAJANG SG CHUA', 'HQ SS19', 'HQ COUNTRY HOMES RAWANG', 'HQ DENAI ALAM', 'HQ TAMAN TELUK PULAI', 'HQ TAMAN SRI MUDA', 'HQ SRI SERDANG', 'HQ SEKSYEN 32', 'HQ SUBANG PERDANA', 'HQ DAMANSARA DAMAI', 'HQ ECO MAJESTIC', 'HQ KAPAR', 'HQ TAMAN SETIA RAWANG', 'HQ KOTA BAYUEMAS', 'HQ JENJAROM', 'HQ DATARAN SURIA', 'HQ BANDAR SERI PUTRA', 'HQ AMPANG', 'HQ BANDAR BUKIT RAJA', 'HQ UKAY PERDANA', 'HQ IJOK', 'HQ SEKSYEN 7', 'HQ TTDI JAYA WALK-IN CENTRE', 'HQ KAJANG TAMAN SRI JENARIS', 'HQ KINRARA', 'HQ PELANGI DAMANSARA', 'HQ GOMBAK', 'HQ DENGKIL', 'HQ EQUINE PARK', 'HQ MERU', 'HQ SAUJANA UTAMA', 'HQ PUTRA PERDANA', 'HQ KLIA AVENUE',
       'WH IPOH', 'HQ SITIAWAN', 'HQ TELUK INTAN', 'HQ SILIBIN IPOH',
       'HQ GEORGETOWN', 'HQ BUKIT MINYAK', 'WH BUTTERWORTH', 'HQ ILP PERAI', 'HQ BALIK PULAU', 'HQ KEPALA BATAS', 'HQ KUBANG SEMANG', 'HQ SUNGAI NIBONG', 'HQ PULAU PINANG', 'HQ SEBERANG JAYA', 'HQ RELAU', 'HQ BATU KAWAN',
       'HQ TAMAN SEJATI INDAH', 'HQ TAMAN DATUK KUMBAR', 'WH SUNGAI PETANI', 'HQ BANDAR PUTERI JAYA', 'HQ LANGKAWI', 'HQ POKOK SENA',
@@ -2720,9 +2723,15 @@
     return '<div class="email-local-summary-filter" data-copy-exclude><span class="email-local-summary-filter-status' + syncClass + '" role="status" title="' + escapeHtml(state.summaryNetworkError || '') + '">' + escapeHtml(status + dateLabel + syncLabel) + '</span><span class="email-local-summary-filter-buttons" role="group" aria-label="B2C and B2B2C performance table date filter">' + buttons + '</span></div>';
   }
 
+  function emailSummaryPitstopName(name) {
+    var value = String(name || '').trim();
+    return canonicalPitstopKey(value) === 'HQKLANG' ? 'HQ KAPAR' : value;
+  }
+
   function emailPitstopNetworks(reportDate, options) {
     var rows = emailLatestPitstopSnapshot(reportDate, options).map(function(row) {
       return Object.assign({}, row, {
+        name: emailSummaryPitstopName(row.name),
         channel: canonicalChannel(row.channel),
         tier: String(row.tier || 'Unassigned').trim() || 'Unassigned',
         region: String(row.region || 'Unassigned').trim() || 'Unassigned',
