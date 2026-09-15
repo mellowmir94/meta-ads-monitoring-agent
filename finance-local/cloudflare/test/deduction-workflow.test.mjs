@@ -28,6 +28,11 @@ test('rider guard normalizes case, Unicode and whitespace and rejects two or mis
   assert.match(api.deductionSingleRider([{ rider_name: 'A' }, {}]).message, /no rider_name/);
   assert.equal(api.deductionSingleRider([]).valid, false);
 });
+test('Deduction History exits only through the Commission Rider sidebar navigation', () => {
+  assert.doesNotMatch(source, /data-deduction-history-close/);
+  assert.match(source, /\.nav-button\[data-tab="commission"\]/);
+  assert.match(source, /return deductionHistoryClose\(\)/);
+});
 test('EPF requires the exact full week and next contribution month handles year boundary', () => {
   const api = runtime();
   assert.equal(api.deductionFullWeek('2026-09-07', '2026-09-13'), true);
