@@ -1,5 +1,8 @@
 (function() {
   'use strict';
+  // Keep the established dashboard presentation for all report views.
+  // The Operations Centre remains available as its own /upload/operations/ page.
+  var legacyDashboardDesign = true;
   var allowed = ['overview', 'pitstops', 'services', 'bgarage', 'indonesia'];
   var root = document.getElementById('viewRoot');
   if (!root) return;
@@ -8,13 +11,14 @@
   function enhance() {
     var active = document.querySelector('.main-nav .nav-item.is-active');
     var view = active && active.dataset.view;
-    var enabled = allowed.indexOf(view) !== -1;
+    var enabled = !legacyDashboardDesign && allowed.indexOf(view) !== -1;
     document.body.classList.toggle('ops-enhanced', enabled);
     if (enabled) document.body.dataset.workspaceView = view;
     else delete document.body.dataset.workspaceView;
     var link = document.getElementById('operationsCentreLink');
     if (!enabled) {
       if (link) link.remove();
+      root.querySelectorAll('.workspace-view-bar').forEach(function(bar) { bar.remove(); });
       return;
     }
     if (!link && /^https?:$/.test(location.protocol)) {
