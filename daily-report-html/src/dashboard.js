@@ -2737,8 +2737,22 @@
 
   function emailVisibleB2cRows(rows) {
     if (!state.emailWarehouseHidden) return rows || [];
+    // These operational WH locations remain part of the daily management view.
+    // All other WH and WAREHOUSE rows are hidden until the user selects Show WH.
+    var visibleWarehouseExceptions = {
+      'WH INDERA MAHKOTA': true,
+      'WH GONG BADAK': true,
+      'WH PENGKALAN CHEPA': true,
+      'WH SUNGAI PETANI': true,
+      'WH BUTTERWORTH': true,
+      'WH IPOH': true,
+      'WH KAJANG SG CHUA': true,
+      'WH INDAHPURA KULAI': true,
+      'WH YONG PENG': true
+    };
     return (rows || []).filter(function(row) {
       var name = String(row && row.name || '').trim();
+      if (visibleWarehouseExceptions[name.toUpperCase()]) return true;
       return canonicalChannel(row && row.channel) !== 'WH' && !/^WH(?:\s|$)/i.test(name) && !/\bWAREHOUSE\b/i.test(name);
     });
   }

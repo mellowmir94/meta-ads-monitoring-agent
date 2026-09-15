@@ -39,7 +39,19 @@ test('Daily Report Summary hides warehouse rows by default', () => {
     { name: 'BP CHERAS', channel: 'BP' }
   ];
 
-  assert.deepEqual(Array.from(context.emailVisibleB2cRows(rows), row => row.name), ['HQ PERLING', 'BP CHERAS']);
+  assert.deepEqual(Array.from(context.emailVisibleB2cRows(rows), row => row.name), [
+    'HQ PERLING',
+    'WH INDERA MAHKOTA',
+    'WH GONG BADAK',
+    'WH PENGKALAN CHEPA',
+    'WH SUNGAI PETANI',
+    'WH BUTTERWORTH',
+    'WH IPOH',
+    'WH KAJANG SG CHUA',
+    'WH INDAHPURA KULAI',
+    'WH YONG PENG',
+    'BP CHERAS'
+  ]);
   assert.match(context.emailWarehouseToggleButton(), /class="[^"]*is-active[^"]*"/);
   assert.match(context.emailWarehouseToggleButton(), /aria-pressed="true"/);
   assert.match(context.emailWarehouseToggleButton(), />Show WH</);
