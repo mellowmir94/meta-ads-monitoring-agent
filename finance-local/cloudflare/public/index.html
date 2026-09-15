@@ -16141,14 +16141,21 @@ function deductionActionDialog(recordId, action) {
     } catch (reason) { error.textContent = reason.message; saving = false; button.disabled = false; }
   };
 }
+function deductionHistorySyncNavigation(historyOpen) {
+  const commission = document.querySelector('.nav-button[data-tab="commission"]'), history = document.querySelector('[data-deduction-history-open]');
+  commission?.classList.toggle('active', !historyOpen);
+  commission?.setAttribute('aria-selected', String(!historyOpen));
+  history?.classList.toggle('active', historyOpen);
+  history?.setAttribute('aria-current', historyOpen ? 'page' : 'false');
+}
 async function deductionHistoryOpen() {
   if (typeof closeTableFullscreen === 'function') closeTableFullscreen();
   const view = deductionHistoryEnsure(); if (!view) return;
   deductionHistoryUseCommissionRange(view);
-  document.getElementById('tab-commission')?.classList.add('deduction-history-active'); view.hidden = false;
+  document.getElementById('tab-commission')?.classList.add('deduction-history-active'); view.hidden = false; deductionHistorySyncNavigation(true);
   try { await deductionLoad(); } catch {} deductionHistoryRender(); view.scrollIntoView({ block: 'start' });
 }
-function deductionHistoryClose() { document.getElementById('tab-commission')?.classList.remove('deduction-history-active'); const view = document.getElementById('deductionHistoryView'); if (view) view.hidden = true; }
+function deductionHistoryClose() { document.getElementById('tab-commission')?.classList.remove('deduction-history-active'); const view = document.getElementById('deductionHistoryView'); if (view) view.hidden = true; deductionHistorySyncNavigation(false); }
 function deductionDeleteBatchDialog(batchId) {
   const group = deductionHistoryGroups(deductionState.records).find(item => item.id === batchId), dialog = deductionDialog('Delete deduction request'), body = dialog.querySelector('[data-deduction-body]');
   if (!group) { body.innerHTML = '<div class="deduction-feedback is-error" role="alert">Deduction request batch not found. Refresh History and try again.</div>'; return; }

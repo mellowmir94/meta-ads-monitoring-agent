@@ -33,6 +33,12 @@ test('Deduction History exits only through the Commission Rider sidebar navigati
   assert.match(source, /\.nav-button\[data-tab="commission"\]/);
   assert.match(source, /return deductionHistoryClose\(\)/);
 });
+test('Deduction History marks its sidebar button active while open', () => {
+  assert.match(source, /function deductionHistorySyncNavigation\(historyOpen\)/);
+  assert.match(source, /history\?\.classList\.toggle\('active', historyOpen\)/);
+  assert.match(source, /deductionHistorySyncNavigation\(true\)/);
+  assert.match(source, /deductionHistorySyncNavigation\(false\)/);
+});
 test('EPF requires the exact full week and next contribution month handles year boundary', () => {
   const api = runtime();
   assert.equal(api.deductionFullWeek('2026-09-07', '2026-09-13'), true);
