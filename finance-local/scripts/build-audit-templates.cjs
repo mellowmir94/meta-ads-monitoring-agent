@@ -9,6 +9,15 @@ const style = cssStart + '\n<style>\n' + readFileSync(resolve(root, 'deductions.
 if (html.includes(cssStart)) {
   html = html.slice(0, html.indexOf(cssStart)) + style + html.slice(html.indexOf(cssEnd) + cssEnd.length);
 } else html = html.replace('</head>', style + '\n</head>');
+// Optional, isolated presentation layer; remove its embedded block to roll back.
+const themeStart = '<!-- BEGIN BATERIKU REFERENCE THEME -->';
+const themeEnd = '<!-- END BATERIKU REFERENCE THEME -->';
+const logoDataUrl = 'data:image/png;base64,' + readFileSync(resolve(root, 'cloudflare/public/assets/bateriku-finance-logo.png')).toString('base64');
+const themeCss = readFileSync(resolve(root, 'bateriku-reference-theme.css'), 'utf8').replace('__BATERIKU_LOGO_DATA_URL__', logoDataUrl);
+const themeStyle = themeStart + '\n<style>\n' + themeCss + '\n</style>\n' + themeEnd;
+if (html.includes(themeStart)) {
+  html = html.slice(0, html.indexOf(themeStart)) + themeStyle + html.slice(html.indexOf(themeEnd) + themeEnd.length);
+} else html = html.replace('</head>', themeStyle + '\n</head>');
 const start = html.indexOf('      // BEGIN TABLE FILTER TEMPLATES');
 const end = html.indexOf('      // END TABLE FILTER TEMPLATES', start);
 if (start < 0 || end < 0) throw new Error('Missing audit template embed markers');

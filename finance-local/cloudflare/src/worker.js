@@ -65,6 +65,22 @@ function loginPage(showError = false, env = {}) {
     button{width:100%;height:52px;margin-top:16px;border:0;background:#2563eb;color:#fff;font:800 16px/1 inherit;cursor:pointer}button:hover{background:#1d4ed8}
     .error{margin:14px 0 0;padding:11px 12px;border:1px solid #7f1d1d;background:#2b1013;color:#fecaca;font-size:13px;font-weight:700}
     .note{margin:18px 0 0;color:#7f8a99;font-size:12px;text-align:center}
+    /* BEGIN BATERIKU REFERENCE LOGIN THEME — presentation only */
+    :root{--login-canvas:#0b0e09;--login-surface:#181e15;--login-field:#10150d;--login-edge:#363e2e;--login-text:#f2f4ec;--login-muted:#adb5a2;--login-lime:#b3f442;color:var(--login-text);background:var(--login-canvas)}
+    body{background:radial-gradient(ellipse at top left,#1b2512,transparent 56%),var(--login-canvas);padding:32px 20px}
+    .shell{width:min(634px,100%);border-color:var(--login-edge);border-radius:20px;background:var(--login-surface);box-shadow:0 20px 55px #0003;overflow:hidden}
+    .brand{padding:44px 42px 30px;border:0;background:transparent}
+    .brand-row{justify-content:center;gap:16px}.mark{width:54px;height:54px;border-radius:9px;background:var(--login-lime);color:var(--login-field)}
+    .brand strong{font-size:28px;color:var(--login-lime)}.brand span{color:var(--login-muted);font-size:14px}
+    main{padding:18px 42px 42px}h1{font-size:34px;line-height:1.2;letter-spacing:-.035em;margin-bottom:16px}p{color:var(--login-muted);font-size:16px;line-height:1.6;margin-bottom:28px}
+    label,.capacity-label{color:var(--login-muted);font-size:13px;letter-spacing:.02em;text-transform:none;font-weight:600}
+    input{height:62px;border-color:var(--login-edge);border-radius:13px;background:var(--login-field);color:var(--login-text);font-family:inherit;font-size:18px;font-weight:700}
+    input:focus{border-color:var(--login-lime);box-shadow:0 0 0 3px #b3f42226}
+    .capacity-field{padding:16px 18px;margin-bottom:26px;border-color:var(--login-edge);border-radius:12px;background:var(--login-field)}.capacity-field strong{color:var(--login-text)}.capacity-field small{color:var(--login-muted);line-height:1.6}
+    button{height:62px;margin-top:22px;border-radius:13px;background:var(--login-lime);color:#152008;font-family:inherit;font-size:17px;font-weight:800}button:hover{background:#c2ff59}button:focus-visible{outline:2px solid var(--login-text);outline-offset:4px}
+    .error{border-radius:10px;color:#ffc7bf}.note{margin-top:30px;padding-top:22px;border-top:1px solid var(--login-edge);color:var(--login-muted);text-align:left;line-height:1.6}
+    @media(max-width:520px){body{padding:20px 14px}.brand{padding:28px 24px 18px}main{padding:18px 24px 28px}.brand strong{font-size:24px}h1{font-size:28px}}
+    /* END BATERIKU REFERENCE LOGIN THEME */
   </style>
 </head>
 <body>

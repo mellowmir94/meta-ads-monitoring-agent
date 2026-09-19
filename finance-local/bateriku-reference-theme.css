@@ -1,0 +1,389 @@
+/* Presentation only. Embedded by build-audit-templates.cjs.
+   Uses the existing token system so no markup, tables, filters or logic changes. */
+@media screen {
+  /* The shared colour contract: every existing dashboard surface reads from these tokens. */
+  :root {
+    color-scheme: light;
+    --bg: #f5f7ef;
+    --workspace-canvas: #f5f7ef;
+    --workspace-canvas-top: #fbfcf8;
+    --sidebar-canvas: #1b2811;
+    --rail-canvas: rgba(252, 253, 248, .96);
+    --surface: #fcfdf8;
+    --surface-strong: #ffffff;
+    --surface-muted: #edf2e5;
+    --surface-lowest: #f1f5ea;
+    --surface-elevated: #ffffff;
+    --text: #17200e;
+    --text-soft: #5c6753;
+    --line: #cad5bd;
+    --accent: #5d8614;
+    --accent-strong: #38560d;
+    --accent-soft: #edf5de;
+    --accent-fill: #aef13b;
+    --accent-on-fill: #162008;
+    --accent-secondary: #6b9622;
+    --accent-muted-bar: #88a94d;
+    --chart-tail: #c9d5b8;
+    --reference-green: #6f9d2f;
+    --reference-blue: #6f9d2f;
+    --chart-category-1: #6f9d2f;
+    --chart-category-2: #91b856;
+    --chart-category-3: #536d32;
+    --chart-category-4: #bccb91;
+    --chart-category-5: #bd8625;
+    --chart-category-6: #849177;
+    --success: #317a45;
+    --success-soft: #e8f5e9;
+    --amber: #9a6510;
+    --amber-soft: #fff1d6;
+    --danger: #a53b36;
+    --danger-soft: #fbe9e7;
+    --reversed: #a53b36;
+    --outline: #657059;
+    --retention-on-target: #4d883d;
+    --retention-on-target-text: #ffffff;
+    --retention-stable: #718d35;
+    --retention-stable-text: #ffffff;
+    --retention-watch: #c28a24;
+    --retention-watch-text: #2e250b;
+    --retention-critical: #aa4d42;
+    --retention-critical-text: #ffffff;
+    --retention-empty: #e1e9d7;
+    --reference-table-head: #2a391d;
+    --reference-table-head-text: #ffffff;
+    --reference-row-odd: #ffffff;
+    --reference-row-even: #f5f8ef;
+    --table-card: #f9fbf5;
+    --table-toolbar: #edf3e5;
+    --table-head: #2c431b;
+    --table-header: #2c431b;
+    --table-row: #ffffff;
+    --table-row-alt: #f4f8ed;
+    --table-hover: #e9f4d9;
+    --table-total: #dceec8;
+    --table-footer: #edf3e5;
+    --table-rule: #d4deca;
+    --table-edge: #bdcbb0;
+    --table-scroll-track: #dce6d2;
+    --table-scroll-thumb: #809a69;
+  }
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0b0f09;
+    --workspace-canvas: #0b0f09;
+    --workspace-canvas-top: #0d130a;
+    --sidebar-canvas: #141d0d;
+    --rail-canvas: rgba(11, 15, 9, .96);
+    --surface: #12190f;
+    --surface-strong: #171f14;
+    --surface-muted: #222d1c;
+    --surface-lowest: #0e140b;
+    --surface-elevated: #1b2417;
+    --text: #eff5e9;
+    --text-soft: #adb9a2;
+    --line: #35412d;
+    --accent: #b3f442;
+    --accent-strong: #d4ff8b;
+    --accent-soft: #27351c;
+    --accent-fill: #b3f442;
+    --accent-on-fill: #162008;
+    --accent-secondary: #8fbd37;
+    --accent-muted-bar: #698d34;
+    --chart-tail: #34412d;
+    /* Chart series deliberately stay in the same olive/lime family as the reference. */
+    --reference-green: #b3f442;
+    --reference-blue: #b3f442;
+    --chart-category-1: #b3f442;
+    --chart-category-2: #83aa48;
+    --chart-category-3: #5e7e39;
+    --chart-category-4: #c1d58e;
+    --chart-category-5: #e0a83f;
+    --chart-category-6: #93a184;
+    --success: #78d895;
+    --success-soft: #183524;
+    --amber: #f0c566;
+    --amber-soft: #3c3115;
+    --danger: #ec9891;
+    --danger-soft: #431d1b;
+    --reversed: #ec9891;
+    --outline: #8c9a80;
+    --retention-on-target: #6fca8a;
+    --retention-on-target-text: #0a2514;
+    --retention-stable: #a1c96a;
+    --retention-stable-text: #162008;
+    --retention-watch: #efc76e;
+    --retention-watch-text: #2c2107;
+    --retention-critical: #e49a91;
+    --retention-critical-text: #361117;
+    --retention-empty: #293323;
+    --reference-table-head: #20251b;
+    --reference-table-head-text: #f7f8ee;
+    --reference-row-odd: #0c0f0a;
+    --reference-row-even: #0c0f0a;
+    --table-card: #0c0f0a;
+    --table-toolbar: #11160e;
+    --table-head: #20251b;
+    --table-header: #20251b;
+    --table-row: #0c0f0a;
+    --table-row-alt: #0c0f0a;
+    --table-hover: #171d12;
+    --table-total: #193b2a;
+    --table-footer: #11160e;
+    --table-rule: #343a2c;
+    --table-edge: #343a2c;
+    --table-scroll-track: #0b1008;
+    --table-scroll-thumb: #627854;
+  }
+  body { background: var(--bg); }
+  .app-rail { background: var(--surface); }
+  /* The sidebar keeps its brand mark without the workspace attribution copy. */
+  .app:not(.sidebar-collapsed) .brand > div { display: none; }
+  .app:not(.sidebar-collapsed) .brand { justify-content: center; min-height: 54px; padding-bottom: 8px; }
+  .button.primary,
+  .filter-search-action,
+  .filter-menu-action.done { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-on-fill); }
+  .button.primary:hover,
+  .filter-search-action:hover,
+  .filter-menu-action.done:hover { background: color-mix(in srgb, var(--accent-fill) 84%, white); }
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible { outline-color: color-mix(in srgb, var(--accent-fill) 72%, transparent); }
+
+  /* Tables, filter controls, history, deductions and modal surfaces all inherit the new palette. */
+  :is(input, select, textarea, .search-input, .filter-multiselect-trigger,
+      .filter-menu, .filter-menu-search input, .pagination button,
+      .ledger-actions button, .table-column-filter-trigger, .table-filter-popover) {
+    border-color: var(--line);
+    background-color: var(--surface);
+    color: var(--text);
+  }
+  .filter-menu,
+  .table-filter-popover,
+  .deduction-history-range-popover,
+  .audit-template-dialog,
+  .deduction-workflow-dialog { background: var(--surface-strong); border-color: var(--line); }
+  .filter-menu-option:hover,
+  .filter-menu-option:focus-visible,
+  .table-filter-option:hover,
+  .table-filter-option:focus-visible { background: var(--accent-soft); }
+  /* Keep every inactive filter outline on the same olive border as Reset filters. */
+  :is(.filter-card, .filter-disclosure, .filter-context, .finance-filter-field input,
+      .finance-filter-field select, .filter-multiselect-trigger, .search-input,
+      .ledger-search, .ledger-search button, .table-filter-search,
+      .table-filter-actions button, .table-column-filter-trigger,
+      .time-calendar-button, .filter-presets button, .time-range-shortcuts button) {
+    border-color: var(--line) !important;
+  }
+  /* The rail controls are filters/actions too: remove their inherited legacy-blue outline. */
+  :is(#themeButton, #railToolbarSlot .toolbar-menu > summary,
+      #railToolbarSlot .toolbar > #arrangeVisualsButton,
+      #railToolbarSlot .toolbar > #resetVisualLayoutButton,
+      .rail-snapshot, .time-range-trigger) {
+    border-color: var(--line) !important;
+  }
+  .ledger-card .ledger-actions :is(button, .ledger-search),
+  .ledger-card .ledger-actions .ledger-search button {
+    border-color: var(--line) !important;
+  }
+  .ledger-card .ledger-actions :is(.audit-quick-menu > summary,
+      .column-menu > summary, .export-menu > summary) {
+    border-color: var(--line) !important;
+  }
+  :is(.ledger-card .ledger-head h1, .ledger-card .ledger-head h2,
+      .ledger-card .ledger-head h3, .ledger-card .ledger-head h4,
+      .visual-card h1, .visual-card h2, .visual-card h3, .visual-card h4) {
+    color: var(--text) !important;
+  }
+  :is(table th, .reimbursement-critical-table th, .reimbursement-matrix th) {
+    color: var(--reference-table-head-text) !important;
+  }
+  .filter-check.checked { border-color: var(--accent-fill); background: var(--accent-fill); color: var(--accent-on-fill); }
+  .ledger-card,
+  .table-controls,
+  .table-wrap,
+  .deduction-workspace,
+  .deduction-choice-card,
+  .deduction-workflow-dialog .deduction-line { border-color: var(--line); background: var(--surface); }
+  .table-controls,
+  .ledger-card > .ledger-head { background: var(--surface-lowest); }
+  .table-wrap { background: var(--surface); }
+  .ledger-card .ledger-head { border-bottom-color: var(--table-edge); background: var(--table-toolbar); }
+  .ledger-card .table-wrap { background: var(--table-row); scrollbar-color: var(--table-scroll-thumb) var(--table-scroll-track); }
+  .ledger-card thead th,
+  .ledger-card .reimbursement-critical-table th,
+  .ledger-card .reimbursement-matrix th { background: var(--table-head) !important; color: var(--reference-table-head-text); border-bottom-color: var(--table-edge); }
+  .ledger-card tbody tr:nth-child(odd) td { background: var(--table-row); }
+  .ledger-card tbody tr:nth-child(even) td { background: var(--table-row-alt); }
+  .ledger-card tbody tr:hover td,
+  .ledger-card tr[data-detail-panel]:focus-visible td { background: var(--table-hover); }
+  .ledger-card tfoot td { background: var(--table-total); border-color: var(--table-edge); }
+  .ledger-card .table-controls { border-color: var(--table-edge); background: var(--table-footer); }
+  table th,
+  .reimbursement-critical-table th,
+  .reimbursement-matrix th { background: var(--reference-table-head) !important; color: var(--reference-table-head-text); border-color: var(--line); }
+  table th button { color: inherit; }
+  table td,
+  .reimbursement-critical-table td,
+  .reimbursement-matrix td { border-color: var(--line); color: var(--text); }
+  tbody tr:nth-child(odd) td { background: var(--reference-row-odd); }
+  tbody tr:nth-child(even) td { background: var(--reference-row-even); }
+  tbody tr:hover td { background: color-mix(in srgb, var(--accent-soft) 72%, var(--reference-row-even)); }
+  tfoot td { background: var(--surface-muted); color: var(--text); }
+  .table-column-filter-trigger.active,
+  .filter-multiselect-trigger[aria-expanded="true"] { border-color: var(--accent-fill); background: var(--accent-soft); color: var(--accent-strong); }
+  .chip { border-color: color-mix(in srgb, var(--success) 42%, var(--line)); background: var(--success-soft); color: var(--success); }
+  .chip.warn { border-color: color-mix(in srgb, var(--amber) 45%, var(--line)); background: var(--amber-soft); color: var(--amber); }
+  .chip.danger { border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); background: var(--danger-soft); color: var(--danger); }
+  .chip.payment-cash { border-color: #69975c; background: #edf6e9; color: #386332; }
+  .chip.payment-card { border-color: #83975b; background: #f0f4e8; color: #506c28; }
+  .chip.payment-online { border-color: #7e9b72; background: #edf5ef; color: #416c55; }
+  .chip.payment-wallet { border-color: #c99e58; background: #fff4dd; color: #8a5d16; }
+  .chip.payment-other { border-color: #9ba794; background: #edf0ea; color: #586252; }
+  [data-theme="dark"] .chip.payment-cash { border-color: #4f8453; background: #183422; color: #8dda96; }
+  [data-theme="dark"] .chip.payment-card { border-color: #728544; background: #253019; color: #c6e47e; }
+  [data-theme="dark"] .chip.payment-online { border-color: #5d8e70; background: #172e22; color: #8ed4ab; }
+  [data-theme="dark"] .chip.payment-wallet { border-color: #9b7a35; background: #392e14; color: #f1cb78; }
+  [data-theme="dark"] .chip.payment-other { border-color: #65715e; background: #252d22; color: #c2cab9; }
+  .commission-deduction-summary,
+  .commission-deduction-grid > span { background: #1d5336; color: #eaf8e9; }
+  .commission-deduction-grid > span { color: #c6e7c5; }
+  .commission-deduction-grid small input,
+  .commission-deduction-grid small select,
+  .deduction-inline-actions button { border-color: #81b878; background: #123b27; color: #f0faed; }
+  .deduction-history-status.applied,
+  .commission-deduction-grid .commission-net-total { background: #176b42; color: #e8ffef; }
+  .audit-template-dialog::backdrop { background: rgb(6 10 4 / 72%); }
+  dialog::backdrop { background: rgb(6 10 4 / 72%); }
+
+  #financeSidebar {
+    --reference-lime: #b3f442;
+    --reference-text: #f0f2e9;
+    --reference-muted: #a6ae9c;
+    --reference-edge: #343c2c;
+    background: linear-gradient(155deg, #28361c 0%, #11170d 48%, #0b0f09 100%);
+    border-color: var(--reference-edge);
+    color: var(--reference-text);
+  }
+  #financeSidebar .brand {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 20px;
+    padding-top: 16px;
+    padding-bottom: 24px;
+    border-color: var(--reference-edge);
+  }
+  #financeSidebar .brand::before {
+    content: "";
+    display: block;
+    width: 100%;
+    height: 62px;
+    background: url("__BATERIKU_LOGO_DATA_URL__") center / 100% auto no-repeat;
+  }
+  #financeSidebar .brand-mark { display: none; }
+  #financeSidebar .brand strong {
+    color: var(--reference-text);
+    font-size: .82rem;
+    font-weight: 800;
+    letter-spacing: .12em;
+    line-height: 1.5;
+  }
+  #financeSidebar .brand small {
+    display: block;
+    margin-top: 8px;
+    color: var(--reference-muted);
+    font-size: .7rem;
+    line-height: 1.6;
+  }
+  #financeSidebar .nav { gap: 12px; }
+  #financeSidebar .nav-button {
+    border-radius: 12px;
+    background: transparent;
+    color: var(--reference-muted);
+    border-color: transparent;
+    font-weight: 650;
+    box-shadow: none;
+  }
+  #financeSidebar .nav-button:hover {
+    background: #26301c;
+    color: var(--reference-text);
+  }
+  #financeSidebar .nav-button:is(.active, [aria-selected="true"]) {
+    background: var(--reference-lime);
+    color: #18220e;
+    border-color: var(--reference-lime);
+    font-weight: 750;
+  }
+  #financeSidebar .nav-button:is(.active, [aria-selected="true"])::after { display: none; }
+  #financeSidebar .nav-icon { color: inherit; }
+  #financeSidebar .sidebar-toggle {
+    color: var(--reference-muted);
+    background: transparent;
+    border-color: var(--reference-edge);
+  }
+  #financeSidebar .sidebar-toggle-icon { color: inherit; }
+  #financeSidebar button:focus-visible {
+    outline: 2px solid var(--reference-lime);
+    outline-offset: 3px;
+  }
+  .app.sidebar-collapsed #financeSidebar .brand { padding: 0; }
+  .app.sidebar-collapsed #financeSidebar .brand::before { display: none; }
+  .app.sidebar-collapsed #financeSidebar .brand-mark {
+    display: grid;
+    background: var(--reference-lime);
+    color: #18220e;
+    border-color: var(--reference-lime);
+  }
+
+  /* Chart chrome only. Preserve plots, semantic series colours, scales and sizing. */
+  #tab-commission :is(.chart-panel, .secondary-visual) {
+    --reference-chart-surface: #fafcf6;
+    --reference-chart-text: #20291a;
+    --reference-chart-muted: #58624e;
+    --reference-chart-edge: #d8dfcf;
+    --reference-chart-control: #f0f4e9;
+    --reference-chart-focus: #537b15;
+  }
+  [data-theme="dark"] #tab-commission :is(.chart-panel, .secondary-visual) {
+    --reference-chart-surface: #171d14;
+    --reference-chart-text: #f0f2e9;
+    --reference-chart-muted: #a6ae9c;
+    --reference-chart-edge: #343c2c;
+    --reference-chart-control: #20291a;
+    --reference-chart-focus: #b3f442;
+  }
+  #tab-commission .chart-panel,
+  #tab-commission .secondary-visual-head {
+    background: var(--reference-chart-surface);
+    color: var(--reference-chart-text);
+    border-color: var(--reference-chart-edge);
+    box-shadow: none;
+  }
+  #tab-commission .chart-panel { border-radius: 12px; }
+  #tab-commission .secondary-visual-head { border-radius: 12px 12px 0 0; }
+  #tab-commission .secondary-visual .chart-panel { border-radius: 0 0 12px 12px; }
+  #tab-commission :is(.chart-head, .secondary-visual-head) { border-color: var(--reference-chart-edge); }
+  #tab-commission :is(.chart-head, .secondary-visual-head) strong {
+    color: var(--reference-chart-text);
+    font-weight: 700;
+    letter-spacing: -.015em;
+  }
+  #tab-commission :is(.chart-head, .secondary-visual-head) span,
+  #tab-commission .commission-status-note { color: var(--reference-chart-muted); }
+  #tab-commission :is(.chart-panel, .secondary-visual) .chart-icon {
+    background: var(--reference-chart-control);
+    color: var(--reference-chart-text);
+    border-color: var(--reference-chart-edge);
+    border-radius: 8px;
+  }
+  #tab-commission :is(.chart-panel, .secondary-visual) .chart-icon:hover {
+    border-color: var(--reference-chart-focus);
+  }
+  #tab-commission :is(.chart-panel, .secondary-visual) button:focus-visible {
+    outline: 2px solid var(--reference-chart-focus);
+    outline-offset: 2px;
+  }
+  #tab-commission :is(.chart-panel, .secondary-visual):fullscreen { border-radius: 0; }
+}
