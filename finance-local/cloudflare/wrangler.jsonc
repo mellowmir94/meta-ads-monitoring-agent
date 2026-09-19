@@ -15,6 +15,10 @@
     {
       "binding": "GRAFANA_PROXY",
       "service": "daily-report-dashboard"
+    },
+    {
+      "binding": "FINANCE_AGENT",
+      "service": "bateriku-finance-agent"
     }
   ],
   "durable_objects": {

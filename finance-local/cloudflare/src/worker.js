@@ -440,6 +440,26 @@ export default {
     if (url.pathname.startsWith("/api/")) {
       if (leaseDenied) return leaseDenied;
       if (url.pathname === "/api/session" && request.method === "GET") return json({ name: session.name, role: session.role });
+      if (url.pathname === "/api/finsight-chat") {
+        if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
+        if (!request.headers.get("content-type")?.includes("application/json")) return json({ error: "Use an application/json request." }, 415);
+        if (!env.FINANCE_AGENT || !env.FINANCE_AGENT_SHARED_SECRET) return json({ error: "FinSight is temporarily unavailable." }, 503);
+        const length = Number(request.headers.get("content-length") || 0);
+        if (length > 1_500_000) return json({ error: "Finance context is too large." }, 413);
+        let payload;
+        try { payload = await request.json(); } catch { return json({ error: "Invalid FinSight request." }, 400); }
+        try {
+          const response = await env.FINANCE_AGENT.fetch("https://finance-agent.internal/api/internal/ledger-chat", {
+            method: "POST",
+            headers: { "content-type": "application/json", "x-finance-agent-secret": env.FINANCE_AGENT_SHARED_SECRET },
+            body: JSON.stringify(payload)
+          });
+          const headers = new Headers(response.headers);
+          headers.set("cache-control", "no-store");
+          headers.set("x-content-type-options", "nosniff");
+          return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+        } catch { return json({ error: "FinSight is temporarily unavailable." }, 503); }
+      }
       if (url.pathname === "/api/public-holidays" && request.method === "GET") return malaysiaPublicHolidaysApi(url);
       if (url.pathname === "/api/deductions" || url.pathname.startsWith("/api/deductions/")) return deductionsApi(request, env, session, context);
       if (url.pathname === "/api/dashboard-layout") return dashboardLayoutApi(request, env, session.sessionId);

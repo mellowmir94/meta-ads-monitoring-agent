@@ -18,6 +18,18 @@ const themeStyle = themeStart + '\n<style>\n' + themeCss + '\n</style>\n' + them
 if (html.includes(themeStart)) {
   html = html.slice(0, html.indexOf(themeStart)) + themeStyle + html.slice(html.indexOf(themeEnd) + themeEnd.length);
 } else html = html.replace('</head>', themeStyle + '\n</head>');
+const finsightStyleStart = '<!-- BEGIN LEDGER FINSIGHT STYLES -->';
+const finsightStyleEnd = '<!-- END LEDGER FINSIGHT STYLES -->';
+const finsightStyle = finsightStyleStart + '\n<style>\n' + readFileSync(resolve(root, 'finsight-ledger.css'), 'utf8') + '\n</style>\n' + finsightStyleEnd;
+if (html.includes(finsightStyleStart)) {
+  html = html.slice(0, html.indexOf(finsightStyleStart)) + finsightStyle + html.slice(html.indexOf(finsightStyleEnd) + finsightStyleEnd.length);
+} else html = html.replace('</head>', finsightStyle + '\n</head>');
+const finsightRuntimeStart = '<!-- BEGIN LEDGER FINSIGHT RUNTIME -->';
+const finsightRuntimeEnd = '<!-- END LEDGER FINSIGHT RUNTIME -->';
+const finsightRuntime = finsightRuntimeStart + '\n<script>\n' + readFileSync(resolve(root, 'finsight-ledger.js'), 'utf8') + '\n</script>\n' + finsightRuntimeEnd;
+if (html.includes(finsightRuntimeStart)) {
+  html = html.slice(0, html.indexOf(finsightRuntimeStart)) + finsightRuntime + html.slice(html.indexOf(finsightRuntimeEnd) + finsightRuntimeEnd.length);
+} else html = html.replace('</body>', finsightRuntime + '\n</body>');
 const start = html.indexOf('      // BEGIN TABLE FILTER TEMPLATES');
 const end = html.indexOf('      // END TABLE FILTER TEMPLATES', start);
 if (start < 0 || end < 0) throw new Error('Missing audit template embed markers');
