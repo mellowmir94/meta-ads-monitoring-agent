@@ -17241,6 +17241,14 @@ function commissionPreviousPeriodTrend(panel, kpi) {
   snapshot.setAttribute('aria-label', 'Finance snapshot');
   messages.before(snapshot);
   let snapshotBusy = false;
+  function snapshotDate(value) {
+    const text = String(value || '').slice(0, 10);
+    const date = new Date(text + 'T00:00:00Z');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(text) || Number.isNaN(date.getTime())) return text;
+    const day = date.getUTCDate();
+    const suffix = day % 100 >= 11 && day % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[day % 10] || 'th');
+    return day + suffix + ' ' + date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  }
   async function renderSnapshot() {
     if (snapshotBusy || document.getElementById('tab-finsight')?.hidden) return;
     snapshotBusy = true;
@@ -17248,7 +17256,7 @@ function commissionPreviousPeriodTrend(panel, kpi) {
     try {
       const data = await window.ledgerFinSightBridge.snapshot();
       const money = new Intl.NumberFormat('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      const period = data.period.start && data.period.end ? String(data.period.start).slice(0, 10) + ' – ' + String(data.period.end).slice(0, 10) : 'Current commission scope';
+      const period = data.period.start && data.period.end ? snapshotDate(data.period.start) + ' - ' + snapshotDate(data.period.end) : 'Current commission scope';
       snapshot.innerHTML = '<div class="finsight-snapshot-top"><span>FINANCE SNAPSHOT</span><small>' + escapeHtml(data.riders) + ' riders</small><strong>' + escapeHtml(period) + '</strong></div><div class="finsight-snapshot-total"><span>TOTAL COMMISSION</span><strong>RM ' + money.format(data.commission) + '</strong><p>Current dashboard filters · Before deductions</p></div><div class="finsight-snapshot-metrics"><div><span>DEDUCTION RECORDS</span><strong>' + escapeHtml(data.records) + '</strong></div><div><span>ACTIVE REQUESTS</span><strong>' + escapeHtml(data.active) + '</strong></div><div><span>COMPLETED REQUESTS</span><strong>' + escapeHtml(data.completed) + '</strong></div></div><footer>Source: Commission Rider · Full Deduction History register</footer>';
     } catch {
       snapshot.innerHTML = '<div class="finsight-snapshot-top"><span>FINANCE SNAPSHOT</span><strong>Current figures are unavailable</strong><p>Reload the summary when the Ledger connection is ready.</p><button type="button">Reload summary</button></div>';
