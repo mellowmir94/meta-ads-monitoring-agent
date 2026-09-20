@@ -248,3 +248,15 @@
   .deduction-schedule-head > div:last-child { width: 100%; }
   .deduction-schedule-head button { flex: 1; }
 }
+.deduction-workflow-controls { margin: 16px 0; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.deduction-workflow-controls nav { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+.deduction-workflow-controls button, .deduction-reconciliation button { padding:8px 12px; border:1px solid var(--line); border-radius:7px; background:var(--surface-strong); color:var(--text); cursor:pointer; }
+.deduction-workflow-controls [aria-pressed="true"] { background:var(--accent); color:#142005; font-weight:800; }
+.deduction-workflow-filters { display:flex; flex-wrap:wrap; gap:12px; align-items:end; }
+.deduction-workflow-filters label { display:grid; gap:5px; font-size:12px; }
+.deduction-workflow-filters input, .deduction-workflow-filters select { padding:9px; border:1px solid var(--line); border-radius:7px; background:var(--surface-strong); color:var(--text); }
+.deduction-workflow-controls p { color:var(--text-soft); font-size:12px; margin-bottom:0; }
+.deduction-reconciliation { display:grid; gap:7px; justify-items:center; margin:12px 0; border-top:1px solid var(--line); padding-top:10px; }
+.deduction-progress-badge { border:1px solid var(--line); padding:5px 8px; border-radius:6px; font-size:12px; }
+.deduction-progress-badge.is-completed { color:var(--accent-strong); background:var(--accent-soft); }
+.deduction-reconciliation button:disabled { opacity:.5; cursor:not-allowed; }

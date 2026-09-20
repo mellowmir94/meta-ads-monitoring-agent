@@ -349,7 +349,8 @@ test('deduction history is a dedicated Commission Rider view launched from the g
   assert.match(dashboardHtml, />Ready to download<\/option>/);
   assert.match(dashboardHtml, />Sent to rider<\/option>/);
   assert.match(dashboardHtml, />Upcoming<\/option>/);
-  assert.match(dashboardHtml, />Completed<\/option>/);
+  assert.match(dashboardHtml, />All statements sent<\/option>/);
+  assert.match(dashboardHtml, /\['completed','Completed'\]/);
   assert.doesNotMatch(dashboardHtml, /<th>Next payment<\/th>/);
   assert.doesNotMatch(dashboardHtml, /data-deduction-history-type-timing/);
   assert.match(dashboardHtml, /data-deduction-history-type-payment-select/);
@@ -396,4 +397,45 @@ test('Special Case treats Finance input as the total and shows the per-payment s
   assert.match(dashboardHtml, /deductionMoney\(cents \/ count\) \+ ' × ' \+ count/);
   assert.match(dashboardHtml, /const amount = type === 'manual' \? entered \/ count : entered/);
   assert.match(dashboardHtml, /amount: amount\.toFixed\(2\)/);
+});
+
+test('completion and reopening preserve every record, amount, applied status and audit; requests are idempotent', async () => {
+  const storage = new MemoryStorage();
+  const register = new DeductionRegister({ storage }, {}, { now: () => new Date('2026-09-30T12:00:00Z') });
+  const created = await post(register, { ...base, requestId: 'completion-create-0001' });
+  assert.equal(created.status, 201);
+  const recordId = created.body.id, before = await storage.get('record:' + recordId);
+  const expected = { expectedDueDate: before.installments[0].dueDate, expectedAmountCents: before.amountCents, expectedInstallmentCount: before.installments.length };
+  const input = { ...expected, recordId, installmentIndex: 0, requestId: 'completion-confirm-001', expectedCompletionAt: '', reconciled: true, reason: 'Reconciled to payout' };
+  const completed = await post(register, input, '/complete-installment');
+  assert.equal(completed.status, 201);
+  assert.equal((await post(register, input, '/complete-installment')).status, 201);
+  const saved = await storage.get('record:' + recordId);
+  assert.equal(saved.installments[0].completion.state, 'completed');
+  assert.equal(saved.installments[0].status, before.installments[0].status);
+  assert.equal(saved.amountCents, before.amountCents);
+  assert.equal(saved.scheduledAmountCents, before.scheduledAmountCents);
+  assert.equal(saved.audit.length, before.audit.length + 1);
+  assert.equal((await post(register, { recordId, requestId: 'completion-edit-00001', installmentCount: 2, amount: '20', installmentDates: ['2026-09-14','2026-09-21'] }, '/update-details')).status, 400);
+  const stale = await post(register, { recordId, installmentIndex: 0, requestId: 'completion-stale-0001', expectedCompletionAt: '', reason: 'Wrong payout reference' }, '/reopen-installment');
+  assert.equal(stale.status, 400);
+  const reopenInput = { ...expected, recordId, installmentIndex: 0, requestId: 'completion-reopen-001', expectedCompletionAt: completed.body.completion.version, reason: 'Wrong payout reference' };
+  assert.equal((await post(register, reopenInput, '/reopen-installment')).status, 201);
+  const reopened = await storage.get('record:' + recordId);
+  assert.equal(reopened.installments[0].completion.state, 'reopened');
+  assert.equal(reopened.audit.at(-1).previousCompletion.state, 'completed');
+  assert.equal(reopened.installments.length, before.installments.length);
+  assert.equal((await storage.list({ prefix: 'record:' })).size, 1);
+});
+
+test('completion rejects future installments, missing acknowledgment and missing reason without changing the record', async () => {
+  const storage = new MemoryStorage();
+  const register = new DeductionRegister({ storage }, {}, { now: () => new Date('2026-09-15T10:00:00Z') });
+  const created = await post(register, { ...base, requestId: 'completion-future-001' });
+  const recordId = created.body.id, before = await storage.get('record:' + recordId);
+  for (const patch of [{ installmentIndex: 1, reconciled: true, reason: 'Early' }, { installmentIndex: 0, reconciled: false, reason: 'No' }, { installmentIndex: 0, reconciled: true, reason: '' }]) {
+    const result = await post(register, { recordId, requestId: crypto.randomUUID(), expectedDueDate: before.installments[patch.installmentIndex].dueDate, expectedAmountCents: before.amountCents, expectedInstallmentCount: before.installments.length, ...patch }, '/complete-installment');
+    assert.equal(result.status, 400);
+    assert.deepEqual(await storage.get('record:' + recordId), before);
+  }
 });

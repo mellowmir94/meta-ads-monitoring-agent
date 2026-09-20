@@ -1,0 +1,55 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+const { chromium } = require(process.env.PLAYWRIGHT_PATH || 'playwright');
+const root = path.resolve(__dirname, '../cloudflare/public');
+const record = (id, type, count, done, batchId = 'mixed-batch') => ({ id, batchId, rider: batchId === 'mixed-batch' ? 'Test Mixed Rider' : 'Test Completed Rider', reference: 'TEST-' + id, riderKey: 'test-' + batchId, type, status: 'applied', amountCents: 2500, installmentCount: count, pricingMode:'manual', createdAt:'2026-09-01T00:00:00Z', createdBy:'Test Finance', periodStart:'2026-09-07', periodEnd:'2026-09-13', deductionDate:'2026-09-01', audit:[], installments:Array.from({length:count},(_,index)=>({index,status:'applied',dueDate:'2026-09-' + String(index*3+1).padStart(2,'0'),amountCents:2500,completion:index<done?{state:'completed',changedAt:'2026-09-01T00:00:00Z',by:'Test Finance'}:undefined})) });
+(async () => {
+  const fixtures = [record('epf','epf',4,0),record('insurance','insurance',2,2),record('battery','battery-tester',7,0),record('finished','insurance',2,2,'finished-batch')];
+  let html = fs.readFileSync(path.join(root,'index.html'),'utf8');
+  html = html.replace('function deductionHistoryRender() {', `window.__historyFixture = records => { deductionState.records = records; deductionState.loaded = true; deductionState.actor = {role:'maker'}; state.api.loaded['commission-main'] = true; const view = deductionHistoryEnsure(); view.hidden = false; document.getElementById('tab-commission').hidden = false; document.getElementById('tab-commission').classList.add('deduction-history-active'); view.querySelector('[data-deduction-history-period-start]').value = ''; view.querySelector('[data-deduction-history-period-end]').value = ''; deductionHistoryRender(); };
+function deductionHistoryRender() {`);
+  const browser = await chromium.launch({headless:true});
+  try {
+    const page = await browser.newPage({viewport:{width:1500,height:1000}}), errors = [];
+    page.on('pageerror', e => errors.push(e.message));
+    await page.route('**/*', async route => {
+      const url = new URL(route.request().url());
+      if (url.hostname !== 'localhost') return route.abort();
+      if (url.pathname === '/') return route.fulfill({contentType:'text/html',body:html});
+      if (url.pathname.startsWith('/api/')) return route.fulfill({contentType:'application/json',body:JSON.stringify({records:fixtures,next:null,actor:{role:'maker',name:'Test Finance'}})});
+      const file = path.join(root, url.pathname.replace(/^\//,''));
+      if (file.startsWith(root) && fs.existsSync(file) && fs.statSync(file).isFile()) return route.fulfill({body:fs.readFileSync(file),contentType:file.endsWith('.js')?'application/javascript':file.endsWith('.png')?'image/png':'text/plain'});
+      return route.fulfill({status:404,body:''});
+    });
+    await page.goto('http://localhost:4399/');
+    await page.waitForFunction(()=>typeof window.__historyFixture==='function');
+    await page.evaluate(records=>window.__historyFixture(records),fixtures);
+    await page.locator('.nav-button[data-tab="commission"]').first().click();
+    await page.evaluate(records=>window.__historyFixture(records),fixtures);
+    const view=page.locator('#deductionHistoryView');
+    assert.equal(await view.locator('[data-deduction-history-body] > tr').count(),1);
+    await view.locator('[data-history-installment]').selectOption('exact:2');
+    assert.equal(await view.locator('[data-deduction-record-id]').count(),3);
+    assert.match(await view.innerText(),/Payment 2\/7/);
+    assert.match(await view.innerText(),/Payment 2\/4/);
+    assert.match(await view.innerText(),/Payment 2\/2/);
+    await view.locator('[data-history-stage="completed"]').click();
+    assert.match(await view.innerText(),/Test Completed Rider/);
+    assert.equal(await view.locator('[data-deduction-history-pdf-include]').isChecked(),false);
+    await view.locator('[data-deduction-history-pdf-include]').check();
+    assert.equal(await view.locator('[data-deduction-history-pdf-include]').isChecked(),true);
+    await view.locator('[data-history-payment-month]').fill('2026-10');
+    assert.equal(await view.locator('[data-deduction-history-body] > tr').count(),0);
+    await view.locator('[data-history-payment-month]').fill('2026-09');
+    assert.equal(await view.locator('[data-deduction-history-body] > tr').count(),1);
+    await view.locator('[data-history-stage="active"]').click();
+    await view.locator('[data-deduction-record-id="epf"] [data-history-reconcile]').click();
+    assert.match(await page.locator('dialog[open]').innerText(),/does not deduct the amount again/);
+    await page.keyboard.press('Escape');
+    await page.setViewportSize({width:390,height:844});
+    await page.screenshot({path:path.resolve(__dirname,'../preview-evidence/history-workflow-mobile.png'),fullPage:false});
+    assert.deepEqual(errors,[]);
+    console.log('PASS: full dashboard, Active/Completed tabs, 2/2 + 2/4 + 2/7 retained, completed reprint checkbox, month scope, confirmation dialog, mobile render.');
+  } finally { await browser.close(); }
+})().catch(error=>{console.error(error);process.exitCode=1;});

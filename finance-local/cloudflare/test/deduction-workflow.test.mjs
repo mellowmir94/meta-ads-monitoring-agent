@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import { webcrypto } from 'node:crypto';
+import * as LedgerHistoryWorkflow from '../src/deduction-workflow.js';
 
 const source = readFileSync(new URL('../../deductions.js', import.meta.url), 'utf8');
 function runtime(extra = {}) {
   const context = vm.createContext({
+    window: { LedgerHistoryWorkflow },
     document: { addEventListener() {} }, crypto: webcrypto, URLSearchParams,
     formatMoney: value => 'RM ' + Number(value).toFixed(2), formatNumber: value => String(value),
     numberValue: value => Number(value || 0), formatGrafanaTimestamp: value => String(value || ''),

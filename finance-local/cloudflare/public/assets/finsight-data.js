@@ -15,7 +15,7 @@
       createdBy: record.createdBy, createdAt: record.createdAt,
       payments: items.map((item, i) => ({ number: Number.isInteger(item.index) && item.index >= 0 ? item.index + 1 : i + 1, amountCents: number(item.amountCents ?? record.amountCents), dueDate: item.dueDate,
         status: item.status, paymentDate: item.paymentDate, settlementPeriodStart: item.settlementPeriodStart,
-        settlementPeriodEnd: item.settlementPeriodEnd, statementSentAt: item.statementSentAt || '' }))
+        settlementPeriodEnd: item.settlementPeriodEnd, statementSentAt: item.statementSentAt || '', completionState: item.completion?.state || '' }))
     };
   }
   function analyse({ question = '', records = [], rows = [], columns = [], today, dateRange = {}, search = '' }) {
@@ -41,7 +41,7 @@
     const fractions = [...q.matchAll(/\b(\d+)\/(\d+)\b/g)].map(m => [Number(m[1]), Number(m[2])]);
     const pending = /pending|belum|not sent|follow.up/.test(q);
     const payments = selected.filter(r => !['cancelled', 'rejected', 'reversed'].includes(r.status)).flatMap(r => mapRecord(r).payments.map(p => ({ ...p, rider: r.rider, reference: r.reference, id: r.id, type: r.type, count: r.installmentCount || r.installments?.length })))
-      .filter(p => ['applied', 'scheduled'].includes(p.status) && (!start || p.dueDate >= start) && (!end || p.dueDate <= end) && (!upcoming || p.dueDate > now) && (!overdue || p.dueDate < now) && (!pending || !p.statementSentAt) && (!fractions.length || fractions.some(([i, n]) => p.number === i && p.count === n)))
+      .filter(p => ['applied', 'scheduled'].includes(p.status) && (!start || p.dueDate >= start) && (!end || p.dueDate <= end) && (!upcoming || p.dueDate > now) && (!overdue || p.dueDate < now) && (!pending || !p.statementSentAt && p.completionState !== 'completed') && (!fractions.length || fractions.some(([i, n]) => p.number === i && p.count === n)))
       .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)) || String(a.rider).localeCompare(String(b.rider)));
     const summary = { savedRecordCount: records.length, matchingDeductionCount: selected.length, commissionRowCount: selectedRows.length,
       commissionCents: selectedRows.reduce((sum, r) => sum + Math.round(number(r.commission) * 100), 0), paymentCount: payments.length, paymentCents: payments.reduce((sum, p) => sum + p.amountCents, 0) };
