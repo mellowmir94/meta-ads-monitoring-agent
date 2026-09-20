@@ -69,7 +69,7 @@ function loginPage(showError = false, env = {}) {
     body{background:radial-gradient(ellipse at top left,#1b2512,transparent 56%),var(--login-canvas);padding:32px 20px}
     .shell{width:min(634px,100%);border-color:var(--login-edge);border-radius:20px;background:var(--login-surface);box-shadow:0 20px 55px #0003;overflow:hidden}
     .brand{padding:44px 42px 30px;border:0;background:transparent}
-    .brand-row{justify-content:center}.brand-logo{border:1px solid var(--login-edge);box-shadow:0 10px 30px #0002}
+    .brand-row{justify-content:center}
     main{padding:18px 42px 42px}h1{font-size:34px;line-height:1.2;letter-spacing:-.035em;margin-bottom:16px}p{color:var(--login-muted);font-size:16px;line-height:1.6;margin-bottom:28px}
     label,.capacity-label{color:var(--login-muted);font-size:13px;letter-spacing:.02em;text-transform:none;font-weight:600}
     input{height:62px;border-color:var(--login-edge);border-radius:13px;background:var(--login-field);color:var(--login-text);font-family:inherit;font-size:18px;font-weight:700}

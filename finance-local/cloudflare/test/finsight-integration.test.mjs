@@ -33,4 +33,5 @@ test('secure access pages use the supplied Bateriku login logo', async () => {
   assert.doesNotMatch(worker, /<div class="mark">LL<\/div>/);
   assert.match(worker, /bateriku-finance-logo\.png/);
   assert.match(worker, /img-src 'self'/);
+  assert.doesNotMatch(worker, /\.brand-logo\{border:/);
 });
