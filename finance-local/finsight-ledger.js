@@ -20,6 +20,30 @@
     .replace(/\n/g, "<br>");
   const persist = () => sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(-12)));
 
+  // Presentation-only summary; it reads the existing authorized Ledger scope.
+  const snapshot = document.createElement('section');
+  snapshot.className = 'finsight-snapshot';
+  snapshot.setAttribute('aria-label', 'Finance snapshot');
+  messages.before(snapshot);
+  let snapshotBusy = false;
+  async function renderSnapshot() {
+    if (snapshotBusy || document.getElementById('tab-finsight')?.hidden) return;
+    snapshotBusy = true;
+    snapshot.innerHTML = '<div class="finsight-snapshot-top"><span>FINANCE SNAPSHOT</span><strong>Loading current Ledger data…</strong></div>';
+    try {
+      const data = await window.ledgerFinSightBridge.snapshot();
+      const money = new Intl.NumberFormat('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const period = data.period.start && data.period.end ? String(data.period.start).slice(0, 10) + ' – ' + String(data.period.end).slice(0, 10) : 'Current commission scope';
+      snapshot.innerHTML = '<div class="finsight-snapshot-top"><span>FINANCE SNAPSHOT</span><small>' + escapeHtml(data.riders) + ' riders</small><strong>' + escapeHtml(period) + '</strong></div><div class="finsight-snapshot-total"><span>TOTAL COMMISSION</span><strong>RM ' + money.format(data.commission) + '</strong><p>Current dashboard filters · Before deductions</p></div><div class="finsight-snapshot-metrics"><div><span>DEDUCTION RECORDS</span><strong>' + escapeHtml(data.records) + '</strong></div><div><span>ACTIVE REQUESTS</span><strong>' + escapeHtml(data.active) + '</strong></div><div><span>COMPLETED REQUESTS</span><strong>' + escapeHtml(data.completed) + '</strong></div></div><footer>Source: Commission Rider · Full Deduction History register</footer>';
+    } catch {
+      snapshot.innerHTML = '<div class="finsight-snapshot-top"><span>FINANCE SNAPSHOT</span><strong>Current figures are unavailable</strong><p>Reload the summary when the Ledger connection is ready.</p><button type="button">Reload summary</button></div>';
+      snapshot.querySelector('button').onclick = renderSnapshot;
+    } finally { snapshotBusy = false; }
+  }
+  const panel = document.getElementById('tab-finsight');
+  if (panel) new MutationObserver(() => { if (!panel.hidden) void renderSnapshot(); }).observe(panel, { attributes: true, attributeFilter: ['hidden'] });
+  void renderSnapshot();
+
   function addMessage(role, content, options = {}) {
     const entry = { role, content: String(content || ""), error: Boolean(options.error) };
     if (options.persist !== false) { history.push({ role, content: entry.content }); persist(); }

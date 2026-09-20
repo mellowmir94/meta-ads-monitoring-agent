@@ -1,0 +1,40 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+const { chromium } = require(process.env.PLAYWRIGHT_PATH || 'playwright');
+(async () => {
+  const root = path.resolve(__dirname, '../cloudflare/public');
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const extract = (a,b) => html.slice(html.indexOf(a)+a.length, html.indexOf(b, html.indexOf(a)));
+  const styles = extract('<!-- BEGIN LEDGER FINSIGHT STYLES -->','<!-- END LEDGER FINSIGHT STYLES -->');
+  const panel = extract('<!-- BEGIN LEDGER FINSIGHT: PANEL -->','<!-- END LEDGER FINSIGHT -->');
+  const runtime = extract('<!-- BEGIN LEDGER FINSIGHT RUNTIME -->','<!-- END LEDGER FINSIGHT RUNTIME -->');
+  const browser = await chromium.launch({headless:true});
+  try {
+    const page = await browser.newPage({viewport:{width:1440,height:1000}}), errors=[];
+    page.on('pageerror', e=>errors.push(e.message));
+    await page.route('https://finsight.test/**', route => {
+      const url=new URL(route.request().url());
+      if(url.pathname==='/api/finsight-chat') return route.fulfill({json:{answer:'Test answer: RM 450.00'}});
+      if(url.pathname==='/assets/finsight-mascot.png') return route.fulfill({contentType:'image/png',body:fs.readFileSync(path.join(root,'assets/finsight-mascot.png'))});
+      return route.fulfill({body:'<html></html>',contentType:'text/html'});
+    });
+    await page.goto('https://finsight.test/');
+    await page.evaluate(()=>{ window.ledgerFinSightBridge={snapshot:async()=>({period:{start:'2026-09-14',end:'2026-09-20'},commission:450,riders:3,records:203,active:193,completed:10}),context:async()=>({datasets:[{visibleRowCount:3}],deductionHistory:{recordCount:203}})}; });
+    await page.setContent('<style>:root{--text:#f4f7ef;--text-soft:#b3b9a7;--surface:#0e130b;--surface-strong:#171d14;--surface-muted:#21271c;--line:#353e2b;--accent:#b3f442;--accent-strong:#b3f442;}*{box-sizing:border-box}body{background:#090d08;color:var(--text);font-family:Arial;padding:24px}button{background:var(--surface);border:1px solid var(--line);color:var(--text);cursor:pointer}.primary{background:var(--accent);color:#111;padding:12px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden}</style>'+styles+panel+runtime);
+    await page.waitForFunction(()=>document.querySelector('.finsight-snapshot').textContent.includes('450.00'));
+    assert.match(await page.locator('.finsight-snapshot').innerText(),/203/);
+    await page.screenshot({path:path.resolve(__dirname,'../preview-evidence/finsight-reference-desktop.png'),fullPage:true});
+    await page.locator('#finsightPrompts button').first().click();
+    assert.ok(await page.locator('#finsightQuestion').inputValue());
+    await page.locator('#finsightForm').evaluate(form=>form.requestSubmit());
+    await page.waitForFunction(()=>document.querySelector('#finsightMessages').textContent.includes('Test answer'));
+    await page.locator('#finsightClear').click();
+    assert.doesNotMatch(await page.locator('#finsightMessages').innerText(),/Test answer/);
+    await page.setViewportSize({width:390,height:844});
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=390));
+    await page.screenshot({path:path.resolve(__dirname,'../preview-evidence/finsight-reference-mobile.png'),fullPage:true});
+    assert.deepEqual(errors,[]);
+    console.log('PASS: snapshot, suggestions, send, clear, desktop and mobile layout.');
+  } finally {await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});
