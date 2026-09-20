@@ -10,7 +10,7 @@ export function batchStage(records) {
 export function installmentMatches(item, index, count, scope) {
   if (['cancelled', 'reversed'].includes(item.status)) return false;
   const value = scope.installment || '';
-  if (value === 'first' && index !== 0 || value === 'later' && index < 1 || value === 'final' && index !== count - 1 || /^exact:\d+$/.test(value) && index + 1 !== Number(value.split(':')[1])) return false;
+  if (value === 'single' && count !== 1 || value === 'awaiting' && (item.status !== 'applied' || installmentCompleted(item)) || value === 'completed' && !installmentCompleted(item) || value === 'first' && index !== 0 || value === 'later' && index < 1 || value === 'final' && index !== count - 1 || /^exact:\d+$/.test(value) && index + 1 !== Number(value.split(':')[1])) return false;
   if (scope.month && !String(item.dueDate || '').startsWith(scope.month + '-')) return false;
   if (scope.dueStart && item.dueDate < scope.dueStart || scope.dueEnd && item.dueDate > scope.dueEnd) return false;
   return true;

@@ -6,6 +6,18 @@ test('legacy applied or statement-sent records never become completed automatica
   const record = plan(4); record.installments.forEach(item => item.statementSentAt = '2026-09-01');
   assert.equal(batchStage([record]), 'active');
   assert.equal(installmentCompleted(record.installments[3]), false);
+  const single = plan(1); single.installments[0].statementSentAt = '2026-09-01';
+  assert.equal(batchStage([single]), 'active');
+});
+test('single, awaiting, and completed filters reflect the saved reconciliation state', () => {
+  const single = plan(1).installments;
+  const multiple = plan(2, 1).installments;
+  assert.equal(installmentMatches(single[0], 0, 1, { installment: 'single' }), true);
+  assert.equal(installmentMatches(multiple[0], 0, 2, { installment: 'single' }), false);
+  assert.equal(installmentMatches(single[0], 0, 1, { installment: 'awaiting' }), true);
+  assert.equal(installmentMatches(multiple[0], 0, 2, { installment: 'awaiting' }), false);
+  assert.equal(installmentMatches(multiple[0], 0, 2, { installment: 'completed' }), true);
+  assert.equal(installmentMatches(multiple[1], 1, 2, { installment: 'completed' }), false);
 });
 test('mixed deduction plans complete independently; whole batch waits for every active installment', () => {
   assert.equal(batchStage([plan(2,2), plan(4,2)]), 'active');
