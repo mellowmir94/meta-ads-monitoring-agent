@@ -23,6 +23,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_PATH || 'playwright');
     await page.evaluate(()=>{ window.ledgerFinSightBridge={snapshot:async()=>({period:{start:'2026-09-14',end:'2026-09-20'},commission:450,riders:3,records:203,active:193,completed:10}),context:async()=>({datasets:[{visibleRowCount:3}],deductionHistory:{recordCount:203}})}; });
     await page.setContent('<style>:root{--text:#f4f7ef;--text-soft:#b3b9a7;--surface:#0e130b;--surface-strong:#171d14;--surface-muted:#21271c;--line:#353e2b;--accent:#b3f442;--accent-strong:#b3f442;}*{box-sizing:border-box}body{background:#090d08;color:var(--text);font-family:Arial;padding:24px}button{background:var(--surface);border:1px solid var(--line);color:var(--text);cursor:pointer}.primary{background:var(--accent);color:#111;padding:12px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden}</style>'+styles+panel+runtime);
     await page.waitForFunction(()=>document.querySelector('.finsight-snapshot').textContent.includes('450.00'));
+    await page.evaluate(()=>document.documentElement.setAttribute('data-theme','dark'));
     assert.match(await page.locator('.finsight-snapshot').innerText(),/203/);
     await page.screenshot({path:path.resolve(__dirname,'../preview-evidence/finsight-reference-desktop.png'),fullPage:true});
     await page.locator('#finsightPrompts button').first().click();
