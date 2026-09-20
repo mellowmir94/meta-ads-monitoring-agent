@@ -703,12 +703,16 @@ async function deductionHistoryDownloadBatch(groupId, button) {
     const [, payload] = await Promise.all([ensureFinanceExportBundle('pdf'), deductionCombinedPaymentStatementPayload(options, { start: filters.periodStart, end: filters.periodEnd })]);
     const downloaded = await downloadPdfTable(payload);
     if (!downloaded) { if (feedback) feedback.textContent = 'PDF download was cancelled.'; return; }
-    // Downloading a statement never confirms delivery or reconciliation.
+    const eligible = options.filter(option => option.state !== 'upcoming' && option.state !== 'sent' && !option.item.statementSentAt);
+    await Promise.all(eligible.map(async option => {
+      const saved = await deductionRequest('/mark-sent', { recordId: option.record.id, installmentIndex: option.index, requestId: crypto.randomUUID(), reason: 'PDF downloaded; Finance confirmed statement delivery through the History workflow' });
+      Object.assign(option.item, { statementSentAt: saved.statementSentAt, statementSentBy: saved.statementSentBy });
+    }));
     deductionHistoryRender();
     const nextFeedback = deductionHistoryEnsure()?.querySelector('[data-deduction-history-feedback]');
     if (nextFeedback) {
       const upcoming = options.filter(option => option.state === 'upcoming');
-      nextFeedback.textContent = upcoming.length ? 'Combined PDF downloaded. ' + upcoming.length + ' upcoming payment' + (upcoming.length === 1 ? ' remains' : 's remain') + ' Upcoming until its scheduled date.' : 'PDF downloaded. Use Mark statement sent after actual delivery. Completion is a separate Finance confirmation.';
+      nextFeedback.textContent = upcoming.length ? 'PDF downloaded. Current statements were marked sent; ' + upcoming.length + ' upcoming payment' + (upcoming.length === 1 ? ' remains' : 's remain') + ' Upcoming until its scheduled date.' : 'PDF downloaded and current statements were marked sent. Completion is a separate Finance confirmation.';
     }
   } catch (error) {
     if (feedback) feedback.textContent = error.message || 'The combined payment PDF could not be downloaded.';
@@ -764,7 +768,7 @@ function deductionActionDialog(recordId, action) {
         void Promise.allSettled([ensureFinanceExportBundle('pdf'), deductionPrefetchPaymentStatement(record, index)]);
         statement.querySelector('[data-deduction-payment-download]').onclick = async event => {
           const button = event.currentTarget, message = statement.querySelector('[data-deduction-payment-feedback]'); button.disabled = true; message.textContent = 'Preparing weekly PDF…';
-          try { const [, payload] = await Promise.all([ensureFinanceExportBundle('pdf'), deductionPaymentStatementPayload(record, selectedIndex)]); const downloaded = await downloadPdfTable(payload); if (!downloaded) { message.textContent = 'PDF download was cancelled.'; return; } /* Download only; delivery is explicitly confirmed in History. */ renderStatement(); statement.querySelector('[data-deduction-payment-feedback]').textContent = 'Weekly PDF downloaded. Delivery and completion are confirmed separately in History.'; }
+          try { const [, payload] = await Promise.all([ensureFinanceExportBundle('pdf'), deductionPaymentStatementPayload(record, selectedIndex)]); const downloaded = await downloadPdfTable(payload); if (!downloaded) { message.textContent = 'PDF download was cancelled.'; return; } const saved = item.dueDate <= deductionToday() && !item.statementSentAt ? await deductionRequest('/mark-sent', { recordId: record.id, installmentIndex: selectedIndex, requestId: deliveryIdentity({ recordId: record.id, installmentIndex: selectedIndex }), reason: 'PDF downloaded; statement marked sent automatically' }) : null; if (saved) Object.assign(item, { statementSentAt: saved.statementSentAt, statementSentBy: saved.statementSentBy }); renderStatement(); statement.querySelector('[data-deduction-payment-feedback]').textContent = saved ? 'Weekly PDF downloaded and statement marked sent. Completion remains a separate confirmation.' : 'Weekly PDF downloaded. This payment remains Upcoming until its scheduled date.'; }
           catch (error) { message.textContent = error.message; message.classList.add('is-error'); }
           finally { button.disabled = toggle.getAttribute('aria-pressed') === 'true'; }
         };

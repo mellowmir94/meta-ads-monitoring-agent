@@ -399,6 +399,13 @@ test('Special Case treats Finance input as the total and shows the per-payment s
   assert.match(dashboardHtml, /amount: amount\.toFixed\(2\)/);
 });
 
+test('PDF download auto-marks eligible statements sent while upcoming payments stay upcoming', () => {
+  assert.match(dashboardHtml, /PDF downloaded; statement marked sent automatically/);
+  assert.match(dashboardHtml, /item\.dueDate <= deductionToday\(\)/);
+  assert.match(dashboardHtml, /PDF downloaded\. Current statements were marked sent/);
+  assert.doesNotMatch(dashboardHtml, /selectedItem/);
+});
+
 test('completion and reopening preserve every record, amount, applied status and audit; requests are idempotent', async () => {
   const storage = new MemoryStorage();
   const register = new DeductionRegister({ storage }, {}, { now: () => new Date('2026-09-30T12:00:00Z') });
