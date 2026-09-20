@@ -6733,42 +6733,65 @@
 <!-- END BATERIKU REFERENCE THEME -->
 <!-- BEGIN LEDGER FINSIGHT STYLES -->
 <style>
-.finsight-ledger { padding: 0; overflow: hidden; }
-.finsight-ledger-layout { min-height: calc(100vh - 170px); display: grid; grid-template-columns: minmax(250px, 320px) minmax(0, 1fr); background: var(--surface, #11170f); }
-.finsight-ledger-intro { padding: 38px 30px; border-right: 1px solid var(--line, #35402d); background: color-mix(in srgb, var(--surface, #11170f) 84%, var(--accent, #b3f442) 16%); }
-.finsight-ledger-kicker, .finsight-ledger-chat-head span { color: var(--accent, #b3f442); font-size: 11px; font-weight: 900; letter-spacing: .16em; }
-.finsight-ledger-intro h2 { margin: 12px 0 12px; color: var(--text, #f5f7f2); font-size: clamp(30px, 4vw, 48px); letter-spacing: -.045em; }
-.finsight-ledger-intro > p { margin: 0; color: var(--text-soft, #66705e); line-height: 1.65; }
-.finsight-ledger-scope-card { margin-top: 32px; padding: 18px; border: 1px solid #35402d; border-radius: 14px; background: #11170f; }
-.finsight-ledger-scope-card label { display: block; margin-bottom: 9px; color: #b3f442; font-size: 12px; font-weight: 850; text-transform: uppercase; letter-spacing: .08em; }
-.finsight-ledger-scope-card > strong { display: block; color: #f5f7f2; font-size: 15px; line-height: 1.4; }
-.finsight-ledger-scope-card select { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--line, #35402d); border-radius: 9px; background: var(--surface, #0b0f0a); color: var(--text, #f5f7f2); font: inherit; }
-.finsight-ledger-scope-card p { margin: 12px 0 0; color: #b8c1b0; font-size: 12px; line-height: 1.5; }
-.finsight-ledger-guardrail { display: grid; gap: 5px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line, #35402d); }
-.finsight-ledger-guardrail strong { color: var(--accent, #b3f442); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
-.finsight-ledger-guardrail span { color: var(--muted, #aeb7a6); font-size: 12px; line-height: 1.55; }
-.finsight-ledger-chat { min-width: 0; display: grid; grid-template-rows: auto minmax(260px, 1fr) auto auto auto; padding: 26px 30px 20px; }
-.finsight-ledger-chat-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid var(--line, #35402d); }
+.finsight-ledger { padding: 0; overflow: hidden; border-color: #34402f; background: #121811; }
+.finsight-ledger-layout { min-height: calc(100vh - 170px); padding: 30px; background: #121811; }
+.finsight-ledger-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 26px; padding: 4px 0 24px; border-bottom: 1px solid #34402f; }
+.finsight-ledger-kicker, .finsight-ledger-rail > span, .finsight-ledger-context > span { color: #aab5a0; font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+.finsight-ledger-header h2 { margin: 13px 0 8px; color: #f4f7ef; font-size: clamp(28px, 3vw, 40px); letter-spacing: -.045em; }
+.finsight-ledger-header p { margin: 0; color: #aeb8a7; font-size: 14px; }
+.finsight-ledger-connection { display: flex; align-items: flex-start; gap: 10px; min-width: 220px; padding-top: 5px; }
+.finsight-ledger-connection-dot { width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: #b3f442; box-shadow: 0 0 0 5px #b3f44218; }
+.finsight-ledger-connection strong { display: block; color: #f4f7ef; font-size: 13px; }
+.finsight-ledger-connection small { display: block; margin-top: 4px; color: #93a08e; font-size: 11px; }
+.finsight-ledger-main { display: grid; grid-template-columns: minmax(0, 1fr) 276px; gap: 28px; min-height: 560px; padding-top: 26px; }
+.finsight-ledger-chat { min-width: 0; display: grid; grid-template-rows: auto minmax(270px, 1fr) auto auto; }
+.finsight-ledger-chat-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 0 16px 70px; }
 .finsight-ledger-chat-head div { display: grid; gap: 5px; }
-.finsight-ledger-chat-head strong { color: var(--text, #f5f7f2); font-size: 20px; }
-.finsight-ledger-messages { overflow: auto; display: flex; flex-direction: column; gap: 16px; padding: 24px 2px; scroll-behavior: smooth; }
-.finsight-message { max-width: min(780px, 88%); padding: 15px 17px; border: 1px solid var(--line, #35402d); border-radius: 14px; color: var(--text, #f5f7f2); background: var(--surface-strong, #151c13); line-height: 1.6; overflow-wrap: anywhere; }
+.finsight-ledger-chat-head span { color: #b3f442; font-size: 15px; font-weight: 800; }
+.finsight-ledger-chat-head strong { color: #f4f7ef; font-size: 13px; }
+.finsight-ledger-agent { position: relative; }
+.finsight-ledger-agent::before { content: ""; position: absolute; left: 0; top: -3px; width: 46px; height: 46px; border-radius: 14px; background: url('/assets/finsight-mascot.png') center / cover no-repeat; box-shadow: 0 7px 18px #0005; }
+.finsight-ledger-messages { max-height: 65vh; min-height: 270px; overflow: auto; display: flex; flex-direction: column; gap: 16px; padding: 0 0 24px 70px; scroll-behavior: smooth; }
+.finsight-message { flex-shrink: 0; max-width: min(780px, 88%); padding: 15px 17px; border: 1px solid var(--line, #35402d); border-radius: 14px; color: var(--text, #f5f7f2); background: var(--surface-strong, #151c13); line-height: 1.6; overflow-wrap: anywhere; }
 .finsight-message code { padding: 2px 5px; border-radius: 5px; background: var(--surface-muted, #222d1c); font: 700 .9em/1.4 var(--mono, monospace); }
+.finsight-message p { margin: 0; }
+.finsight-message > button { margin: 12px 8px 0 0; }
+.finsight-evidence { width: min(1100px, 94vw); max-height: 80vh; overflow: auto; color: var(--text); background: var(--surface-strong); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+.finsight-evidence::backdrop { background: #0009; }
+.finsight-evidence table { width: 100%; border-collapse: collapse; }
+.finsight-evidence td, .finsight-evidence th { padding: 10px; border-bottom: 1px solid var(--line); text-align: left; overflow-wrap: anywhere; }
+.finsight-message p + p,
+.finsight-message p + ul,
+.finsight-message p + ol,
+.finsight-message ul + p,
+.finsight-message ol + p { margin-top: 10px; }
+.finsight-message h3,
+.finsight-message h4 { margin: 12px 0 6px; color: var(--text, #f5f7f2); font-size: 13px; line-height: 1.35; letter-spacing: .01em; }
+.finsight-message h3:first-child,
+.finsight-message h4:first-child { margin-top: 0; }
+.finsight-message ul,
+.finsight-message ol { margin: 8px 0 0; padding-left: 20px; }
+.finsight-message li + li { margin-top: 5px; }
 .finsight-message.user { align-self: flex-end; border-color: color-mix(in srgb, var(--accent, #b3f442) 55%, var(--line, #35402d)); background: color-mix(in srgb, var(--surface-strong, #151c13) 82%, var(--accent, #b3f442) 18%); }
 .finsight-message.assistant { align-self: flex-start; }
 .finsight-message.error { border-color: #9e4d42; color: #ffd2cb; }
 .finsight-message .finsight-message-role { display: block; margin-bottom: 6px; color: var(--muted, #aeb7a6); font-size: 10px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
 .finsight-message.assistant .finsight-message-role { color: var(--accent, #b3f442); }
-.finsight-ledger-prompts { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 0 16px; }
-.finsight-ledger-prompts button { min-height: 36px; padding: 7px 12px; border: 1px solid var(--line, #35402d); border-radius: 999px; background: transparent; color: var(--muted, #aeb7a6); font: 700 12px/1.2 inherit; cursor: pointer; }
-.finsight-ledger-prompts button:hover { border-color: var(--accent, #b3f442); color: var(--text, #f5f7f2); }
+.finsight-ledger-rail { display: flex; flex-direction: column; gap: 16px; padding-left: 22px; border-left: 1px solid #34402f; }
+.finsight-ledger-prompts { display: grid; gap: 9px; }
+.finsight-ledger-prompts button { position: relative; min-height: 58px; padding: 12px 34px 12px 14px; border: 1px solid #34402f; border-radius: 11px; background: transparent; color: #f0f5e9; font: 700 12px/1.35 inherit; text-align: left; cursor: pointer; }
+.finsight-ledger-prompts button::after { position: absolute; right: 13px; top: 50%; color: #b3f442; content: "→"; font-size: 16px; transform: translateY(-50%); }
+.finsight-ledger-prompts button:hover { border-color: #88b933; background: #b3f4420d; }
+.finsight-ledger-context { display: grid; gap: 9px; margin-top: auto; padding-top: 20px; border-top: 1px solid #34402f; }
+.finsight-ledger-context strong { color: #f0f5e9; font-size: 13px; line-height: 1.4; }
+.finsight-ledger-context small { color: #aeb8a7; font-size: 12px; line-height: 1.5; }
 .finsight-ledger-composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px; padding: 10px; border: 1px solid var(--line, #35402d); border-radius: 14px; background: var(--surface, #0b0f0a); }
 .finsight-ledger-composer textarea { width: 100%; min-height: 52px; max-height: 160px; resize: vertical; padding: 12px; border: 0; outline: 0; background: transparent; color: var(--text, #f5f7f2); font: inherit; line-height: 1.45; }
 .finsight-ledger-composer button { min-height: 48px; display: inline-flex; align-items: center; gap: 18px; white-space: nowrap; }
 .finsight-ledger-composer button:disabled { cursor: wait; opacity: .65; }
-.finsight-ledger-note { margin: 10px 2px 0; color: var(--muted, #aeb7a6); font-size: 11px; line-height: 1.5; }
-@media (max-width: 900px) { .finsight-ledger-layout { grid-template-columns: 1fr; }.finsight-ledger-intro { padding: 24px; border-right: 0; border-bottom: 1px solid var(--line, #35402d); }.finsight-ledger-chat { min-height: 650px; padding: 22px 18px 16px; } }
-@media (max-width: 560px) { .finsight-ledger-composer { grid-template-columns: 1fr; }.finsight-ledger-composer button { justify-content: space-between; }.finsight-message { max-width: 96%; }.finsight-ledger-chat-head { align-items: flex-start; }.finsight-ledger-chat-head .button { padding-inline: 10px; } }
+.finsight-ledger-note { margin: 10px 0 0 70px; color: #aeb8a7; font-size: 11px; line-height: 1.5; }
+@media (max-width: 900px) { .finsight-ledger-layout { padding: 22px; }.finsight-ledger-main { grid-template-columns: 1fr; }.finsight-ledger-rail { padding: 20px 0 0; border-top: 1px solid #34402f; border-left: 0; }.finsight-ledger-context { margin-top: 4px; } }
+@media (max-width: 560px) { .finsight-ledger-layout { padding: 18px; }.finsight-ledger-header { display: grid; gap: 18px; }.finsight-ledger-connection { min-width: 0; }.finsight-ledger-composer { grid-template-columns: 1fr; }.finsight-ledger-composer button { justify-content: space-between; }.finsight-message { max-width: 96%; }.finsight-ledger-chat-head { align-items: flex-start; padding-left: 58px; }.finsight-ledger-messages { padding-left: 58px; }.finsight-ledger-note { margin-left: 58px; } }
 
 </style>
 <!-- END LEDGER FINSIGHT STYLES -->
@@ -6880,27 +6903,26 @@
         <!-- BEGIN LEDGER FINSIGHT: PANEL -->
         <section class="section tab-panel finsight-ledger" id="tab-finsight" data-tab-panel="finsight" aria-labelledby="finsightTitle">
           <div class="finsight-ledger-layout">
-            <aside class="finsight-ledger-intro">
-              <span class="finsight-ledger-kicker">FINANCE INTELLIGENCE</span>
-              <h2 id="finsightTitle">FinSight Agent</h2>
-              <p>Ask questions about the Finance data you are authorized to view in this Ledger.</p>
-              <div class="finsight-ledger-scope-card">
-                <label>Data scope</label>
-                <strong>Commission Rider + Deduction History</strong>
-                <p id="finsightContextStatus" role="status">Ask a question to load the current Commission and History data.</p>
-              </div>
-              <div class="finsight-ledger-guardrail"><strong>Read-only</strong><span>FinSight explains the current data. It cannot change deductions, filters, or records.</span></div>
-            </aside>
-            <div class="finsight-ledger-chat">
-              <div class="finsight-ledger-chat-head"><div><span>AI FINANCE ASSISTANT</span><strong>Ask your Ledger</strong></div><button type="button" id="finsightClear" class="button">Clear chat</button></div>
-              <div class="finsight-ledger-messages" id="finsightMessages" role="log" aria-live="polite" aria-label="FinSight conversation"></div>
-              <div class="finsight-ledger-prompts" id="finsightPrompts" aria-label="Suggested questions"></div>
-              <form class="finsight-ledger-composer" id="finsightForm">
-                <label class="sr-only" for="finsightQuestion">Ask FinSight a Finance question</label>
-                <textarea id="finsightQuestion" rows="2" maxlength="1200" placeholder="Ask about rider commission, deductions, payment schedules, or History…" required></textarea>
-                <button type="submit" id="finsightSend" class="button primary"><span>Ask FinSight</span><span aria-hidden="true">↑</span></button>
-              </form>
-              <p class="finsight-ledger-note">Answers use Commission Rider’s current date range, filters, and protected History register. Verify material decisions against the source tables.</p>
+            <header class="finsight-ledger-header">
+              <div><span class="finsight-ledger-kicker">FINSIGHT AGENT</span><h2 id="finsightTitle">Ask regarding your Finance data.</h2><p>Ask a focused question about Commission Rider or Rider Deduction History.</p></div>
+              <div class="finsight-ledger-connection"><i class="finsight-ledger-connection-dot" aria-hidden="true"></i><div><strong id="finsightConnectionLabel">Ready to review finance data</strong><small id="finsightContextStatus" role="status">Commission Rider + Deduction History</small></div></div>
+            </header>
+            <div class="finsight-ledger-main">
+              <main class="finsight-ledger-chat">
+                <div class="finsight-ledger-agent"><div class="finsight-ledger-chat-head"><div><span>FinSight Agent</span><strong>Read-only finance assistant</strong></div><button type="button" id="finsightClear" class="button">Clear chat</button></div></div>
+                <div class="finsight-ledger-messages" id="finsightMessages" role="log" aria-live="polite" aria-label="FinSight conversation"></div>
+                <form class="finsight-ledger-composer" id="finsightForm">
+                  <label class="sr-only" for="finsightQuestion">Ask FinSight a Finance question</label>
+                  <textarea id="finsightQuestion" rows="3" maxlength="1200" placeholder="Ask about rider commission, deductions, payment schedules, or History…" required></textarea>
+                  <button type="submit" id="finsightSend" class="button primary"><span>Send</span><span aria-hidden="true">↑</span></button>
+                </form>
+                <p class="finsight-ledger-note">Answers use Commission Rider’s current date range, filters, and protected History register.</p>
+              </main>
+              <aside class="finsight-ledger-rail">
+                <span>Suggested questions</span>
+                <div class="finsight-ledger-prompts" id="finsightPrompts" aria-label="Suggested questions"></div>
+                <div class="finsight-ledger-context"><span>Current context</span><strong>Commission Rider + Deduction History</strong><small id="finsightScopeDetails">Commission uses dashboard filters. History queries search the complete register; specify rider, payment or due dates to narrow the results.</small></div>
+              </aside>
             </div>
           </div>
         </section>
@@ -10057,78 +10079,40 @@
       }
 
       /* BEGIN LEDGER FINSIGHT: DATA BRIDGE */
-      async function ensureFinSightScope() {
-        const targets = [panels.find((panel) => panel.id === "commission-main")].filter(Boolean);
-        await Promise.all(targets.map(async (panel) => {
-          if (state.api.loaded[panel.id]) return;
-          state.api.loading[panel.id] = true;
-          delete state.api.errors[panel.id];
-          await loadGrafanaData(panel.id, false, { renderStart: false, renderEnd: false });
-        }));
-        if (!deductionState.loaded) await deductionLoad();
-        return targets;
-      }
-
       function finSightDataset(panel) {
-        const visibleRows = filteredRows(panel);
-        const columns = panel.columns.map((column) => ({ key: column.key, label: column.label, numeric: Boolean(column.numeric), money: Boolean(column.money) }));
-        const keys = columns.map((column) => column.key);
-        const rowsForAssistant = visibleRows.slice(0, 80).map((row) => Object.fromEntries(keys.map((key) => [key, row[key] ?? ""])));
-        return {
-          id: panel.id,
-          title: panel.title,
-          dateRange: { ...(state.dates[panel.id] || {}) },
-          filters: structuredClone(state.filters[panel.id] || {}),
-          search: String(state.search[panel.id] || ""),
-          visibleRowCount: visibleRows.length,
-          suppliedRowCount: rowsForAssistant.length,
-          truncated: visibleRows.length > rowsForAssistant.length,
-          columns,
-          rows: rowsForAssistant
-        };
+        return panel.columns.map(column => ({ key: column.key, label: column.label, numeric: Boolean(column.numeric), money: Boolean(column.money) }));
       }
-
+      async function ensureFinSightScope() {
+        const panel = panels.find(panel => panel.id === "commission-main");
+        if (!panel) throw new Error("Commission Rider is unavailable.");
+        if (!state.api.loaded[panel.id]) await loadGrafanaData(panel.id, false, { renderStart: false, renderEnd: false });
+        if (state.api.errors[panel.id]) throw new Error("Commission data could not be loaded. Please refresh the dashboard.");
+        await deductionLoad();
+        return panel;
+      }
       window.ledgerFinSightBridge = {
-        async context() {
-          const targets = await ensureFinSightScope();
-          const failures = targets.filter((panel) => state.api.errors[panel.id]).map((panel) => ({ id: panel.id, error: state.api.errors[panel.id] }));
-          if (failures.length === targets.length) throw new Error("The selected Finance data could not be loaded.");
+        async context(question) {
+          const panel = await ensureFinSightScope();
+          if (!window.LedgerFinSightData) throw new Error("FinSight analysis is not ready. Please refresh the page.");
+          const rows = filteredRows(panel);
+          const dateRange = { ...(state.dates[panel.id] || {}) };
+          const analysis = window.LedgerFinSightData.analyse({ question, records: deductionState.records, rows, dateRange });
+          const columns = finSightDataset(panel);
+          const keys = columns.map(column => column.key);
+          const sampledRows = analysis.rows.slice(0, 80).map(row => Object.fromEntries(keys.map(key => [key, row[key] ?? ""])));
+          const records = [];
+          let bytes = 0;
+          for (const record of analysis.records) {
+            const size = new TextEncoder().encode(JSON.stringify(record)).length;
+            if (records.length >= 200 || bytes + size > 500000) break;
+            records.push(record); bytes += size;
+          }
           return {
-            generatedAt: new Date().toISOString(),
-            timezone: "Asia/Kuala_Lumpur",
-            scope: "commission-rider-and-deduction-history",
-            datasets: targets.filter((panel) => !state.api.errors[panel.id]).map(finSightDataset),
-            deductionHistory: {
-              recordCount: deductionState.records.length,
-              records: deductionState.records.slice(0, 200).map((record) => ({
-                id: record.id || "",
-                reference: record.reference || "",
-                rider: record.rider || "",
-                riderKey: record.riderKey || "",
-                type: record.type || "",
-                amountCents: Number(record.amountCents || record.totalCents || 0),
-                installmentCount: Number(record.installmentCount || 0),
-                installmentAmountCents: Number(record.installmentAmountCents || 0),
-                installmentDates: Array.isArray(record.installmentDates) ? record.installmentDates.slice(0, 12) : [],
-                payments: Array.isArray(record.payments) ? record.payments.slice(0, 12).map((payment) => ({
-                  number: Number(payment.number || payment.index || 0),
-                  amountCents: Number(payment.amountCents || 0),
-                  dueDate: payment.dueDate || "",
-                  status: payment.status || "",
-                  paymentDate: payment.paymentDate || "",
-                  settlementPeriodStart: payment.settlementPeriodStart || "",
-                  settlementPeriodEnd: payment.settlementPeriodEnd || ""
-                })) : [],
-                status: record.status || record.approvalStatus || "",
-                reason: record.reason || "",
-                periodStart: record.periodStart || "",
-                periodEnd: record.periodEnd || "",
-                createdBy: record.createdBy || "",
-                createdAt: record.createdAt || ""
-              })),
-              truncated: deductionState.records.length > 200
-            },
-            failures
+            directAnswer: analysis.answer,
+            evidence: analysis.kind === "commission" ? analysis.rows.map(row => ({ Rider: row.rider_name, Commission: row.commission })) : analysis.records.map(record => ({ Rider: record.rider, Reference: record.reference, Type: record.type, Status: record.status, Payments: record.payments.map(p => p.number + "/" + record.installmentCount + " · " + p.dueDate).join("; ") })),
+            generatedAt: new Date().toISOString(), timezone: "Asia/Kuala_Lumpur", scope: "commission-rider-and-deduction-history",
+            datasets: [{ id: panel.id, title: panel.title, dateRange, filters: structuredClone(state.filters[panel.id] || {}), search: String(state.search[panel.id] || ""), visibleRowCount: rows.length, suppliedRowCount: sampledRows.length, truncated: analysis.rows.length > sampledRows.length, columns, rows: sampledRows }],
+            deductionHistory: { recordCount: deductionState.records.length, records, truncated: analysis.records.length > records.length }
           };
         }
       };
@@ -16964,6 +16948,7 @@ function commissionPreviousPeriodTrend(panel, kpi) {
     })();
   </script>
 <!-- BEGIN LEDGER FINSIGHT RUNTIME -->
+<script src="/assets/finsight-data.js?v=2"></script>
 <script>
 (() => {
   const STORAGE_KEY = "ledger-finsight-chat-v1";
@@ -16977,15 +16962,40 @@ function commissionPreviousPeriodTrend(panel, kpi) {
   const prompts = $("#finsightPrompts");
   if (!messages || !form || !question || !send || !status || !prompts) return;
 
+  let requestVersion = 0;
+  let activeRequest = null;
   let history = [];
   try { history = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "[]"); } catch { history = []; }
   if (!Array.isArray(history)) history = [];
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
-  const formatMessage = (value) => escapeHtml(value)
+  const formatInline = (value) => escapeHtml(value)
     .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/`([^`\n]+)`/g, "<code>$1</code>")
-    .replace(/\n/g, "<br>");
-  const persist = () => sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(-12)));
+    .replace(/`([^`\n]+)`/g, "<code>$1</code>");
+  const formatMessage = (value) => {
+    const lines = String(value ?? "").replace(/\r\n?/g, "\n").split("\n");
+    const blocks = [];
+    let listType = "";
+    const closeList = () => { if (listType) { blocks.push(`</${listType}>`); listType = ""; } };
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) { closeList(); continue; }
+      const heading = line.match(/^(#{2,3})\s+(.+)$/);
+      if (heading) { closeList(); const level = heading[1].length === 2 ? "h3" : "h4"; blocks.push(`<${level}>${formatInline(heading[2])}</${level}>`); continue; }
+      const unordered = line.match(/^[-*]\s+(.+)$/);
+      const ordered = line.match(/^\d+[.)]\s+(.+)$/);
+      if (unordered || ordered) {
+        const nextType = unordered ? "ul" : "ol";
+        if (listType !== nextType) { closeList(); listType = nextType; blocks.push(`<${listType}>`); }
+        blocks.push(`<li>${formatInline((unordered || ordered)[1])}</li>`);
+        continue;
+      }
+      closeList();
+      blocks.push(`<p>${formatInline(line)}</p>`);
+    }
+    closeList();
+    return blocks.join("");
+  };
+  const persist = () => { try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(-12))); } catch { status.textContent = "Chat is available in this tab; browser storage is full."; } };
 
   function addMessage(role, content, options = {}) {
     const entry = { role, content: String(content || ""), error: Boolean(options.error) };
@@ -16993,6 +17003,21 @@ function commissionPreviousPeriodTrend(panel, kpi) {
     const node = document.createElement("div");
     node.className = `finsight-message ${role}${entry.error ? " error" : ""}`;
     node.innerHTML = `<span class="finsight-message-role">${role === "user" ? "You" : "FinSight Agent"}</span>${formatMessage(entry.content)}`;
+    if (role === "assistant" && options.persist !== false && !entry.error) {
+      const copy = document.createElement("button");
+      copy.type = "button"; copy.className = "button"; copy.textContent = "Copy answer";
+      copy.addEventListener("click", async () => { try { await navigator.clipboard.writeText(entry.content); copy.textContent = "Copied"; } catch { copy.textContent = "Select the answer to copy"; } });
+      node.append(copy);
+    }
+    if (options.evidence?.length) {
+      const view = document.createElement("button"); view.type = "button"; view.className = "button"; view.textContent = "View matching records";
+      view.addEventListener("click", () => {
+        const dialog = document.createElement("dialog"); dialog.className = "finsight-evidence"; dialog.setAttribute("aria-label", "Matching source records");
+        const keys = Object.keys(options.evidence[0]);
+        dialog.innerHTML = '<form method="dialog"><button class="button">Close</button></form><h2>Matching source records</h2><p>Read-only snapshot used for this answer. Payment dates below show the full schedule of each matching record.</p><div style="overflow:auto"><table><thead><tr>' + keys.map(key => '<th>' + escapeHtml(key) + '</th>').join('') + '</tr></thead><tbody>' + options.evidence.map(row => '<tr>' + keys.map(key => '<td>' + escapeHtml(row[key]) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>';
+        dialog.addEventListener("close", () => { dialog.remove(); view.focus(); }); document.body.append(dialog); dialog.showModal();
+      }); node.append(view);
+    }
     messages.append(node);
     messages.scrollTop = messages.scrollHeight;
     return node;
@@ -17016,26 +17041,41 @@ function commissionPreviousPeriodTrend(panel, kpi) {
   }
 
   async function ask(text) {
+    const version = ++requestVersion;
+    activeRequest = new AbortController();
     addMessage("user", text);
     send.disabled = true;
     send.querySelector("span").textContent = "Analysing…";
+    $("#finsightConnectionLabel").textContent = "Reviewing finance data…";
     status.textContent = "Loading the selected Finance data securely…";
     const pending = addMessage("assistant", "Reviewing the current Ledger data…", { persist: false });
     try {
       if (!window.ledgerFinSightBridge?.context) throw new Error("FinSight data access is not ready. Refresh the page and try again.");
-      const context = await window.ledgerFinSightBridge.context();
+      const context = await window.ledgerFinSightBridge.context(text);
+      if (version !== requestVersion) return;
+      const directAnswer = context.directAnswer;
+      delete context.directAnswer;
+      const evidence = context.evidence;
+      delete context.evidence;
       const rowCount = context.datasets.reduce((total, dataset) => total + dataset.visibleRowCount, 0);
       status.textContent = `${rowCount.toLocaleString("en-MY")} commission rows · ${context.deductionHistory.recordCount.toLocaleString("en-MY")} deduction records`;
+      $("#finsightConnectionLabel").textContent = "Finance data reviewed";
+      const scope = context.datasets[0];
+      $("#finsightScopeDetails").textContent = "Commission: " + (scope.dateRange.start || "selected dates") + " to " + (scope.dateRange.end || "selected dates") + ". Dashboard filters apply. History: complete register, narrowed by this question. Data reviewed in this tab; reload dashboard to refresh commission.";
+      status.textContent += " · Reviewed " + new Date(context.generatedAt).toLocaleTimeString("en-MY");
+      if (directAnswer) { pending.remove(); addMessage("assistant", directAnswer, { evidence }); return; }
       const response = await fetch("/api/finsight-chat", {
+        signal: activeRequest.signal,
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ question: text, history: history.slice(-6, -1), context })
       });
       let payload = {};
       try { payload = await response.json(); } catch { /* A generic error below is safer than exposing an edge response. */ }
+      if (version !== requestVersion) return;
       if (!response.ok) throw new Error(payload.error || "FinSight could not complete this request.");
       pending.remove();
-      addMessage("assistant", payload.answer || "No answer was returned.");
+      addMessage("assistant", payload.answer || "No answer was returned.", { evidence });
       if (Array.isArray(payload.suggestions) && payload.suggestions.length) {
         prompts.replaceChildren();
         payload.suggestions.slice(0, 4).forEach((item) => {
@@ -17043,19 +17083,23 @@ function commissionPreviousPeriodTrend(panel, kpi) {
         });
       }
     } catch (error) {
+      if (version !== requestVersion) return;
       pending.remove();
       addMessage("assistant", error?.message || "FinSight is temporarily unavailable. Please try again.", { error: true });
-      status.textContent = "FinSight could not load the selected scope.";
+      $("#finsightConnectionLabel").textContent = "Review could not finish";
+      status.textContent = "No records were changed. Please retry.";
     } finally {
+      if (version !== requestVersion) return;
+      activeRequest = null;
       send.disabled = false;
-      send.querySelector("span").textContent = "Ask FinSight";
+      send.querySelector("span").textContent = "Send";
       question.focus();
     }
   }
 
   form.addEventListener("submit", (event) => { event.preventDefault(); const text = question.value.trim(); if (!text || send.disabled) return; question.value = ""; void ask(text); });
   question.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); form.requestSubmit(); } });
-  $("#finsightClear")?.addEventListener("click", () => { history = []; persist(); renderHistory(); renderPrompts(); status.textContent = "Chat cleared. Ask a Commission Rider or Deduction History question."; });
+  $("#finsightClear")?.addEventListener("click", () => { requestVersion++; activeRequest?.abort(); activeRequest = null; send.disabled = false; send.querySelector("span").textContent = "Send"; history = []; persist(); renderHistory(); renderPrompts(); status.textContent = "Chat cleared. Ask a Commission Rider or Deduction History question."; });
   renderHistory();
   renderPrompts();
 })();
