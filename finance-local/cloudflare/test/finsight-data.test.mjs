@@ -12,6 +12,13 @@ const records = Array.from({ length: 250 }, (_, i) => ({ id: 'D' + i, reference:
   { index: 0, dueDate: '2026-09-17', status: 'applied', statementSentAt: '2026-09-17' },
   { index: 1, dueDate: '2026-09-24', status: 'applied' }
 ] }));
+test('619 riders question reports actual distinct names, not the suggested number or row count', async () => {
+  const api = await engine();
+  const result = api.analyse({ question: '619 riders?', rows: [{rider_name:'Rider A'}, {rider_name:' RIDER A '}, {rider_name:'Rider B'}] });
+  assert.match(result.answer, /2 unique rider names/);
+  assert.match(result.answer, /3 commission rows/);
+  assert.doesNotMatch(result.answer, /619/);
+});
 test('screenshot question names every next-week rider beyond record 200 without an AI call or clipping', async () => {
   const api = await engine();
   const result = api.analyse({ question: 'payment installments such as 2/4 or 2/7 << how many left that is pending for the next week? can you name those people', records, today: '2026-09-20', rows: [], columns: [] });

@@ -80,9 +80,14 @@
     const pending = addMessage("assistant", "Reviewing the current Ledger data…", { persist: false });
     try {
       if (!window.ledgerFinSightBridge?.context) throw new Error("FinSight data access is not ready. Refresh the page and try again.");
-      const context = await window.ledgerFinSightBridge.context();
+      const context = await window.ledgerFinSightBridge.context(text);
       const rowCount = context.datasets.reduce((total, dataset) => total + dataset.visibleRowCount, 0);
       status.textContent = `${rowCount.toLocaleString("en-MY")} commission rows · ${context.deductionHistory.recordCount.toLocaleString("en-MY")} deduction records`;
+      if (context.directAnswer) {
+        pending.remove();
+        addMessage('assistant', context.directAnswer);
+        return;
+      }
       const response = await fetch("/api/finsight-chat", {
         method: "POST",
         headers: { "content-type": "application/json" },

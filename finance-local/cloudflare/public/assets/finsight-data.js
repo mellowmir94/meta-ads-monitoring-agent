@@ -54,6 +54,11 @@
       if (pending) answer += '\n\n' + t('“Pending” here means the statement has not been marked sent to the rider. Applied deductions can still have an upcoming due date; this is not proof of an unpaid cash balance.', '“Pending” di sini bermaksud penyata belum ditandakan sebagai dihantar kepada rider. Potongan berstatus Applied masih boleh mempunyai tarikh akan datang; ini bukan bukti baki tunai belum dibayar.');
       if (payments.length) answer += '\n\n' + payments.map(p => `- **${label(p.rider)}** · ${label(typeNames[p.type] || p.type)} · Payment ${p.number}/${p.count} · ${label(p.dueDate)} · ${money(p.amountCents)} · ${label(p.status)} · ${p.statementSentAt ? 'Statement sent' : 'Statement not sent'} · ${label(p.reference)}`).join('\n');
       else answer += '\n\n' + t('No installments match this scope.', 'Tiada ansuran sepadan dengan skop ini.');
+    } else if (/^(?:\d+[\s,]*riders?|how many riders?|berapa(?: jumlah)? riders?|jumlah riders?)[?. ]*$/.test(q)) {
+      kind = 'commission';
+      const count = new Set(rows.map(r => norm(r.rider_name)).filter(Boolean)).size;
+      answer = t(`The current Commission Rider scope contains **${count.toLocaleString('en-MY')} unique rider names**, across **${rows.length.toLocaleString('en-MY')} commission rows**.`, `Skop Commission Rider semasa mengandungi **${count.toLocaleString('en-MY')} nama rider unik**, daripada **${rows.length.toLocaleString('en-MY')} baris komisen**.`);
+      answer += '\n\n' + t('Period', 'Tempoh') + ': ' + (dateRange.start || t('Current selection', 'Pilihan semasa')) + (dateRange.end ? ' – ' + dateRange.end : '') + '. ' + t('This follows the current dashboard filters. Repeated rows for the same rider name count once; this is not the Deduction History record count.', 'Kiraan ini mengikut filter dashboard semasa. Nama rider berulang dikira sekali; ini bukan jumlah rekod Deduction History.');
     } else if (/highest|ranking|top\s*\d*|tertinggi/.test(q) && /commission|komisen/.test(q)) {
       kind = 'commission';
       const groups = new Map();

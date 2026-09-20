@@ -1,6 +1,7 @@
 const { readFileSync, writeFileSync, copyFileSync } = require('node:fs');
 const { resolve } = require('node:path');
 const root = resolve(__dirname, '..');
+copyFileSync(resolve(root, 'assets/finsight-data.js'), resolve(root, 'cloudflare/public/assets/finsight-data.js'));
 const file = resolve(root, 'index.html');
 let html = readFileSync(file, 'utf8');
 const cssStart = '<!-- BEGIN DEDUCTION STYLES -->';
@@ -26,7 +27,7 @@ if (html.includes(finsightStyleStart)) {
 } else html = html.replace('</head>', finsightStyle + '\n</head>');
 const finsightRuntimeStart = '<!-- BEGIN LEDGER FINSIGHT RUNTIME -->';
 const finsightRuntimeEnd = '<!-- END LEDGER FINSIGHT RUNTIME -->';
-const finsightRuntime = finsightRuntimeStart + '\n<script>\n' + readFileSync(resolve(root, 'finsight-ledger.js'), 'utf8') + '\n</script>\n' + finsightRuntimeEnd;
+const finsightRuntime = finsightRuntimeStart + '\n<script>\n' + readFileSync(resolve(root, 'assets/finsight-data.js'), 'utf8') + '\n' + readFileSync(resolve(root, 'finsight-ledger.js'), 'utf8') + '\n</script>\n' + finsightRuntimeEnd;
 if (html.includes(finsightRuntimeStart)) {
   html = html.slice(0, html.indexOf(finsightRuntimeStart)) + finsightRuntime + html.slice(html.indexOf(finsightRuntimeEnd) + finsightRuntimeEnd.length);
 } else html = html.replace('</body>', finsightRuntime + '\n</body>');
