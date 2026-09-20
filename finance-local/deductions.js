@@ -846,14 +846,19 @@ function deductionActionDialog(recordId, action) {
   };
 }
 function deductionHistorySyncNavigation(historyOpen) {
-  const commission = document.querySelector('.nav-button[data-tab="commission"]'), history = document.querySelector('[data-deduction-history-open]');
-  commission?.classList.toggle('active', !historyOpen);
-  commission?.setAttribute('aria-selected', String(!historyOpen));
+  const commissions = document.querySelectorAll('.nav-button[data-tab="commission"]'), history = document.querySelector('[data-deduction-history-open]');
+  const commissionActive = !document.getElementById('tab-commission')?.hidden;
+  commissions.forEach(commission => {
+    commission.classList.toggle('active', !historyOpen && commissionActive);
+    commission.setAttribute('aria-selected', String(!historyOpen && commissionActive));
+  });
   history?.classList.toggle('active', historyOpen);
   history?.setAttribute('aria-current', historyOpen ? 'page' : 'false');
 }
 async function deductionHistoryOpen() {
   if (typeof closeTableFullscreen === 'function') closeTableFullscreen();
+  const commission = document.querySelector('.nav-button[data-tab="commission"]');
+  if (!commission?.classList.contains('active')) commission?.click();
   const view = deductionHistoryEnsure(); if (!view) return;
   deductionHistoryUseCommissionRange(view);
   document.getElementById('tab-commission')?.classList.add('deduction-history-active'); view.hidden = false; deductionHistorySyncNavigation(true);
@@ -944,7 +949,7 @@ document.addEventListener('click', async event => {
   }
   const reconcile = event.target.closest?.('[data-history-reconcile], [data-history-mark-sent]');
   if (reconcile) { event.preventDefault(); await deductionWorkflowAction(reconcile); return; }
-  if (event.target.closest?.('.nav-button[data-tab="commission"]')) return deductionHistoryClose();
+  if (event.target.closest?.('.nav-button[data-tab]')) return deductionHistoryClose();
   if (event.target.closest?.('[data-deduction-history-open]')) { event.preventDefault(); return deductionHistoryOpen(); }
   const rangeToggle = event.target.closest?.('[data-deduction-history-range-toggle]');
   if (rangeToggle) {

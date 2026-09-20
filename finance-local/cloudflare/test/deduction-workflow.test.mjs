@@ -30,9 +30,11 @@ test('rider guard normalizes case, Unicode and whitespace and rejects two or mis
   assert.match(api.deductionSingleRider([{ rider_name: 'A' }, {}]).message, /no rider_name/);
   assert.equal(api.deductionSingleRider([]).valid, false);
 });
-test('Deduction History exits only through the Commission Rider sidebar navigation', () => {
+test('Deduction History closes for every primary tab and remains independently clickable', () => {
   assert.doesNotMatch(source, /data-deduction-history-close/);
   assert.match(source, /\.nav-button\[data-tab="commission"\]/);
+  assert.match(source, /if \(!commission\?\.classList\.contains\('active'\)\) commission\?\.click\(\)/);
+  assert.match(source, /event\.target\.closest\?\.\('\.nav-button\[data-tab\]'\)/);
   assert.match(source, /return deductionHistoryClose\(\)/);
 });
 test('Deduction History marks its sidebar button active while open', () => {
