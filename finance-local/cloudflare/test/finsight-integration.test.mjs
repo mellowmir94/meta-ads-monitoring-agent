@@ -31,6 +31,6 @@ test('FinSight renders structured professional answers instead of raw Markdown l
 test('secure access pages use the supplied Bateriku login logo', async () => {
   const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
   assert.doesNotMatch(worker, /<div class="mark">LL<\/div>/);
-  assert.match(worker, /bateriku-login-logo\.png/);
+  assert.match(worker, /bateriku-finance-logo\.png/);
   assert.match(worker, /img-src 'self'/);
 });
