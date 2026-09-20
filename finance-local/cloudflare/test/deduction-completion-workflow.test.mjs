@@ -38,3 +38,13 @@ test('month and date range filter the same installment as the payment number', (
   assert.equal(installmentMatches({status:'applied',dueDate:'2026-10-01'},1,4,{month:'2026-09',installment:'exact:2'}),false);
   assert.equal(installmentMatches({status:'applied',dueDate:'2026-09-21'},1,7,{month:'2026-09',dueStart:'2026-09-21',dueEnd:'2026-09-27',installment:'exact:2'}),true);
 });
+test('payment number and progress must match the same installment', () => {
+  const items = plan(7, 1).installments;
+  items[1].statementSentAt = '2026-09-21';
+  const matches = scope => items.filter((item, index) => installmentMatches(item, index, 7, scope));
+  assert.equal(matches({ installment: 'exact:2', progress: 'reconciliation' }).length, 1);
+  assert.equal(matches({ installment: 'exact:2', progress: 'completed' }).length, 0);
+  assert.equal(matches({ installment: 'later', progress: 'statement' }).length, 5);
+  assert.equal(matches({ progress: 'completed' }).length, 1);
+  assert.equal(batchStage([{ status: 'applied', installments: items }]), 'active');
+});

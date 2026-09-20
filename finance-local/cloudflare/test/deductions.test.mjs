@@ -347,10 +347,10 @@ test('deduction history is a dedicated Commission Rider view launched from the g
   assert.match(dashboardHtml, /data-deduction-history-type/);
   assert.match(dashboardHtml, /Payment schedule/);
   assert.match(dashboardHtml, />Ready to download<\/option>/);
-  assert.match(dashboardHtml, />Sent to rider<\/option>/);
+  assert.match(dashboardHtml, />Statement recorded<\/option>/);
   assert.match(dashboardHtml, />Upcoming<\/option>/);
-  assert.match(dashboardHtml, />All statements sent<\/option>/);
-  assert.match(dashboardHtml, /\['completed','Completed'\]/);
+  assert.match(dashboardHtml, />All statements recorded<\/option>/);
+  assert.match(dashboardHtml, /\['completed','Completed requests'\]/);
   assert.doesNotMatch(dashboardHtml, /<th>Next payment<\/th>/);
   assert.doesNotMatch(dashboardHtml, /data-deduction-history-type-timing/);
   assert.match(dashboardHtml, /data-deduction-history-type-payment-select/);
@@ -400,7 +400,7 @@ test('Special Case treats Finance input as the total and shows the per-payment s
 });
 
 test('PDF download auto-marks eligible statements sent while upcoming payments stay upcoming', () => {
-  assert.match(dashboardHtml, /PDF downloaded; statement marked sent automatically/);
+  assert.match(dashboardHtml, /PDF downloaded; rider delivery is not verified/);
   assert.match(dashboardHtml, /item\.dueDate <= deductionToday\(\)/);
   assert.match(dashboardHtml, /PDF downloaded\. Current statements were marked sent/);
   assert.doesNotMatch(dashboardHtml, /selectedItem/);

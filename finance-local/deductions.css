@@ -260,3 +260,11 @@
 .deduction-progress-badge { border:1px solid var(--line); padding:5px 8px; border-radius:6px; font-size:12px; }
 .deduction-progress-badge.is-completed { color:var(--accent-strong); background:var(--accent-soft); }
 .deduction-reconciliation button:disabled { opacity:.5; cursor:not-allowed; }
+.deduction-history-view .deduction-history-toolbar { display:flex; flex-wrap:wrap; align-items:end; gap:12px; }
+.deduction-history-toolbar > label { flex:1 1 180px; }
+.deduction-history-toolbar [data-history-primary] { flex:3 1 480px; }
+[data-history-primary] > label { flex:1 1 140px; }
+[data-history-more] { margin:12px 0 20px; padding:12px 16px; border:1px solid var(--line); border-radius:8px; background:var(--surface); }
+[data-history-more] summary { cursor:pointer; color:var(--text); font-weight:700; }
+[data-history-more] .deduction-workflow-filters { margin-top:14px; }
+[data-history-more] button { color:var(--text); background:var(--surface-strong); border:1px solid var(--line); border-radius:7px; padding:9px 12px; }
