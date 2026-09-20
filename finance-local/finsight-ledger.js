@@ -14,10 +14,32 @@
   try { history = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "[]"); } catch { history = []; }
   if (!Array.isArray(history)) history = [];
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
-  const formatMessage = (value) => escapeHtml(value)
+  const formatInline = (value) => escapeHtml(value)
     .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
     .replace(/`([^`\n]+)`/g, "<code>$1</code>")
-    .replace(/\n/g, "<br>");
+    .replace(/\\\|/g, "|");
+  const tableCells = line => line.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map(cell => cell.trim());
+  const formatMessage = value => {
+    const lines = String(value ?? '').split(/\r?\n/), blocks = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].includes('|') && i + 1 < lines.length && tableCells(lines[i + 1]).every(cell => /^:?-{3,}:?$/.test(cell))) {
+        const headers = tableCells(lines[i]), rows = [];
+        i += 2;
+        while (i < lines.length && lines[i].trim() && lines[i].includes('|')) {
+          const cells = tableCells(lines[i]);
+          rows.push('<tr>' + headers.map((_, index) => '<td>' + formatInline(cells[index] || '') + '</td>').join('') + '</tr>');
+          i++;
+        }
+        i--;
+        blocks.push('<div class="finsight-table-scroll" tabindex="0" role="region" aria-label="FinSight results table"><table><thead><tr>' + headers.map(cell => '<th scope="col">' + formatInline(cell) + '</th>').join('') + '</tr></thead><tbody>' + rows.join('') + '</tbody></table></div>');
+      } else if (/^#{1,3}\s/.test(lines[i])) {
+        blocks.push('<h3>' + formatInline(lines[i].replace(/^#{1,3}\s+/, '')) + '</h3>');
+      } else if (lines[i].trim()) {
+        blocks.push('<p>' + formatInline(lines[i]) + '</p>');
+      }
+    }
+    return blocks.join('');
+  };
   const persist = () => sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(-12)));
 
   // Presentation-only summary; it reads the existing authorized Ledger scope.
@@ -58,8 +80,12 @@
     const node = document.createElement("div");
     node.className = `finsight-message ${role}${entry.error ? " error" : ""}`;
     node.innerHTML = `<span class="finsight-message-role">${role === "user" ? "You" : "FinSight Agent"}</span>${formatMessage(entry.content)}`;
+    if (node.querySelector('table')) node.classList.add('has-table');
     messages.append(node);
     messages.scrollTop = messages.scrollHeight;
+    if (node.classList.contains('has-table')) requestAnimationFrame(() => {
+      messages.scrollTop += node.getBoundingClientRect().top - messages.getBoundingClientRect().top;
+    });
     return node;
   }
 
@@ -81,6 +107,10 @@
   }
 
   async function ask(text) {
+    const tableRequest = /\b(table|tabular|jadual)\b/i.test(text);
+    const formatOnly = tableRequest && !/\d|payment|rider|deduction|commission|ansuran|potongan|komisen/i.test(text);
+    const previous = [...history].reverse().find(item => item.role === 'user' && (!/\b(table|tabular|jadual)\b/i.test(item.content) || /\d|payment|rider|deduction|commission|ansuran|potongan|komisen/i.test(item.content)));
+    const analysisQuestion = formatOnly && previous ? previous.content + '\n' + text : text;
     addMessage("user", text);
     send.disabled = true;
     send.querySelector("span").textContent = "Analysing…";
@@ -88,7 +118,7 @@
     const pending = addMessage("assistant", "Reviewing the current Ledger data…", { persist: false });
     try {
       if (!window.ledgerFinSightBridge?.context) throw new Error("FinSight data access is not ready. Refresh the page and try again.");
-      const context = await window.ledgerFinSightBridge.context(text);
+      const context = await window.ledgerFinSightBridge.context(analysisQuestion);
       const rowCount = context.datasets.reduce((total, dataset) => total + dataset.visibleRowCount, 0);
       status.textContent = `${rowCount.toLocaleString("en-MY")} commission rows · ${context.deductionHistory.recordCount.toLocaleString("en-MY")} deduction records`;
       if (context.directAnswer) {
@@ -99,7 +129,7 @@
       const response = await fetch("/api/finsight-chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ question: text, history: history.slice(-6, -1), context })
+        body: JSON.stringify({ question: tableRequest ? analysisQuestion + '\nPresent the requested results as a Markdown table with a No. column and clear column headers. Do not use a bullet list instead.' : text, history: history.slice(-6, -1), context })
       });
       let payload = {};
       try { payload = await response.json(); } catch { /* A generic error below is safer than exposing an edge response. */ }

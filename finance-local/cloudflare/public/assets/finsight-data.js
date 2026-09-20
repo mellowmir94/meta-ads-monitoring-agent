@@ -52,7 +52,10 @@
       const riders = new Set(payments.map(p => norm(p.rider))).size;
       answer = `**${payments.length.toLocaleString('en-MY')} ${t('matching installments', 'ansuran sepadan')}** ${t('for', 'untuk')} **${riders.toLocaleString('en-MY')} riders**, ${t('totalling', 'berjumlah')} **${money(summary.paymentCents)}**.\n\n${t('Period', 'Tempoh')}: ${start ? start + t(' to ', ' hingga ') + end : overdue ? t('Before ', 'Sebelum ') + now : upcoming ? t('After ', 'Selepas ') + now : t('All recorded dates', 'Semua tarikh direkodkan')} (${t('Malaysia calendar', 'kalendar Malaysia')}).`;
       if (pending) answer += '\n\n' + t('“Pending” here means the statement has not been marked sent to the rider. Applied deductions can still have an upcoming due date; this is not proof of an unpaid cash balance.', '“Pending” di sini bermaksud penyata belum ditandakan sebagai dihantar kepada rider. Potongan berstatus Applied masih boleh mempunyai tarikh akan datang; ini bukan bukti baki tunai belum dibayar.');
-      if (payments.length) answer += '\n\n' + payments.map(p => `- **${label(p.rider)}** · ${label(typeNames[p.type] || p.type)} · Payment ${p.number}/${p.count} · ${label(p.dueDate)} · ${money(p.amountCents)} · ${label(p.status)} · ${p.statementSentAt ? 'Statement sent' : 'Statement not sent'} · ${label(p.reference)}`).join('\n');
+      if (payments.length && /\b(table|tabular|jadual)\b/.test(q)) {
+        const cell = value => label(value).replace(/\\/g, '').replace(/\|/g, '\\|');
+        answer += '\n\n| No. | Rider | Deduction | Payment | Due date | Amount (RM) | Status | Statement | Reference |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n' + payments.map((p, i) => '| ' + [i + 1, p.rider, typeNames[p.type] || p.type, `${p.number}/${p.count}`, p.dueDate, money(p.amountCents), p.status, p.statementSentAt ? 'Statement sent' : 'Statement not sent', p.reference].map(cell).join(' | ') + ' |').join('\n');
+      } else if (payments.length) answer += '\n\n' + payments.map(p => `- **${label(p.rider)}** · ${label(typeNames[p.type] || p.type)} · Payment ${p.number}/${p.count} · ${label(p.dueDate)} · ${money(p.amountCents)} · ${label(p.status)} · ${p.statementSentAt ? 'Statement sent' : 'Statement not sent'} · ${label(p.reference)}`).join('\n');
       else answer += '\n\n' + t('No installments match this scope.', 'Tiada ansuran sepadan dengan skop ini.');
     } else if (/^(?:\d+[\s,]*riders?|how many riders?|berapa(?: jumlah)? riders?|jumlah riders?)[?. ]*$/.test(q)) {
       kind = 'commission';
@@ -66,6 +69,7 @@
       const ranked = [...groups.values()].sort((a, b) => b.cents - a.cents);
       const requested = q.match(/top\s+(\d+)/), limit = requested ? Math.max(1, Number(requested[1])) : /all|semua/.test(q) ? ranked.length : 10;
       answer = `Commission ranking calculated from **all ${selectedRows.length.toLocaleString('en-MY')} matching rows** in ${dateRange.start || 'the selected period'}${dateRange.end ? ' to ' + dateRange.end : ''}.\n\n` + ranked.slice(0, limit).map((r, i) => `${i + 1}. **${label(r.rider)}** · ${money(r.cents)}`).join('\n');
+      if (/\b(table|tabular|jadual)\b/.test(q)) answer = answer.split('\n\n')[0] + '\n\n| No. | Rider | Commission (RM) |\n| --- | --- | --- |\n' + ranked.slice(0, limit).map((r, i) => `| ${i + 1} | ${label(r.rider).replace(/\\/g, '').replace(/\|/g, '\\|')} | ${money(r.cents)} |`).join('\n');
     } else if (/^(?:how many (?:rider )?deduction(?: history)? records(?: are (?:there|available))?|berapa (?:jumlah )?(?:rekod )?(?:rider )?deduction history|jumlah rekod)[?. ]*$/.test(q)) {
       answer = t(`Rider Deduction History currently contains **${records.length.toLocaleString('en-MY')} saved records**.`, `Rider Deduction History kini mempunyai **${records.length.toLocaleString('en-MY')} rekod tersimpan**.`);
     } else if (/summari[sz]e|summary|ringkasan|total commission|jumlah komisen/.test(q) && /commission|komisen/.test(q)) {

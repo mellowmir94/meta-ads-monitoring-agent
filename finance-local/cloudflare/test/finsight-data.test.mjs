@@ -12,6 +12,16 @@ const records = Array.from({ length: 250 }, (_, i) => ({ id: 'D' + i, reference:
   { index: 0, dueDate: '2026-09-17', status: 'applied', statementSentAt: '2026-09-17' },
   { index: 1, dueDate: '2026-09-24', status: 'applied' }
 ] }));
+test('table and jadual requests return every numbered installment without changing totals', async () => {
+  const api = await engine();
+  for (const word of ['table', 'jadual']) {
+    const result = api.analyse({ question: `list payment 2/4 and 2/7 in ${word}`, records, today:'2026-09-20' });
+    assert.match(result.answer, /\| No\. \| Rider \|/);
+    assert.equal(result.answer.split('\n').filter(line => /^\| \d+ \|/.test(line)).length, 250);
+    assert.match(result.answer, /\| 250 \|/);
+    assert.equal(result.summary.paymentCents, 625000);
+  }
+});
 test('619 riders question reports actual distinct names, not the suggested number or row count', async () => {
   const api = await engine();
   const result = api.analyse({ question: '619 riders?', rows: [{rider_name:'Rider A'}, {rider_name:' RIDER A '}, {rider_name:'Rider B'}] });
