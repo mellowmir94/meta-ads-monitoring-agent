@@ -21,3 +21,16 @@ test('FinSight API uses an authenticated private service binding', async () => {
   assert.match(config, /"binding": "FINANCE_AGENT"/);
 });
 
+test('FinSight renders structured professional answers instead of raw Markdown lines', async () => {
+  const html = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
+  assert.match(html, /const formatInline =/);
+  assert.match(html, /blocks\.push\(`<li>/);
+  assert.match(html, /\.finsight-message h3/);
+});
+
+test('secure access pages use the supplied Bateriku login logo', async () => {
+  const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(worker, /<div class="mark">LL<\/div>/);
+  assert.match(worker, /bateriku-login-logo\.png/);
+  assert.match(worker, /img-src 'self'/);
+});

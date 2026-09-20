@@ -6754,6 +6754,19 @@
 .finsight-ledger-messages { overflow: auto; display: flex; flex-direction: column; gap: 16px; padding: 24px 2px; scroll-behavior: smooth; }
 .finsight-message { max-width: min(780px, 88%); padding: 15px 17px; border: 1px solid var(--line, #35402d); border-radius: 14px; color: var(--text, #f5f7f2); background: var(--surface-strong, #151c13); line-height: 1.6; overflow-wrap: anywhere; }
 .finsight-message code { padding: 2px 5px; border-radius: 5px; background: var(--surface-muted, #222d1c); font: 700 .9em/1.4 var(--mono, monospace); }
+.finsight-message p { margin: 0; }
+.finsight-message p + p,
+.finsight-message p + ul,
+.finsight-message p + ol,
+.finsight-message ul + p,
+.finsight-message ol + p { margin-top: 10px; }
+.finsight-message h3,
+.finsight-message h4 { margin: 12px 0 6px; color: var(--text, #f5f7f2); font-size: 13px; line-height: 1.35; letter-spacing: .01em; }
+.finsight-message h3:first-child,
+.finsight-message h4:first-child { margin-top: 0; }
+.finsight-message ul,
+.finsight-message ol { margin: 8px 0 0; padding-left: 20px; }
+.finsight-message li + li { margin-top: 5px; }
 .finsight-message.user { align-self: flex-end; border-color: color-mix(in srgb, var(--accent, #b3f442) 55%, var(--line, #35402d)); background: color-mix(in srgb, var(--surface-strong, #151c13) 82%, var(--accent, #b3f442) 18%); }
 .finsight-message.assistant { align-self: flex-start; }
 .finsight-message.error { border-color: #9e4d42; color: #ffd2cb; }
@@ -16981,10 +16994,33 @@ function commissionPreviousPeriodTrend(panel, kpi) {
   try { history = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "[]"); } catch { history = []; }
   if (!Array.isArray(history)) history = [];
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
-  const formatMessage = (value) => escapeHtml(value)
+  const formatInline = (value) => escapeHtml(value)
     .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/`([^`\n]+)`/g, "<code>$1</code>")
-    .replace(/\n/g, "<br>");
+    .replace(/`([^`\n]+)`/g, "<code>$1</code>");
+  const formatMessage = (value) => {
+    const lines = String(value ?? "").replace(/\r\n?/g, "\n").split("\n");
+    const blocks = [];
+    let listType = "";
+    const closeList = () => { if (listType) { blocks.push(`</${listType}>`); listType = ""; } };
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) { closeList(); continue; }
+      const heading = line.match(/^(#{2,3})\s+(.+)$/);
+      if (heading) { closeList(); const level = heading[1].length === 2 ? "h3" : "h4"; blocks.push(`<${level}>${formatInline(heading[2])}</${level}>`); continue; }
+      const unordered = line.match(/^[-*]\s+(.+)$/);
+      const ordered = line.match(/^\d+[.)]\s+(.+)$/);
+      if (unordered || ordered) {
+        const nextType = unordered ? "ul" : "ol";
+        if (listType !== nextType) { closeList(); listType = nextType; blocks.push(`<${listType}>`); }
+        blocks.push(`<li>${formatInline((unordered || ordered)[1])}</li>`);
+        continue;
+      }
+      closeList();
+      blocks.push(`<p>${formatInline(line)}</p>`);
+    }
+    closeList();
+    return blocks.join("");
+  };
   const persist = () => sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(-12)));
 
   function addMessage(role, content, options = {}) {

@@ -30,7 +30,7 @@ function html(body, status = 200, headers = {}) {
       "x-content-type-options": "nosniff",
       "x-frame-options": "DENY",
       "referrer-policy": "no-referrer",
-      "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+      "content-security-policy": "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
       ...headers
     }
   });
@@ -55,8 +55,7 @@ function loginPage(showError = false, env = {}) {
     body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:#090b0f}
     .shell{width:min(470px,100%);border:1px solid #2b313b;background:#111419;box-shadow:0 24px 80px rgba(0,0,0,.45)}
     .brand{padding:30px 34px 24px;border-bottom:1px solid #2b313b;background:#0c0f13}
-    .brand-row{display:flex;align-items:center;gap:14px}.mark{display:grid;place-items:center;width:46px;height:46px;background:#2563eb;color:#fff;font-size:18px;font-weight:900}
-    .brand strong{display:block;font-size:20px;letter-spacing:-.02em}.brand span{display:block;margin-top:4px;color:#98a2b3;font-size:13px}
+    .brand-row{display:flex;align-items:center;justify-content:center}.brand-logo{display:block;width:min(300px,100%);height:auto;padding:8px 12px;border-radius:14px;background:#fff}
     main{padding:30px 34px 34px}h1{margin:0 0 8px;font-size:28px;letter-spacing:-.035em}p{margin:0 0 22px;color:#aab3c0;line-height:1.55}
     label,.capacity-label{display:block;margin-bottom:9px;color:#dbe2ea;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
     input{width:100%;height:54px;border:1px solid #3a4350;background:#0b0e13;color:#fff;padding:0 16px;font:700 18px/1 inherit;letter-spacing:.12em;outline:none}
@@ -70,8 +69,7 @@ function loginPage(showError = false, env = {}) {
     body{background:radial-gradient(ellipse at top left,#1b2512,transparent 56%),var(--login-canvas);padding:32px 20px}
     .shell{width:min(634px,100%);border-color:var(--login-edge);border-radius:20px;background:var(--login-surface);box-shadow:0 20px 55px #0003;overflow:hidden}
     .brand{padding:44px 42px 30px;border:0;background:transparent}
-    .brand-row{justify-content:center;gap:16px}.mark{width:54px;height:54px;border-radius:9px;background:var(--login-lime);color:var(--login-field)}
-    .brand strong{font-size:28px;color:var(--login-lime)}.brand span{color:var(--login-muted);font-size:14px}
+    .brand-row{justify-content:center}.brand-logo{border:1px solid var(--login-edge);box-shadow:0 10px 30px #0002}
     main{padding:18px 42px 42px}h1{font-size:34px;line-height:1.2;letter-spacing:-.035em;margin-bottom:16px}p{color:var(--login-muted);font-size:16px;line-height:1.6;margin-bottom:28px}
     label,.capacity-label{color:var(--login-muted);font-size:13px;letter-spacing:.02em;text-transform:none;font-weight:600}
     input{height:62px;border-color:var(--login-edge);border-radius:13px;background:var(--login-field);color:var(--login-text);font-family:inherit;font-size:18px;font-weight:700}
@@ -79,13 +77,13 @@ function loginPage(showError = false, env = {}) {
     .capacity-field{padding:16px 18px;margin-bottom:26px;border-color:var(--login-edge);border-radius:12px;background:var(--login-field)}.capacity-field strong{color:var(--login-text)}.capacity-field small{color:var(--login-muted);line-height:1.6}
     button{height:62px;margin-top:22px;border-radius:13px;background:var(--login-lime);color:#152008;font-family:inherit;font-size:17px;font-weight:800}button:hover{background:#c2ff59}button:focus-visible{outline:2px solid var(--login-text);outline-offset:4px}
     .error{border-radius:10px;color:#ffc7bf}.note{margin-top:30px;padding-top:22px;border-top:1px solid var(--login-edge);color:var(--login-muted);text-align:left;line-height:1.6}
-    @media(max-width:520px){body{padding:20px 14px}.brand{padding:28px 24px 18px}main{padding:18px 24px 28px}.brand strong{font-size:24px}h1{font-size:28px}}
+    @media(max-width:520px){body{padding:20px 14px}.brand{padding:28px 24px 18px}main{padding:18px 24px 28px}h1{font-size:28px}}
     /* END BATERIKU REFERENCE LOGIN THEME */
   </style>
 </head>
 <body>
   <section class="shell" aria-labelledby="title">
-    <header class="brand"><div class="brand-row"><div class="mark">LL</div><div><strong>Ledger Local</strong><span>Finance reporting console</span></div></div></header>
+    <header class="brand"><div class="brand-row"><img class="brand-logo" src="/assets/bateriku-login-logo.png" alt="Bateriku"></div></header>
     <main>
       <h1 id="title">Secure finance access</h1>
       <p>Enter the Finance access PIN. Your authenticated session remains active for eight hours on this device.</p>
@@ -111,7 +109,7 @@ function waitingRoomPage(nextPath, initial, env) {
   const pollMs = Math.max(3000, Number(env.QUEUE_STATUS_POLL_SECONDS || 5) * 1000);
   const heartbeatMs = Math.max(5000, Number(env.QUEUE_HEARTBEAT_SECONDS || 15) * 1000);
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Ledger Finance | Waiting Room</title><style>
-  :root{font-family:Inter,"Segoe UI",Arial,sans-serif;color:#f5f7fb;background:#090b0f}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:#090b0f}.shell{width:min(560px,100%);border:1px solid #2b313b;background:#111419;box-shadow:0 24px 80px rgba(0,0,0,.45)}.brand{padding:28px 34px;border-bottom:1px solid #2b313b;background:#0c0f13}.brand-row{display:flex;align-items:center;gap:14px}.mark{display:grid;place-items:center;width:44px;height:44px;background:#2563eb;color:#fff;font-weight:900}.brand strong{display:block;font-size:20px}.brand span{display:block;margin-top:4px;color:#98a2b3;font-size:13px}.content{padding:32px 34px 34px}h1{margin:0 0 10px;font-size:28px}p{margin:0;color:#aab3c0;line-height:1.55}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:26px 0 22px}.metric{padding:17px;border:1px solid #343c47;background:#0b0e13}.metric span{display:block;color:#8e99a8;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}.metric strong{display:block;margin-top:7px;color:#f5f7fb;font-size:28px}.status{display:flex;align-items:center;gap:10px;padding:14px 16px;border:1px solid #284b42;background:#10241f;color:#6ee7b7;font-size:14px;font-weight:800}.spinner{width:15px;height:15px;border:2px solid #305e51;border-top-color:#6ee7b7;border-radius:50%;animation:spin .9s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}.note{margin-top:18px;font-size:13px}.leave{width:100%;height:46px;margin-top:22px;border:1px solid #3a4350;background:#171b22;color:#dbe2ea;font:inherit;font-weight:800;cursor:pointer}.error{min-height:20px;margin-top:12px;color:#fca5a5;font-size:13px;font-weight:750}@media(max-width:520px){.metrics{grid-template-columns:1fr}.content,.brand{padding-left:24px;padding-right:24px}}</style></head><body><main class="shell"><header class="brand"><div class="brand-row"><div class="mark">LL</div><div><strong>Ledger Local</strong><span>Finance access queue</span></div></div></header><section class="content"><h1>Application currently full</h1><p>All ${config.limit} Finance dashboard slots are in use. You remain in line and will enter automatically when capacity becomes available.</p><div class="metrics"><div class="metric"><span>Your position</span><strong id="position">#${Number(initial && initial.position || 1)}</strong></div><div class="metric"><span>Users active</span><strong><span id="active">${Number(initial && initial.active || config.limit)}</span> / ${config.limit}</strong></div><div class="metric"><span>Waiting</span><strong id="waiting">${Number(initial && initial.waiting || 1)}</strong></div></div><div class="status"><span class="spinner" aria-hidden="true"></span><span id="statusText">Checking for availability...</span></div><p class="note">Keep this page open. Your queue position updates automatically; inactive queue tickets expire after one minute.</p><button class="leave" id="leaveButton" type="button">Leave queue and sign out</button><div class="error" id="error" role="alert" aria-live="polite"></div></section></main><script>
+  :root{font-family:Inter,"Segoe UI",Arial,sans-serif;color:#f5f7fb;background:#090b0f}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:#090b0f}.shell{width:min(560px,100%);border:1px solid #2b313b;background:#111419;box-shadow:0 24px 80px rgba(0,0,0,.45)}.brand{padding:28px 34px;border-bottom:1px solid #2b313b;background:#0c0f13}.brand-row{display:flex;align-items:center;justify-content:center}.brand-logo{display:block;width:min(270px,100%);height:auto;padding:8px 12px;border-radius:13px;background:#fff}.content{padding:32px 34px 34px}h1{margin:0 0 10px;font-size:28px}p{margin:0;color:#aab3c0;line-height:1.55}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:26px 0 22px}.metric{padding:17px;border:1px solid #343c47;background:#0b0e13}.metric span{display:block;color:#8e99a8;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}.metric strong{display:block;margin-top:7px;color:#f5f7fb;font-size:28px}.status{display:flex;align-items:center;gap:10px;padding:14px 16px;border:1px solid #284b42;background:#10241f;color:#6ee7b7;font-size:14px;font-weight:800}.spinner{width:15px;height:15px;border:2px solid #305e51;border-top-color:#6ee7b7;border-radius:50%;animation:spin .9s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}.note{margin-top:18px;font-size:13px}.leave{width:100%;height:46px;margin-top:22px;border:1px solid #3a4350;background:#171b22;color:#dbe2ea;font:inherit;font-weight:800;cursor:pointer}.error{min-height:20px;margin-top:12px;color:#fca5a5;font-size:13px;font-weight:750}@media(max-width:520px){.metrics{grid-template-columns:1fr}.content,.brand{padding-left:24px;padding-right:24px}}</style></head><body><main class="shell"><header class="brand"><div class="brand-row"><img class="brand-logo" src="/assets/bateriku-login-logo.png" alt="Bateriku"></div></header><section class="content"><h1>Application currently full</h1><p>All ${config.limit} Finance dashboard slots are in use. You remain in line and will enter automatically when capacity becomes available.</p><div class="metrics"><div class="metric"><span>Your position</span><strong id="position">#${Number(initial && initial.position || 1)}</strong></div><div class="metric"><span>Users active</span><strong><span id="active">${Number(initial && initial.active || config.limit)}</span> / ${config.limit}</strong></div><div class="metric"><span>Waiting</span><strong id="waiting">${Number(initial && initial.waiting || 1)}</strong></div></div><div class="status"><span class="spinner" aria-hidden="true"></span><span id="statusText">Checking for availability...</span></div><p class="note">Keep this page open. Your queue position updates automatically; inactive queue tickets expire after one minute.</p><button class="leave" id="leaveButton" type="button">Leave queue and sign out</button><div class="error" id="error" role="alert" aria-live="polite"></div></section></main><script>
   const next=${next};let current=${initialState};let stopped=false;
   const position=document.getElementById('position'),active=document.getElementById('active'),waiting=document.getElementById('waiting'),statusText=document.getElementById('statusText'),error=document.getElementById('error');
   function render(value){current=value||{};if(current.status==='admitted'){stopped=true;statusText.textContent='Slot available. Opening Finance dashboard...';location.replace(next);return}if(current.status==='queued'){position.textContent='#'+current.position;active.textContent=current.active;waiting.textContent=current.waiting;statusText.textContent='Checking for availability...';error.textContent='';return}if(current.status==='required')enter()}
@@ -374,6 +372,14 @@ async function malaysiaPublicHolidaysApi(url) {
 export default {
   async fetch(request, env, context) {
     const url = new URL(request.url);
+
+    if (url.pathname === "/assets/bateriku-login-logo.png" && request.method === "GET") {
+      const response = await env.ASSETS.fetch(request);
+      const headers = new Headers(response.headers);
+      headers.set("cache-control", "public, max-age=86400");
+      headers.set("x-content-type-options", "nosniff");
+      return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+    }
 
     if (url.pathname === "/login" && request.method === "GET") {
       if (context && typeof context.waitUntil === "function") context.waitUntil(prewarmCommissionPrimary(env).catch(() => {}));
