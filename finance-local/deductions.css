@@ -298,6 +298,10 @@
 .additional-job-row { display:grid; grid-template-columns:24px minmax(0,1fr) 150px auto; gap:12px; align-items:end; margin-bottom:12px; }
 .additional-job-row label { display:grid; gap:6px; font-size:12px; }
 .additional-job-row input { min-width:0; width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--surface-strong); color:var(--text); }
+.additional-job-money { display:flex; align-items:center; border:1px solid var(--line); border-radius:8px; background:var(--surface-strong); overflow:hidden; }
+.additional-job-money > span { padding-left:10px; color:var(--text-soft); font-size:12px; }
+.additional-job-money input { border:0; border-radius:0; background:transparent; }
+.additional-job-money:focus-within { outline:2px solid var(--success); outline-offset:1px; }
 .additional-job-actions { display:flex; flex-wrap:wrap; gap:10px; }
 .additional-jobs button { padding:9px 12px; border:1px solid var(--line); border-radius:8px; background:var(--surface-muted); color:var(--text); }
 .additional-job-history-table { overflow-x:auto; }

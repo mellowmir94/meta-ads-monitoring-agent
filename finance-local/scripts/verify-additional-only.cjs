@@ -17,7 +17,7 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
    if(url.hostname!=='localhost')return route.abort();
    if(url.pathname==='/')return route.fulfill({body:html,contentType:'text/html'});
    if(url.pathname.startsWith('/api/')){
-    if(req.method()==='POST'){writes.push(url.pathname);if(url.pathname.endsWith('/save-job')){const data=req.postDataJSON();jobs.push({...data,riderKey:'test rider',reference:'JOB-1',amountCents:Math.round(Number(data.amount)*100)});}}
+    if(req.method()==='POST'){writes.push(url.pathname);if(url.pathname.endsWith('/save-jobs')){const data=req.postDataJSON();jobs.splice(0,jobs.length,...data.rows.map((row,i)=>({...data,...row,id:data.requestId+'-'+i,riderKey:'test rider',reference:'JOB-'+i,amountCents:Math.round(Number(row.amount)*100)})));}}
     return route.fulfill({contentType:'application/json',body:JSON.stringify({records:[],jobs,next:null})});
    }
    const file=path.join(root,url.pathname);return fs.existsSync(file)&&fs.statSync(file).isFile()?route.fulfill({body:fs.readFileSync(file)}):route.fulfill({status:404,body:''});
@@ -29,8 +29,12 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
   await host.locator('[data-job-amount]').fill('1');assert.equal(await proceed.isEnabled(),true);
   assert.equal(await host.locator('[data-deduction-inline-type]:checked').count(),0);
   await proceed.click();await page.waitForFunction(()=>window.__historyOpened===true);
-  assert.deepEqual(writes,['/api/deductions/save-job']);assert.equal(jobs.length,1);assert.equal(jobs[0].description,'Additional Job');assert.equal(jobs[0].amountCents,100);
+  assert.deepEqual(writes,['/api/deductions/save-jobs']);assert.equal(jobs.length,1);assert.equal(jobs[0].description,'Additional Job');assert.equal(jobs[0].amountCents,100);
   assert.equal(await proceed.isEnabled(),false);
+  assert.equal(await host.locator('.additional-job-money > span').innerText(),'RM');
+  await host.locator('[data-job-amount]').fill('50');await proceed.click();
+  await page.waitForFunction(()=>document.querySelector('#job-test [data-job-amount]')?.value==='50.00');
+  assert.equal(jobs.length,1);assert.equal(jobs[0].amountCents,5000);assert.equal(writes.length,2);
   console.log('PASS: Additional Job only, RM1, Proceed saves exactly one job, no deduction, opens History.');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

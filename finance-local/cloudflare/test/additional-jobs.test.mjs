@@ -28,6 +28,18 @@ test('rejects invalid job money, descriptions and dates without writing',async()
   const {env,storage}=setup();for(const change of [{amount:'-2'},{amount:'1.001'},{amount:'Infinity'},{amount:'1000001'},{description:''},{periodEnd:'2026-09-01'},{periodStart:'2026-02-30'}])assert.equal((await call(env,'/save-job',{...job,...change,requestId:crypto.randomUUID()})).status,400);
   assert.equal((await storage.list()).size,0);
 });
+test('saving visible job rows replaces RM80 with RM50, retains audit, and retries once',async()=>{
+  const {env,storage}=setup();
+  for(const amount of ['30','50'])await call(env,'/save-job',{...job,amount,requestId:crypto.randomUUID()});
+  const expectedJobs=(await call(env,'/jobs')).body.jobs;
+  const input={...job,requestId:crypto.randomUUID(),expectedJobs,rows:[{description:'Additional Job',amount:'50'}]};
+  const saved=await call(env,'/save-jobs',input);assert.ok(saved.status<300,JSON.stringify(saved.body));
+  assert.deepEqual((await call(env,'/save-jobs',input)).body,saved.body);
+  const current=(await call(env,'/jobs')).body.jobs;assert.equal(current.length,1);assert.equal(current[0].amountCents,5000);
+  const all=[...await storage.list({prefix:'job:'})].map(([,value])=>value);assert.equal(all.length,3);assert.equal(all.filter(job=>job.status==='replaced').length,2);
+  assert.equal((await call(env,'/')).body.records.length,0);
+  assert.equal((await call(env,'/save-jobs',{...input,requestId:crypto.randomUUID()})).status,400);
+});
 test('job listing paginates beyond 200 without changing any job',async()=>{
   const {env,storage}=setup();for(let i=0;i<235;i++)await storage.put('job:'+String(i).padStart(5,'0'),{...job,id:String(i)});
   const ids=[];let next='';do{const result=await call(env,'/jobs'+(next?'?after='+encodeURIComponent(next):''));ids.push(...result.body.jobs.map(item=>item.id));next=result.body.next;}while(next);

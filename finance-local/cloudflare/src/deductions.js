@@ -124,7 +124,7 @@ export class DeductionRegister {
           const after = url.searchParams.get('after');
           if (after && !/^job:[a-z0-9-]+$/i.test(after)) return reply({ error: 'Invalid job cursor.' }, 400);
           const page = [...await this.storage.list({ prefix: 'job:', limit: 101, ...(after ? {startAfter: after} : {}) })];
-          return reply({ jobs: page.slice(0,100).map(([,job]) => job), next: page.length > 100 ? page[99][0] : null });
+          return reply({ jobs: page.slice(0,100).map(([,job]) => job).filter(job => job.status !== 'replaced'), next: page.length > 100 ? page[99][0] : null });
         }
         if (url.pathname === '/snapshot' && request.headers.get('x-deduction-internal') === '1') return reply(await this.storage.transaction(tx => createDeductionSnapshot(tx, this.now().toISOString())));
         if (url.pathname === '/record' && request.headers.get('x-deduction-internal') === '1') {
@@ -142,7 +142,7 @@ export class DeductionRegister {
         return reply({ found: true, result: prior.result });
       }
       if (!/^[a-z0-9-]{16,80}$/i.test(input.requestId || '')) return reply({ error: 'A valid request ID is required.' }, 400);
-      if (!['/save-job', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/mark-sent', '/complete-installment', '/reopen-installment', '/delete-batch'].includes(url.pathname)) return reply({ error: 'Deduction action not found.' }, 404);
+      if (!['/save-job', '/save-jobs', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/mark-sent', '/complete-installment', '/reopen-installment', '/delete-batch'].includes(url.pathname)) return reply({ error: 'Deduction action not found.' }, 404);
       const signature = requestSignature(url.pathname, input);
       const result = await this.storage.transaction(async tx => {
         const prior = await tx.get('request:' + input.requestId);
@@ -151,7 +151,21 @@ export class DeductionRegister {
           return prior.result;
         }
         const now = this.now().toISOString(); let result;
-        if (url.pathname === '/save-job') {
+        if (url.pathname === '/save-jobs') {
+          const rider=required(input.rider,'Rider'),riderKey=rider.normalize('NFKC').toLowerCase().replace(/\s+/g,' ');
+          const periodStart=date(input.periodStart,'Commission period start'),periodEnd=date(input.periodEnd,'Commission period end');
+          if(periodEnd<periodStart)throw new Error('Invalid commission period.');
+          if(!Array.isArray(input.rows)||!input.rows.length||input.rows.length>10000)throw new Error('Enter at least one Additional Job.');
+          const rows=input.rows.map(row=>{const description=required(row.description,'Job description',500),amount=String(row.amount??'');if(!/^\d+(\.\d{1,2})?$/.test(amount)||Number(amount)<=0||Number(amount)>1000000)throw new Error('Enter a valid positive RM amount.');return {description,amountCents:Math.round(Number(amount)*100)};});
+          const existing=[];let after='';
+          do {const page=[...await tx.list({prefix:'job:',limit:500,...(after?{startAfter:after}:{})})];for(const [,job] of page)if(job.status!=='replaced'&&job.riderKey===riderKey&&job.periodStart>=periodStart&&job.periodEnd<=periodEnd)existing.push(job);after=page.length===500?page.at(-1)[0]:'';}while(after);
+          const fingerprint=jobs=>JSON.stringify(jobs.map(job=>[job.id,job.amountCents,job.description]).sort((a,b)=>a[0].localeCompare(b[0])));
+          if(!Array.isArray(input.expectedJobs)||fingerprint(existing)!==fingerprint(input.expectedJobs))throw new Error('Saved jobs changed. Refresh and review before saving again.');
+          for(const job of existing)await tx.put('job:'+job.id,{...job,status:'replaced',replacedAt:now,replacedBy:actor.name,replacementRequestId:input.requestId,audit:[...(job.audit||[]),{action:'additional-jobs-overwritten',at:now,by:actor.name,amountCents:job.amountCents}]});
+          let counter=Number(await tx.get('counter:job-reference')||0);const jobs=[];
+          for(let i=0;i<rows.length;i++){const job={...rows[i],id:input.requestId+'-'+i,reference:'JOB-'+String(++counter).padStart(6,'0'),rider,riderKey,periodStart,periodEnd,createdAt:now,createdBy:actor.name,status:'saved',audit:[{action:'additional-job-saved',at:now,by:actor.name,replaces:existing.map(job=>job.id)}]};await tx.put('job:'+job.id,job);jobs.push(job);}
+          await tx.put('counter:job-reference',counter);result={jobs};
+        } else if (url.pathname === '/save-job') {
           const rider = required(input.rider, 'Rider'), description = required(input.description, 'Job description / reference', 500);
           const periodStart = date(input.periodStart, 'Commission period start'), periodEnd = date(input.periodEnd, 'Commission period end');
           if (periodEnd < periodStart) throw new Error('Commission period end must follow its start.');
@@ -372,7 +386,7 @@ export async function deductionsApi(request, env, actor, context) {
     if (request.headers.get('origin') !== url.origin || !request.headers.get('content-type')?.startsWith('application/json')) return reply({ error: 'Same-origin JSON request required.' }, 403);
   }
   const path = url.pathname.slice('/api/deductions'.length) || '/';
-  if (!['/', '/jobs', '/save-job', '/eligibility', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/mark-sent', '/complete-installment', '/reopen-installment', '/delete-batch'].includes(path)) return reply({ error: 'Deduction action not found.' }, 404);
+  if (!['/', '/jobs', '/save-job', '/save-jobs', '/eligibility', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/mark-sent', '/complete-installment', '/reopen-installment', '/delete-batch'].includes(path)) return reply({ error: 'Deduction action not found.' }, 404);
   const readOnly = path === '/' || path === '/eligibility' || path === '/jobs';
   if ((readOnly && request.method !== 'GET') || (!readOnly && request.method !== 'POST')) return reply({ error: 'Method not allowed.' }, 405);
   try {
