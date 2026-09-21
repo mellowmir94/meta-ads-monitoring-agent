@@ -2169,7 +2169,7 @@
        filters, finance exclusions, calculations, exports, and drill-through
        continue to use the existing application logic. */
     :root {
-      --reference-sidebar-width: 170px;
+      --reference-sidebar-width: 300px;
       --reference-gap: 12px;
       --reference-card-radius: 8px;
       --reference-green: #32b87c;
@@ -2186,7 +2186,7 @@
       padding: 16px 8px 12px;
       background: var(--sidebar-canvas);
     }
-    .brand { min-height: 36px; padding: 0 7px 12px; border-bottom: 0; }
+    .brand { min-height: 36px; padding: 0 7px 12px; border-bottom: 0; flex-direction: column; align-items: flex-start; gap: 8px; }
     .app:not(.sidebar-collapsed) .brand > div { display: block; min-width: 0; }
     .brand-mark { width: 30px; height: 30px; border-radius: 5px; font-size: .7rem; }
     .nav { gap: 3px; }
