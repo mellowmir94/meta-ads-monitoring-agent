@@ -268,3 +268,23 @@
 [data-history-more] summary { cursor:pointer; color:var(--text); font-weight:700; }
 [data-history-more] .deduction-workflow-filters { margin-top:14px; }
 [data-history-more] button { color:var(--text); background:var(--surface-strong); border:1px solid var(--line); border-radius:7px; padding:9px 12px; }
+/* Installment exposure reuses the Ledger palette and never scrolls internally. */
+.deduction-exposure { padding: 20px; min-width: 0; }
+.deduction-exposure-filters { display:flex; flex-wrap:wrap; gap:12px; margin:16px 0; align-items:end; }
+.deduction-exposure-filters label { display:grid; gap:6px; font-size:12px; flex:1 1 120px; }
+.deduction-exposure-filters input,.deduction-exposure-filters select { width:100%; min-width:0; min-height:36px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--text); font:inherit; }
+.deduction-exposure-filters > button { min-height:36px; padding:6px 12px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--text); }
+.deduction-exposure-summary { display:flex; gap:20px; flex-wrap:wrap; padding:16px 0; border-bottom:1px solid var(--line); }
+.deduction-exposure-summary span { font-size:12px; }
+.deduction-exposure-summary strong { display:block; font-size:22px; margin-top:6px; }
+.deduction-exposure-row { padding:18px 0; border-bottom:1px solid var(--line); }
+.deduction-exposure-row > div:first-child { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; font-size:13px; }
+.deduction-exposure-track { display:flex; height:24px; background:var(--surface); border-radius:5px; overflow:hidden; margin:10px 0; }
+.deduction-exposure .is-statement { background:var(--danger,#ff9e70); }
+.deduction-exposure .is-reconciliation { background:var(--amber,#e5c85b); }
+.deduction-exposure .is-completed { background:var(--accent); }
+.deduction-exposure button.deduction-exposure-segment { padding:0; border:0; border-radius:0; min-width:0; height:24px; cursor:pointer; }
+.deduction-exposure-values { display:flex; flex-wrap:wrap; gap:6px 14px; }
+.deduction-exposure-values button { display:inline-flex; align-items:center; gap:5px; padding:2px 0; background:transparent; color:var(--text); border:0; font-size:11px; text-align:left; }
+.deduction-exposure-values i { width:8px; height:8px; border-radius:50%; flex:none; }
+.deduction-exposure button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
