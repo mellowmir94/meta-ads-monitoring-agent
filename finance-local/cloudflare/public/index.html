@@ -16293,7 +16293,7 @@ function deductionSummaryMarkup(dataRows, tableId) {
     '<div class="deduction-settlement-strip"><div><span>Gross commission</span><strong>' + esc(deductionMoney(summary.grossCents)) + '</strong></div><span class="deduction-equation-sign" aria-hidden="true">+</span><div><span>Additional Jobs</span><strong>' + esc(deductionMoney(summary.additionalCents)) + '</strong></div><span class="deduction-equation-sign" aria-hidden="true">−</span><div><span>Total deductions</span><strong>' + esc(enabled ? deductionMoney(summary.approvedCents) : '—') + '</strong><small>' + esc(enabled ? 'Saved deductions are applied immediately' : 'Requires one rider and a complete register') + '</small></div><span class="deduction-equation-sign" aria-hidden="true">=</span><div class="commission-net-total' + (summary.netCents < 0 ? ' is-negative' : '') + '"><span>Net commission</span><strong>' + esc(enabled ? deductionMoney(summary.netCents) : '—') + '</strong></div></div>' +
     additionalJobsMarkup(tableId, rider, dates, summary) +
     (summary.legacyCount ? '<p class="deduction-legacy-note">' + summary.legacyCount + ' legacy applied payment(s) use their original due date for this report.</p>' : '') +
-    '<footer class="deduction-inline-actions"><button type="button" data-deduction-history-open>History</button><div><strong data-deduction-inline-preview>Deduction preview: —</strong><span data-deduction-inline-message>' + esc(enabled ? 'Choose one or more types, then Proceed. Dates and remarks can be edited in History.' : error || 'Waiting for the deduction register.') + '</span></div><strong class="deduction-inline-total">Total Deducted: ' + esc(enabled ? deductionMoney(summary.approvedCents) : '—') + '</strong><button type="button" data-deduction-inline-create' + (enabled && draft.selected.length ? '' : ' disabled') + '>Proceed</button></footer></section>';
+    '<footer class="deduction-inline-actions"><button type="button" data-deduction-history-open>History</button><div><strong data-deduction-inline-preview>Deduction preview: —</strong><span data-deduction-inline-message>' + esc(enabled ? 'Choose one or more types, then Proceed. Dates and remarks can be edited in History.' : error || 'Waiting for the deduction register.') + '</span></div><strong class="deduction-inline-total">Total Deducted: ' + esc(enabled ? deductionMoney(summary.approvedCents) : '—') + '</strong><button type="button" data-deduction-inline-create' + (enabled && draft.selected.length || !draft.selected.length && additionalJobsCanProceed(tableId) ? '' : ' disabled') + '>Proceed</button></footer></section>';
 }
 function deductionUpdateInline(summary) {
   if (!summary) return;
@@ -17191,7 +17191,8 @@ document.addEventListener('click', async event => {
   if (!summary) return deductionProceedBatch(id, [button.dataset.deductionCreate || 'manual'], {}, button);
   deductionUpdateInline(summary); if (button.disabled) return;
   if (!deductionDrafts.get(id)?.selected.length && additionalJobsCanProceed(id)) {
-    const saved = await additionalJobsSave(summary.querySelector('[data-additional-table]'));
+    const jobsDraft = additionalJobDrafts.get(id);
+    const saved = jobsDraft.rows.every(row => row.saved) && !jobsDraft.payload || await additionalJobsSave(summary.querySelector('[data-additional-table]'));
     if (saved) await deductionHistoryOpen();
     return;
   }
@@ -17257,7 +17258,7 @@ function additionalJobsEditor(draft) {
   return `<fieldset ${draft.saving?'disabled':''}><div class="additional-job-rows">${rows}</div><div class="additional-job-actions"><button type="button" data-job-add>+ Add row</button><button type="button" data-job-save>Save Additional Jobs</button></div></fieldset>`;
 }
 function additionalJobsCanProceed(id) {
-  const draft=additionalJobDrafts.get(id),pending=draft?.rows.filter(row=>!row.saved)||[];
+  const draft=additionalJobDrafts.get(id),pending=draft?.rows||[];
   return Boolean(draft?.enabled&&!draft.saving&&pending.length&&pending.every(row=>row.description.trim()&&/^\d+(\.\d{1,2})?$/.test(row.amount)&&Number(row.amount)>0&&Number(row.amount)<=1000000));
 }
 function additionalJobsHistoryCell(jobs) {

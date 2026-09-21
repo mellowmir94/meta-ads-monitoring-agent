@@ -45,7 +45,7 @@ function additionalJobsEditor(draft) {
   return `<fieldset ${draft.saving?'disabled':''}><div class="additional-job-rows">${rows}</div><div class="additional-job-actions"><button type="button" data-job-add>+ Add row</button><button type="button" data-job-save>Save Additional Jobs</button></div></fieldset>`;
 }
 function additionalJobsCanProceed(id) {
-  const draft=additionalJobDrafts.get(id),pending=draft?.rows.filter(row=>!row.saved)||[];
+  const draft=additionalJobDrafts.get(id),pending=draft?.rows||[];
   return Boolean(draft?.enabled&&!draft.saving&&pending.length&&pending.every(row=>row.description.trim()&&/^\d+(\.\d{1,2})?$/.test(row.amount)&&Number(row.amount)>0&&Number(row.amount)<=1000000));
 }
 function additionalJobsHistoryCell(jobs) {
