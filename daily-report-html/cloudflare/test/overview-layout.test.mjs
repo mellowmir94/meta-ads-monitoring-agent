@@ -22,3 +22,11 @@ test('overview opens and data reloads default to the whole-month range', async (
   assert.doesNotMatch(dashboard, /applyRangePreset\('previous'\)/);
   assert.match(dashboard, /state\.b2cStateSummaryPreset = 'previous'/);
 });
+
+test('overview first-day movement uses the exact preceding calendar-day sales row', async () => {
+  const dashboard = await readFile(dashboardPath, 'utf8');
+
+  assert.match(dashboard, /function priorDailySalesRow\(date\)[\s\S]*?shiftIsoDate\(date, -1\)[\s\S]*?row\.date === priorDate/);
+  assert.match(dashboard, /firstPrior = rows\.length \? priorDailySalesRow\(rows\[0\]\.date\) : null/);
+  assert.match(dashboard, /var prior = index \? rows\[index - 1\] : firstPrior/);
+});

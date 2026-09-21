@@ -1854,6 +1854,12 @@
       return row;
     });
   }
+  function priorDailySalesRow(date) {
+    var priorDate = shiftIsoDate(date, -1);
+    if (!priorDate) return null;
+    var rows = HOSTED_MODE ? (state.grafanaEmailSalesRows || []) : (state.data.dailySales || []);
+    return rows.filter(function(row) { return row && row.date === priorDate; }).pop() || null;
+  }
   function manualBGarageRowsForWindow(from, to) {
     var rows = [];
     Object.keys(state.manualBGarageSummaryValues || {}).forEach(function(date) {
@@ -2053,7 +2059,7 @@
   }
 
   function renderOverview() {
-    var rows = rowsInRange(), data = state.data, hasDailyTarget = Number(data.benchmark) > 0, pitstops = pitstopsForPeriod().filter(function(pitstop) { return pitstop.channel !== 'HQC' && pitstop.channel !== 'BPC'; }), total = rows.reduce(function(sum, row) { return sum + row.total; }, 0), target = hasDailyTarget ? data.benchmark * rows.length : 0, latest = rows[rows.length - 1], previous = rows[rows.length - 2], average = rows.length ? total / rows.length : 0, redPitstops = pitstops.filter(function(pitstop) { return pitstop.status === 'red'; }), focus = pitstops.slice().sort(function(a, b) { return a.variance - b.variance; }).slice(0, 5), regions = regionSummary(pitstops);
+    var rows = rowsInRange(), data = state.data, firstPrior = rows.length ? priorDailySalesRow(rows[0].date) : null, hasDailyTarget = Number(data.benchmark) > 0, pitstops = pitstopsForPeriod().filter(function(pitstop) { return pitstop.channel !== 'HQC' && pitstop.channel !== 'BPC'; }), total = rows.reduce(function(sum, row) { return sum + row.total; }, 0), target = hasDailyTarget ? data.benchmark * rows.length : 0, latest = rows[rows.length - 1], previous = rows[rows.length - 2] || firstPrior, average = rows.length ? total / rows.length : 0, redPitstops = pitstops.filter(function(pitstop) { return pitstop.status === 'red'; }), focus = pitstops.slice().sort(function(a, b) { return a.variance - b.variance; }).slice(0, 5), regions = regionSummary(pitstops);
     var tierNames = ['Tier 1', 'Tier 2', 'Tier 3'];
     var visibleTierNames = state.regionTierFocus === 'all' ? tierNames : tierNames.filter(function(name) { return name === state.regionTierFocus; });
     var tierFocusOptions = ['all'].concat(tierNames).map(function(value) { return '<button type="button" class="tier-focus-button ' + (state.regionTierFocus === value ? 'is-active' : '') + '" data-region-tier-focus="' + escapeHtml(value) + '">' + escapeHtml(value === 'all' ? 'All' : value) + '</button>'; }).join('');
@@ -2076,7 +2082,7 @@
     var salesHeaders = detailChannel === 'all' ? '<th>Date</th><th>HQ units</th><th>BP units</th><th>Total units</th><th>Movement</th>' + (hasDailyTarget ? '<th>Target status</th>' : '') : '<th>Date</th><th>' + detailLabel + ' units</th><th>Total units</th><th>Movement</th>' + (hasDailyTarget ? '<th>Target status</th>' : '');
     var salesColspan = detailChannel === 'all' ? (hasDailyTarget ? 6 : 5) : (hasDailyTarget ? 5 : 4);
     var salesTableRows = rows.map(function(row, index) {
-      var prior = rows[index - 1], movement = !prior ? 'First day' : row.total >= prior.total ? 'Increase' : 'Decrease', movementHtml = '<span class="movement-badge ' + (movement === 'Increase' ? 'increase' : movement === 'Decrease' ? 'decrease' : '') + '">' + movement + '</span>', statusHtml = hasDailyTarget ? (row.total >= data.benchmark ? '<span class="performance-badge achieved">Target met</span>' : '<span class="performance-badge critical">Below target</span>') : '';
+      var prior = index ? rows[index - 1] : firstPrior, movement = !prior ? 'First day' : row.total >= prior.total ? 'Increase' : 'Decrease', movementHtml = '<span class="movement-badge ' + (movement === 'Increase' ? 'increase' : movement === 'Decrease' ? 'decrease' : '') + '">' + movement + '</span>', statusHtml = hasDailyTarget ? (row.total >= data.benchmark ? '<span class="performance-badge achieved">Target met</span>' : '<span class="performance-badge critical">Below target</span>') : '';
       if (detailChannel === 'all') return '<tr><td><strong>' + escapeHtml(formatDate(row.date, true)) + '</strong></td><td><strong>' + formatNumber(dailyDetailValue(row, 'hq')) + '</strong></td><td><strong>' + formatNumber(dailyDetailValue(row, 'bp')) + '</strong></td><td><strong>' + formatNumber(row.total) + '</strong></td><td>' + movementHtml + '</td>' + (hasDailyTarget ? '<td>' + statusHtml + '</td>' : '') + '</tr>';
       var value = detailChannel === 'wh' && !row.whAvailable ? '-' : formatNumber(dailyDetailValue(row, detailChannel));
       return '<tr><td><strong>' + escapeHtml(formatDate(row.date, true)) + '</strong></td><td><strong>' + value + '</strong></td><td><strong>' + formatNumber(row.total) + '</strong></td><td>' + movementHtml + '</td>' + (hasDailyTarget ? '<td>' + statusHtml + '</td>' : '') + '</tr>';
