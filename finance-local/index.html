@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Bateriku Ledger Finance dashboard with focused commission, reimbursement, and sales overview visuals.">
   <meta name="color-scheme" content="light dark">
-  <link rel="icon" href="data:,">
+  <link rel="icon" type="image/png" href="/assets/bateriku-brand-icon.png?v=1">
   <title>Bateriku Ledger | Finance</title>
   <style>
     :root {
@@ -6714,10 +6714,13 @@
   .app.sidebar-collapsed #financeSidebar .brand::before { display: none; }
   .app.sidebar-collapsed #financeSidebar .brand-mark {
     display: grid;
-    background: var(--reference-lime);
-    color: #18220e;
-    border-color: var(--reference-lime);
+    background: transparent;
+    border: 0;
+    padding: 0;
+    box-shadow: none;
   }
+  #financeSidebar .brand-mark::after { content: none; }
+  #financeSidebar .brand-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
 
   /* Chart chrome only. Preserve plots, semantic series colours, scales and sizing. */
   #tab-commission :is(.chart-panel, .secondary-visual) {
@@ -6913,7 +6916,7 @@
   </svg>
   <div class="app" id="appRoot">
     <aside class="sidebar" id="financeSidebar">
-      <div class="brand" aria-label="Bateriku Ledger Finance Workspace"><span class="brand-mark" aria-label="Bateriku Ledger">BL</span><div><strong>FINANCE WORKSPACE</strong><small>Developed by Muhamad Amir Khalil</small></div></div>
+      <div class="brand" aria-label="Bateriku Ledger Finance Workspace"><span class="brand-mark" aria-label="Bateriku Ledger"><img src="/assets/bateriku-brand-icon.png?v=1" alt="Bateriku" width="36" height="36"></span><div><strong>FINANCE WORKSPACE</strong><small>Developed by Muhamad Amir Khalil</small></div></div>
       <nav class="nav" aria-label="Finance dashboards" role="tablist">
         <!-- BEGIN LEDGER FINSIGHT: SIDEBAR -->
         <button class="nav-button" type="button" role="tab" data-tab="finsight"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-finsight"></use></svg></span>FinSight Agent</button>

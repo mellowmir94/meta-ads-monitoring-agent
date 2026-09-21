@@ -332,10 +332,13 @@
   .app.sidebar-collapsed #financeSidebar .brand::before { display: none; }
   .app.sidebar-collapsed #financeSidebar .brand-mark {
     display: grid;
-    background: var(--reference-lime);
-    color: #18220e;
-    border-color: var(--reference-lime);
+    background: transparent;
+    border: 0;
+    padding: 0;
+    box-shadow: none;
   }
+  #financeSidebar .brand-mark::after { content: none; }
+  #financeSidebar .brand-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
 
   /* Chart chrome only. Preserve plots, semantic series colours, scales and sizing. */
   #tab-commission :is(.chart-panel, .secondary-visual) {
