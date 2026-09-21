@@ -28,10 +28,13 @@ function section(a,b){return html.slice(html.indexOf(a),html.indexOf(b,html.inde
   assert.match(cellStyles[7],/horizontal="left"/,'Period is left aligned');
   for(const index of [0,1,2,3,5,6])assert.match(cellStyles[index],/horizontal="center"/,'Table and totals remain centered');
   assert.match(xml,/<c r="A4" s="7"/);
+  for(const index of [8,10,12,14]){assert.match(cellStyles[index],/horizontal="left"/);assert.match(cellStyles[index+1],/horizontal="right"/);assert.match(cellStyles[index],/borderId="1"/);}
+  assert.match(xml,/<c r="A7" s="8"/);assert.match(xml,/<c r="C7" s="9"/);
   assert.match(styles,/left style="thin"/);
   assert.match(xml,/<row r="6" customHeight="1" ht="(?:3[2-9]|[4-9]\d|\d{3})"/);
   for(const [label,color] of [['ADDITIONAL JOB 1',[18,117,75]],['NET COMMISSION',[255,235,59]]]){
-    const cell={styles:{}};pdfTable.didParseCell({section:'body',row:{index:1,raw:[label]},cell});assert.deepEqual(Array.from(cell.styles.fillColor),color);
+    const cell={styles:{}};pdfTable.didParseCell({section:'body',row:{index:1,raw:[label]},column:{index:0},cell});assert.deepEqual(Array.from(cell.styles.fillColor),color);assert.equal(cell.styles.halign,'left');
+    const amount={styles:{}};pdfTable.didParseCell({section:'body',row:{index:1,raw:[label]},column:{index:2},cell:amount});assert.equal(amount.styles.halign,'right');
   }
   console.log('PASS: 250 additional jobs in both exports; identical footer values/labels; Excel embeds logo/drawing; net RM3200; source unchanged.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
