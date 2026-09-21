@@ -1,9 +1,9 @@
 // Canonical statement model: Excel is the master table; PDF consumes the same rows.
-async function prepareRiderStatement(payload) {
+async function prepareRiderStatement(payload, jobsReady = null) {
   if(payload.statementPrepared || payload.panelTitle!=='Commission Rider' || !payload.summary || !payload.columns.some(column=>column.key==='commission'))return payload;
   const scope=payload.statementScope;
   if(!scope?.rider || !scope.start || !scope.end)throw new Error('A rider and commission period are required for a complete statement.');
-  await additionalJobsLoad(true);
+  await (jobsReady || additionalJobsLoad(true));
   const jobs=additionalJobsForScope(scope.rider,scope.start,scope.end),index=payload.columns.findIndex(column=>column.key==='commission');
   const row=(label,value)=>payload.columns.map((_,i)=>i===0?label:i===index?value:'');
   const clean=value=>typeof value==='string'?value.replace(/\s*\(applied\)/gi,'').replace(/APPLIED DEDUCTIONS|TOTAL DEDUCTED/gi,'TOTAL DEDUCTIONS'):value;

@@ -5,7 +5,7 @@ import vm from 'node:vm';
 
 const source = fs.readFileSync(new URL('../../deductions.js', import.meta.url), 'utf8');
 const handler = source.slice(source.indexOf('async function deductionHistoryDownloadBatch('), source.indexOf('async function deductionHistoryExport('));
-function fixture(formats, failPdf = false) {
+function fixture(formats, failPdf = false, overrides = {}) {
   const calls = [], feedback = {textContent: ''}, payload = {rows: ['same statement']};
   const button = {disabled: false, isConnected: true, closest: () => ({
     querySelectorAll: () => formats.map(format => ({dataset: {statementFileFormat: format}}))
@@ -18,12 +18,13 @@ function fixture(formats, failPdf = false) {
     deductionToday: () => '2026-09-21',
     deductionHistoryDownloadOptions: () => [{record: {id: 'record'}, index: 0, item: {}, state: 'ready'}],
     ensureFinanceExportBundle: async format => calls.push('bundle:' + format),
+    additionalJobsLoad: async () => {}, financePdfLogo: async () => null,
     deductionCombinedPaymentStatementPayload: async () => ({}),
     prepareRiderStatement: async () => {calls.push('prepare'); return payload;},
     downloadExcelTable: async input => {assert.equal(input, payload); calls.push('excel');},
     downloadPdfTable: async input => {assert.equal(input, payload); calls.push('pdf'); if(failPdf) throw new Error('PDF failed'); return true;},
     deductionRequest: async () => {calls.push('mark'); return {};},
-    deductionHistoryRender: () => calls.push('render')
+    deductionHistoryRender: () => calls.push('render'), ...overrides
   });
   vm.runInContext(handler, context);
   return {run: () => context.deductionHistoryDownloadBatch('group', button), calls, feedback, button};
@@ -32,7 +33,7 @@ test('History row offers PDF checked by default, Excel unchecked, and Download f
   assert.match(source, /data-statement-file-format="pdf" checked/);
   assert.match(source, /data-statement-file-format="excel"> Excel/);
   assert.match(source, /<th>Download file<\/th>/);
-  assert.match(source, /data-deduction-history-batch-download>Download file/);
+  assert.match(source, /data-deduction-history-batch-download>Download</);
 });
 test('no format selected produces guidance without exports or mutations', async () => {
   const f=fixture([]); await f.run(); assert.deepEqual(f.calls, []);
@@ -53,4 +54,16 @@ test('both files share one prepared statement and acknowledge PDF once', async (
 test('failed PDF does not mark acknowledgement and releases download button', async () => {
   const f=fixture(['pdf'],true); await assert.rejects(f.run(), /PDF failed/);
   assert.ok(!f.calls.includes('mark')); assert.equal(f.button.disabled,false);
+});
+test('commission, fresh Additional Jobs and logo start concurrently before export',async()=>{
+  let release;const gate=new Promise(resolve=>{release=resolve;}),started=[];
+  const f=fixture(['pdf'],false,{
+    additionalJobsLoad:async force=>{assert.equal(force,true);started.push('jobs');await gate;},
+    financePdfLogo:async()=>{started.push('logo');await gate;},
+    deductionCombinedPaymentStatementPayload:async()=>{started.push('commission');await gate;return {};},
+  });
+  const run=f.run();
+  assert.deepEqual(started.sort(),['commission','jobs','logo']);
+  assert.ok(!f.calls.includes('pdf'));release();await run;
+  assert.ok(f.calls.includes('pdf'));
 });

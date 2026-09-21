@@ -503,7 +503,7 @@ function deductionHistoryDownloadCell(group, typeTimings = {}, today = deduction
   const labels = selected.map(option => (deductionTypes[option.record.type] || option.record.type) + ' payment ' + (option.index + 1)).join(' · ');
   const sent = selected.every(option => option.state === 'sent');
   const readiness = sent ? '<span class="deduction-download-ready is-sent">✓ Statements recorded</span>' : upcoming.length ? '<span class="deduction-download-ready is-upcoming">Download now · stays Upcoming</span>' : '<span class="deduction-download-ready">Ready to download</span>';
-  return '<td class="deduction-history-download-cell"><div class="deduction-history-download-item"><strong>' + esc(selected.length + ' selected payment' + (selected.length === 1 ? '' : 's')) + '</strong><small>' + esc(labels) + '</small>' + (upcoming.length ? '<small>' + esc(upcoming.length + ' upcoming payment' + (upcoming.length === 1 ? ' stays' : 's stay') + ' Upcoming until its scheduled date.') + '</small>' : '') + readiness + '<div class="deduction-file-formats" role="group" aria-label="Statement file formats"><label><input type="checkbox" data-statement-file-format="pdf" checked> PDF</label><label><input type="checkbox" data-statement-file-format="excel"> Excel</label></div><button type="button" data-deduction-history-batch-download>Download file</button></div></td>';
+  return '<td class="deduction-history-download-cell"><div class="deduction-history-download-item"><strong>' + esc(selected.length + ' selected payment' + (selected.length === 1 ? '' : 's')) + '</strong><small>' + esc(labels) + '</small>' + (upcoming.length ? '<small>' + esc(upcoming.length + ' upcoming payment' + (upcoming.length === 1 ? ' stays' : 's stay') + ' Upcoming until its scheduled date.') + '</small>' : '') + readiness + '<div class="deduction-file-formats" role="group" aria-label="Statement file formats"><label><input type="checkbox" data-statement-file-format="pdf" checked> PDF</label><label><input type="checkbox" data-statement-file-format="excel"> Excel</label></div><button type="button" data-deduction-history-batch-download>Download</button></div></td>';
 }
 function deductionRecordMatchesCommissionRange(record, start = '', end = '') {
   if (!start && !end) return true;
@@ -767,8 +767,11 @@ async function deductionHistoryDownloadBatch(groupId, button) {
   button.textContent = 'Preparing…';
   button.setAttribute('aria-busy', 'true');
   if (feedback) feedback.textContent = 'Preparing ' + formats.map(format => format === 'pdf' ? 'PDF' : 'Excel').join(' and ') + ' for ' + options.length + ' selected payment' + (options.length === 1 ? '' : 's') + '…';
-    const [, rawPayload] = await Promise.all([Promise.all(formats.map(format => ensureFinanceExportBundle(format))), deductionCombinedPaymentStatementPayload(options, { start: filters.periodStart, end: filters.periodEnd })]);
-    const payload = await prepareRiderStatement(rawPayload);
+    // Fetch current earnings and logo alongside commission data and libraries,
+    // rather than adding two more network waits after the main request finishes.
+    const jobsReady = additionalJobsLoad(true);
+    const [, rawPayload] = await Promise.all([Promise.all(formats.map(format => ensureFinanceExportBundle(format))), deductionCombinedPaymentStatementPayload(options, { start: filters.periodStart, end: filters.periodEnd }), jobsReady, financePdfLogo().catch(() => null)]);
+    const payload = await prepareRiderStatement(rawPayload, jobsReady);
     if (formats.includes('excel')) await downloadExcelTable(payload);
     if (!formats.includes('pdf')) { if (feedback) feedback.textContent = 'Rider Excel statement downloaded.'; return; }
     const downloaded = await downloadPdfTable(payload);
