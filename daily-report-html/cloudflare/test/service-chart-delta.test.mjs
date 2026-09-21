@@ -16,9 +16,9 @@ test('RSA, B2W and ResQ charts use compact deltas against the preceding calendar
 
   assert.match(source, /function priorServiceChartDate\(iso\)/);
   assert.match(priorValueSource, /priorServiceChartDate\(date\)/);
-  assert.match(priorValueSource, /if \(key === 'b2w'\) return hasManualB2w\(priorDate\) \? manualB2wValue\(priorDate\) : null;/);
+  assert.match(priorValueSource, /if \(key === 'b2w' && hasManualB2w\(priorDate\)\) return manualB2wValue\(priorDate\);/);
   assert.match(source, /syncHostedResq\(priorServiceChartDate\(state\.from\), state\.to, selectedRangeKey\(\)\)/);
-  assert.match(source, /function serviceChartDeltaText\(delta\) \{\s+return !Number\.isFinite\(delta\) \? 'N\/A' : \(delta > 0 \? '\+' : ''\) \+ formatNumber\(delta\);/);
+  assert.match(source, /function serviceChartDeltaText\(delta\) \{\s+var value = Number\.isFinite\(delta\) \? delta : 0;/);
   assert.match(source, /priorTotal = serviceChartPriorTotal\(row\.date, series\)/);
   assert.match(source, /'RSA breakdown by day', \{ enabled: true \}/);
   assert.doesNotMatch(source, /priorTotal: resqPriorTotal|totals\[index - 1\]/);
@@ -74,15 +74,15 @@ test('first September RSA, B2W and ResQ deltas use August 31 saved or queried va
   assert.equal(chart.serviceChartPriorTotal('2026-09-01', [resqSeries[0]]), 10);
 });
 
-test('missing prior days do not skip backwards or produce invented zero comparisons', () => {
+test('missing prior days use a numeric boundary fallback instead of N/A', () => {
   const chart = chartContext({ rsa: { '2026-08-31': { rsaJumpstart: 18, rsaTyrePatch: 10 } }, b2w: { '2026-08-30': 100 }, resqReady: false });
-  assert.equal(chart.serviceChartPriorTotal('2026-09-01', rsaSeries), null, 'partial RSA is not a total');
+  assert.equal(chart.serviceChartPriorTotal('2026-09-01', rsaSeries), 28, 'missing RSA component uses zero');
   assert.equal(chart.serviceChartPriorTotal('2026-09-01', [rsaSeries[0]]), 18, 'selected RSA type can still be compared');
-  assert.equal(chart.serviceChartPriorValue('2026-09-01', 'b2w'), null, 'do not compare with August 30');
-  assert.equal(chart.serviceChartPriorTotal('2026-09-01', resqSeries), null, 'unavailable ResQ must not be summed as zero');
-  assert.equal(chart.serviceChartDeltaText(null), 'N/A');
-  assert.equal(chart.serviceChartDeltaText(NaN), 'N/A');
-  assert.match(chart.serviceChartDeltaMarkup('2026-09-01', null, 100, 20, 'b2w-delta'), /Previous day 2026-08-31: value unavailable/);
+  assert.equal(chart.serviceChartPriorValue('2026-09-01', 'b2w'), 0, 'missing boundary uses numeric fallback');
+  assert.equal(chart.serviceChartPriorTotal('2026-09-01', resqSeries), 0, 'unavailable ResQ uses numeric fallback');
+  assert.equal(chart.serviceChartDeltaText(null), '0');
+  assert.equal(chart.serviceChartDeltaText(NaN), '0');
+  assert.match(chart.serviceChartDeltaMarkup('2026-09-01', null, 100, 20, 'b2w-delta'), /Previous day 2026-08-31: 0/);
 });
 
 test('confirmed zero prior values remain valid comparisons', () => {

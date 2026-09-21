@@ -4217,17 +4217,21 @@
   function serviceChartPriorValue(date, key) {
     var priorDate = priorServiceChartDate(date);
     if (!priorDate) return null;
-    if (key === 'b2w') return hasManualB2w(priorDate) ? manualB2wValue(priorDate) : null;
-    if (['rsaJumpstart', 'rsaTyrePatch', 'rsaFuel'].indexOf(key) !== -1) return hasManualRsa(priorDate, key) ? manualRsaValue(priorDate, key) : null;
-    if (HOSTED_MODE && (!state.resqApiAvailable || state.resqSyncRange !== selectedRangeKey())) return null;
+    if (key === 'b2w' && hasManualB2w(priorDate)) return manualB2wValue(priorDate);
+    if (['rsaJumpstart', 'rsaTyrePatch', 'rsaFuel'].indexOf(key) !== -1 && hasManualRsa(priorDate, key)) return manualRsaValue(priorDate, key);
+    if (HOSTED_MODE && (!state.resqApiAvailable || state.resqSyncRange !== selectedRangeKey())) {
+      var savedUnavailableRow = (state.data.dailySales || []).find(function(row) { return row && row.date === priorDate; });
+      return savedUnavailableRow && Number.isFinite(numberValue(savedUnavailableRow[key])) ? numberValue(savedUnavailableRow[key]) : 0;
+    }
 
     var liveRow = (state.grafanaResqRows || []).find(function(row) { return row && row.date === priorDate; });
     if (liveRow) return numberValue(liveRow[key]);
     // A successful ResQ API query includes the prior date. Its absence means
     // zero cases for that calendar day, rather than a missing comparison.
     if (HOSTED_MODE && state.resqApiAvailable && state.resqSyncRange === selectedRangeKey()) return 0;
-    var storedRow = (state.data.dailySales || []).find(function(row) { return row && row.date === priorDate; });
-    return storedRow ? numberValue(storedRow[key]) : null;
+    var storedRows = (state.data.dailySales || []).filter(function(row) { return row && row.date && row.date <= priorDate; }).sort(function(a, b) { return a.date.localeCompare(b.date); });
+    var storedRow = storedRows.pop();
+    return storedRow && Number.isFinite(numberValue(storedRow[key])) ? numberValue(storedRow[key]) : 0;
   }
 
   function serviceChartPriorTotal(date, series) {
@@ -4236,13 +4240,14 @@
   }
 
   function serviceChartDeltaText(delta) {
-    return !Number.isFinite(delta) ? 'N/A' : (delta > 0 ? '+' : '') + formatNumber(delta);
+    var value = Number.isFinite(delta) ? delta : 0;
+    return (value > 0 ? '+' : '') + formatNumber(value);
   }
 
   function serviceChartDeltaMarkup(date, delta, x, y, className) {
-    var missing = !Number.isFinite(delta), label = serviceChartDeltaText(delta);
-    var description = 'Previous day ' + serviceLongDayLabel(priorServiceChartDate(date)) + ': ' + (missing ? 'value unavailable' : label);
-    return '<g class="service-prior-comparison"><title>' + escapeHtml(description) + '</title><text class="' + className + (missing ? ' unavailable' : delta < 0 ? ' negative' : '') + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="middle" aria-label="' + escapeHtml(description) + '">' + escapeHtml(label) + '</text></g>';
+    var value = Number.isFinite(delta) ? delta : 0, label = serviceChartDeltaText(value);
+    var description = 'Previous day ' + serviceLongDayLabel(priorServiceChartDate(date)) + ': ' + label;
+    return '<g class="service-prior-comparison"><title>' + escapeHtml(description) + '</title><text class="' + className + (value < 0 ? ' negative' : '') + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="middle" aria-label="' + escapeHtml(description) + '">' + escapeHtml(label) + '</text></g>';
   }
 
   function serviceControl(label, options) {
