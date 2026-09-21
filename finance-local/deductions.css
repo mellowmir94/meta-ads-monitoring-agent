@@ -199,6 +199,9 @@
 .deduction-history-download-item > strong { font-size: .68rem; }
 .deduction-history-download-item > small { max-width: 230px; color: var(--text-soft); font-size: .64rem; line-height: 1.35; text-align: center; font-variant-numeric: tabular-nums; }
 .deduction-history-download-item button { width: fit-content; min-height: 29px; }
+.deduction-file-formats { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; }
+.deduction-file-formats label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: .75rem; }
+.deduction-file-formats input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
 .deduction-download-ready { display: inline-flex; margin-top: 8px; padding: 4px 6px; border: 1px solid color-mix(in srgb, var(--success) 55%, var(--line)); border-radius: 4px; background: color-mix(in srgb, var(--success) 14%, var(--surface)); color: var(--success); font-size: .62rem; font-weight: 750; }
 .deduction-download-ready.is-sent { background: color-mix(in srgb, var(--success) 22%, var(--surface)); }
 .deduction-download-ready.is-upcoming { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); color: var(--accent); }

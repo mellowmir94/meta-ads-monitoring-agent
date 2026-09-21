@@ -6286,6 +6286,9 @@
 .deduction-history-download-item > strong { font-size: .68rem; }
 .deduction-history-download-item > small { max-width: 230px; color: var(--text-soft); font-size: .64rem; line-height: 1.35; text-align: center; font-variant-numeric: tabular-nums; }
 .deduction-history-download-item button { width: fit-content; min-height: 29px; }
+.deduction-file-formats { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; }
+.deduction-file-formats label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: .75rem; }
+.deduction-file-formats input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
 .deduction-download-ready { display: inline-flex; margin-top: 8px; padding: 4px 6px; border: 1px solid color-mix(in srgb, var(--success) 55%, var(--line)); border-radius: 4px; background: color-mix(in srgb, var(--success) 14%, var(--surface)); color: var(--success); font-size: .62rem; font-weight: 750; }
 .deduction-download-ready.is-sent { background: color-mix(in srgb, var(--success) 22%, var(--surface)); }
 .deduction-download-ready.is-upcoming { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); color: var(--accent); }
@@ -16552,7 +16555,7 @@ function deductionHistoryDownloadCell(group, typeTimings = {}, today = deduction
   const labels = selected.map(option => (deductionTypes[option.record.type] || option.record.type) + ' payment ' + (option.index + 1)).join(' · ');
   const sent = selected.every(option => option.state === 'sent');
   const readiness = sent ? '<span class="deduction-download-ready is-sent">✓ Statements recorded</span>' : upcoming.length ? '<span class="deduction-download-ready is-upcoming">Download now · stays Upcoming</span>' : '<span class="deduction-download-ready">Ready to download</span>';
-  return '<td class="deduction-history-download-cell"><div class="deduction-history-download-item"><strong>' + esc(selected.length + ' selected payment' + (selected.length === 1 ? '' : 's')) + '</strong><small>' + esc(labels) + '</small>' + (upcoming.length ? '<small>' + esc(upcoming.length + ' upcoming payment' + (upcoming.length === 1 ? ' stays' : 's stay') + ' Upcoming until its scheduled date.') + '</small>' : '') + readiness + '<button type="button" data-deduction-history-batch-download>Download PDF</button></div></td>';
+  return '<td class="deduction-history-download-cell"><div class="deduction-history-download-item"><strong>' + esc(selected.length + ' selected payment' + (selected.length === 1 ? '' : 's')) + '</strong><small>' + esc(labels) + '</small>' + (upcoming.length ? '<small>' + esc(upcoming.length + ' upcoming payment' + (upcoming.length === 1 ? ' stays' : 's stay') + ' Upcoming until its scheduled date.') + '</small>' : '') + readiness + '<div class="deduction-file-formats" role="group" aria-label="Statement file formats"><label><input type="checkbox" data-statement-file-format="pdf" checked> PDF</label><label><input type="checkbox" data-statement-file-format="excel"> Excel</label></div><button type="button" data-deduction-history-batch-download>Download file</button></div></td>';
 }
 function deductionRecordMatchesCommissionRange(record, start = '', end = '') {
   if (!start && !end) return true;
@@ -16666,7 +16669,7 @@ function deductionHistoryEnsure() {
   let view = document.getElementById('deductionHistoryView');
   if (!view) {
     view = document.createElement('section'); view.id = 'deductionHistoryView'; view.className = 'deduction-history-view'; view.hidden = true;
-    view.innerHTML = '<header class="deduction-history-head"><div><p>Commission Rider</p><h2>Rider deduction history</h2><span>Every saved request is applied immediately. Each deduction has its own column and audit actions.</span></div><div class="deduction-history-head-actions"><button type="button" data-deduction-history-export="excel">Export Excel</button><button type="button" data-deduction-history-export="pdf" disabled>Export checked Rider PDF</button></div></header><div data-deduction-history-feedback role="status"></div><section class="deduction-history-kpis" data-deduction-history-kpis></section><div class="deduction-history-toolbar"><label>Search<input type="search" data-deduction-history-search placeholder="Rider, reference or reason"></label><label>Status<select data-deduction-history-status><option value="">All statuses</option>' + ['applied', 'rejected', 'cancelled', 'reversed'].map(value => '<option>' + value + '</option>').join('') + '</select></label><label>Deduction<select data-deduction-history-type><option value="">All types</option>' + Object.entries(deductionTypes).map(([value, label]) => '<option value="' + value + '">' + esc(label) + '</option>').join('') + '</select></label><label>Payment schedule<select data-deduction-history-timing><option value="">All payments</option><option value="ready">Ready to download</option><option value="sent">Statement recorded</option><option value="upcoming">Upcoming</option><option value="complete">All statements recorded</option></select></label><div data-deduction-history-range-host><input type="hidden" data-deduction-history-period-start value="' + esc(commissionRange.start) + '"><input type="hidden" data-deduction-history-period-end value="' + esc(commissionRange.end) + '"></div><label>EPF contribution month<input type="month" data-deduction-history-month></label></div><div class="deduction-history-table-wrap"><table><thead><tr><th scope="col">No.</th><th class="deduction-export-check">PDF</th><th>Rider / batch</th>' + deductionHistoryTypeHeader('epf', 'EPF') + deductionHistoryTypeHeader('insurance', 'Insurance') + deductionHistoryTypeHeader('battery-tester', 'OBD / Battery Tester') + deductionHistoryTypeHeader('manual', 'Special Case') + '<th>Download PDF</th><th>Commission period</th><th>Applied</th><th>Remaining</th><th>Status</th><th>Created by</th></tr></thead><tbody data-deduction-history-body></tbody></table></div><p class="deduction-history-empty" data-deduction-history-empty hidden>No deductions match these filters.</p>';
+    view.innerHTML = '<header class="deduction-history-head"><div><p>Commission Rider</p><h2>Rider deduction history</h2><span>Every saved request is applied immediately. Each deduction has its own column and audit actions.</span></div><div class="deduction-history-head-actions"><button type="button" data-deduction-history-export="excel">Export Excel</button><button type="button" data-deduction-history-export="pdf" disabled>Export checked Rider PDF</button></div></header><div data-deduction-history-feedback role="status"></div><section class="deduction-history-kpis" data-deduction-history-kpis></section><div class="deduction-history-toolbar"><label>Search<input type="search" data-deduction-history-search placeholder="Rider, reference or reason"></label><label>Status<select data-deduction-history-status><option value="">All statuses</option>' + ['applied', 'rejected', 'cancelled', 'reversed'].map(value => '<option>' + value + '</option>').join('') + '</select></label><label>Deduction<select data-deduction-history-type><option value="">All types</option>' + Object.entries(deductionTypes).map(([value, label]) => '<option value="' + value + '">' + esc(label) + '</option>').join('') + '</select></label><label>Payment schedule<select data-deduction-history-timing><option value="">All payments</option><option value="ready">Ready to download</option><option value="sent">Statement recorded</option><option value="upcoming">Upcoming</option><option value="complete">All statements recorded</option></select></label><div data-deduction-history-range-host><input type="hidden" data-deduction-history-period-start value="' + esc(commissionRange.start) + '"><input type="hidden" data-deduction-history-period-end value="' + esc(commissionRange.end) + '"></div><label>EPF contribution month<input type="month" data-deduction-history-month></label></div><div class="deduction-history-table-wrap"><table><thead><tr><th scope="col">No.</th><th class="deduction-export-check">PDF</th><th>Rider / batch</th>' + deductionHistoryTypeHeader('epf', 'EPF') + deductionHistoryTypeHeader('insurance', 'Insurance') + deductionHistoryTypeHeader('battery-tester', 'OBD / Battery Tester') + deductionHistoryTypeHeader('manual', 'Special Case') + '<th>Download file</th><th>Commission period</th><th>Applied</th><th>Remaining</th><th>Status</th><th>Created by</th></tr></thead><tbody data-deduction-history-body></tbody></table></div><p class="deduction-history-empty" data-deduction-history-empty hidden>No deductions match these filters.</p>';
     commission.append(view);
   } deductionHistoryRenderRangePicker(view); return view;
 }
@@ -16788,17 +16791,20 @@ async function deductionCombinedPaymentStatementPayload(options, commissionRange
   return { ...payload, filename: filename + '_payment-' + highestPaymentCount, pdfFilename: filename + '_payment-' + highestPaymentCount + '.pdf', period: statementDetails + ' · Commission period: ' + deductionPeriodLabel(pdfPeriod) + ' · refreshed from Grafana', summary: { label: 'Net Commission', value: deductionMoney(netCents) }, footerRows: [filteredTotal, ...paymentRows, footerRow('TOTAL DEDUCTED', '- ' + deductionMoney(deductedCents)), footerRow('NET COMMISSION', deductionMoney(netCents))] };
 }
 async function deductionHistoryDownloadBatch(groupId, button) {
-  const format = button.dataset.statementFormat || 'pdf';
+  const formats = [...button.closest('.deduction-history-download-item').querySelectorAll('[data-statement-file-format]:checked')].map(input => input.dataset.statementFileFormat);
+  const view = deductionHistoryEnsure(), feedback = view?.querySelector('[data-deduction-history-feedback]');
+  if (!formats.length) { if (feedback) feedback.textContent = 'Select PDF, Excel, or both before downloading.'; return; }
   const group = deductionHistoryGroups(deductionState.records).find(item => item.id === groupId);
   if (!group) throw new Error('This deduction request is no longer available. Refresh History and try again.');
   const filters = deductionHistoryFilters(deductionHistoryEnsure()), options = deductionHistoryDownloadOptions(group, {}, deductionToday(), filters.periodStart, filters.periodEnd);
   if (!options.length) throw new Error('Select at least one Include in PDF payment.');
   button.disabled = true;
-  const view = deductionHistoryEnsure(), feedback = view?.querySelector('[data-deduction-history-feedback]');
-  if (feedback) feedback.textContent = 'Preparing one PDF for ' + options.length + ' selected payment' + (options.length === 1 ? '' : 's') + '…';
+  if (feedback) feedback.textContent = 'Preparing ' + formats.map(format => format === 'pdf' ? 'PDF' : 'Excel').join(' and ') + ' for ' + options.length + ' selected payment' + (options.length === 1 ? '' : 's') + '…';
   try {
-    const [, payload] = await Promise.all([ensureFinanceExportBundle(format), deductionCombinedPaymentStatementPayload(options, { start: filters.periodStart, end: filters.periodEnd })]);
-    if (format === 'excel') { await downloadExcelTable(payload); if (feedback) feedback.textContent='Rider Excel statement downloaded. The PDF uses the same statement data.'; return; }
+    const [, rawPayload] = await Promise.all([Promise.all(formats.map(format => ensureFinanceExportBundle(format))), deductionCombinedPaymentStatementPayload(options, { start: filters.periodStart, end: filters.periodEnd })]);
+    const payload = await prepareRiderStatement(rawPayload);
+    if (formats.includes('excel')) await downloadExcelTable(payload);
+    if (!formats.includes('pdf')) { if (feedback) feedback.textContent = 'Rider Excel statement downloaded.'; return; }
     const downloaded = await downloadPdfTable(payload);
     if (!downloaded) { if (feedback) feedback.textContent = 'PDF download was cancelled.'; return; }
     const eligible = options.filter(option => option.state !== 'upcoming' && option.state !== 'sent' && !option.item.statementSentAt);
@@ -16810,10 +16816,10 @@ async function deductionHistoryDownloadBatch(groupId, button) {
     const nextFeedback = deductionHistoryEnsure()?.querySelector('[data-deduction-history-feedback]');
     if (nextFeedback) {
       const upcoming = options.filter(option => option.state === 'upcoming');
-      nextFeedback.textContent = upcoming.length ? 'PDF downloaded. Current statements were marked sent; ' + upcoming.length + ' upcoming payment' + (upcoming.length === 1 ? ' remains' : 's remain') + ' Upcoming until its scheduled date.' : 'PDF downloaded and current statements were marked sent. Completion is a separate Finance confirmation.';
+      nextFeedback.textContent = (formats.includes('excel') ? 'Excel and PDF downloaded. ' : 'PDF downloaded. ') + (upcoming.length ? 'Current statements were marked sent; ' + upcoming.length + ' upcoming payment' + (upcoming.length === 1 ? ' remains' : 's remain') + ' Upcoming until its scheduled date.' : 'Current statements were marked sent. Completion is a separate Finance confirmation.');
     }
   } catch (error) {
-    if (feedback) feedback.textContent = error.message || 'The combined payment PDF could not be downloaded.';
+    if (feedback) feedback.textContent = error.message || 'The selected statement files could not be downloaded.';
     throw error;
   } finally { if (button.isConnected) button.disabled = false; }
 }
@@ -17170,11 +17176,6 @@ function additionalJobsEditor(draft) {
 }
 function additionalJobsHistoryRender(view) {
   if (!view) return;
-  // Offer both formats from the exact same selected installment payload.
-  view.querySelectorAll('[data-deduction-history-batch-download]:not([data-statement-format])').forEach(pdf=>{
-    if(pdf.parentElement.querySelector('[data-statement-format="excel"]'))return;
-    const excel=pdf.cloneNode(true);excel.dataset.statementFormat='excel';excel.textContent='Download Excel';pdf.before(excel);
-  });
   let host=view.querySelector('[data-additional-history]');
   if (!host) { host=document.createElement('section'); host.dataset.additionalHistory=''; host.className='additional-jobs'; view.append(host); }
   const filters=deductionHistoryFilters(view), search=filters.search, month=deductionWorkflowScope.month;

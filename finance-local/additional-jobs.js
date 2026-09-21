@@ -40,11 +40,6 @@ function additionalJobsEditor(draft) {
 }
 function additionalJobsHistoryRender(view) {
   if (!view) return;
-  // Offer both formats from the exact same selected installment payload.
-  view.querySelectorAll('[data-deduction-history-batch-download]:not([data-statement-format])').forEach(pdf=>{
-    if(pdf.parentElement.querySelector('[data-statement-format="excel"]'))return;
-    const excel=pdf.cloneNode(true);excel.dataset.statementFormat='excel';excel.textContent='Download Excel';pdf.before(excel);
-  });
   let host=view.querySelector('[data-additional-history]');
   if (!host) { host=document.createElement('section'); host.dataset.additionalHistory=''; host.className='additional-jobs'; view.append(host); }
   const filters=deductionHistoryFilters(view), search=filters.search, month=deductionWorkflowScope.month;
