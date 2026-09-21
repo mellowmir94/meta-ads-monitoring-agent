@@ -22,6 +22,12 @@ function section(a,b){return html.slice(html.indexOf(a),html.indexOf(b,html.inde
   assert.ok(xml.indexOf('JOB-249')<xml.indexOf('NET COMMISSION'));
   const styles=await zip.file('xl/styles.xml').async('string');assert.match(styles,/FFFFEB3B/);assert.match(styles,/FF12754B/);
   assert.match(styles,/horizontal="center" vertical="center" wrapText="1"/);
+  assert.doesNotMatch(xml,/<pane\b/,'No freeze-pane divider in the statement');
+  const cellStyles=styles.match(/<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/)[1].match(/<xf\b[\s\S]*?<\/xf>/g);
+  assert.match(cellStyles[4],/horizontal="left"/,'Title and rider are left aligned');
+  assert.match(cellStyles[7],/horizontal="left"/,'Period is left aligned');
+  for(const index of [0,1,2,3,5,6])assert.match(cellStyles[index],/horizontal="center"/,'Table and totals remain centered');
+  assert.match(xml,/<c r="A4" s="7"/);
   assert.match(styles,/left style="thin"/);
   assert.match(xml,/<row r="6" customHeight="1" ht="(?:3[2-9]|[4-9]\d|\d{3})"/);
   for(const [label,color] of [['ADDITIONAL JOB 1',[18,117,75]],['NET COMMISSION',[255,235,59]]]){
