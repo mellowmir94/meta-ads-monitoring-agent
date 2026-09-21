@@ -23,6 +23,9 @@ function section(a,b){return html.slice(html.indexOf(a),html.indexOf(b,html.inde
   const styles=await zip.file('xl/styles.xml').async('string');assert.match(styles,/FFFFEB3B/);assert.match(styles,/FF12754B/);
   assert.match(styles,/horizontal="center" vertical="center" wrapText="1"/);
   assert.doesNotMatch(xml,/<pane\b/,'No freeze-pane divider in the statement');
+  assert.match(xml,/view="normal" zoomScale="100" zoomScaleNormal="100"/);
+  assert.match(xml,/<pageSetUpPr autoPageBreaks="0"\/>/);
+  assert.doesNotMatch(xml,/<(?:pageSetup|pageMargins|rowBreaks|colBreaks)\b/);
   const cellStyles=styles.match(/<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/)[1].match(/<xf\b[\s\S]*?<\/xf>/g);
   assert.match(cellStyles[4],/horizontal="left"/,'Title and rider are left aligned');
   assert.match(cellStyles[7],/horizontal="left"/,'Period is left aligned');
