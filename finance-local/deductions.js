@@ -621,6 +621,27 @@ function deductionHistoryEnsure() {
     commission.append(view);
   } deductionHistoryRenderRangePicker(view); return view;
 }
+let deductionHistoryNumberDescending = false;
+function deductionHistorySortNumbers(view) {
+  if (!view) return;
+  const header = view.querySelector('thead th:first-child');
+  if (header) {
+    header.setAttribute('aria-sort', deductionHistoryNumberDescending ? 'descending' : 'ascending');
+    header.innerHTML = '<button type="button" data-deduction-number-sort aria-label="Sort No. ' + (deductionHistoryNumberDescending ? 'lowest to highest' : 'highest to lowest') + '">No. <span aria-hidden="true">' + (deductionHistoryNumberDescending ? '↓' : '↑') + '</span></button>';
+  }
+  const body = view.querySelector('[data-deduction-history-body]');
+  if (!body) return;
+  const rows = [...body.children].filter(row => row.matches('[data-deduction-batch-id], [data-additional-only-row]'));
+  rows.sort((a, b) => (Number(a.cells[0].textContent) - Number(b.cells[0].textContent)) * (deductionHistoryNumberDescending ? -1 : 1));
+  rows.forEach(row => body.append(row));
+}
+document.addEventListener('click', event => {
+  const button = event.target.closest?.('[data-deduction-number-sort]');
+  if (!button) return;
+  deductionHistoryNumberDescending = !deductionHistoryNumberDescending;
+  deductionHistorySortNumbers(button.closest('#deductionHistoryView'));
+  document.querySelector('[data-deduction-number-sort]')?.focus({preventScroll:true});
+});
 function deductionHistoryRender() {
   const view = deductionHistoryEnsure(); if (!view) return;
   const filters = deductionHistoryFilters(view), groups = deductionWorkflowGroups(filters), shown = groups.flatMap(group => group.records), totals = deductionHistoryTotals(shown), checker = ['checker', 'admin'].includes(deductionState.actor?.role);
@@ -635,6 +656,7 @@ function deductionHistoryRender() {
   }).join('') : '<tr><td colspan="14">History is unavailable until the full register loads. <button type="button" data-deduction-retry>Retry register</button></td></tr>';
   view.querySelector('[data-deduction-history-empty]').hidden = !deductionState.loaded || shown.length > 0;
   additionalJobsHistoryRender(view);
+  deductionHistorySortNumbers(view);
 }
 function deductionHistoryStatementPayload(records) {
   if (typeof financeTableExportPayload !== 'function') throw new Error('The Commission Rider table is not ready for PDF export.');

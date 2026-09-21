@@ -298,6 +298,8 @@
 .additional-job-row { display:grid; grid-template-columns:24px minmax(0,1fr) 150px auto; gap:12px; align-items:end; margin-bottom:12px; }
 .additional-job-row label { display:grid; gap:6px; font-size:12px; }
 .additional-job-row input { min-width:0; width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--surface-strong); color:var(--text); }
+[data-deduction-number-sort] { border:0; background:transparent; color:inherit; font:inherit; font-weight:inherit; padding:6px 2px; white-space:nowrap; cursor:pointer; }
+[data-deduction-number-sort]:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 .additional-job-money { display:flex; align-items:center; border:1px solid var(--line); border-radius:8px; background:var(--surface-strong); overflow:hidden; }
 .additional-job-money > span { padding-left:10px; color:var(--text-soft); font-size:12px; }
 .additional-job-money input { border:0; border-radius:0; background:transparent; }

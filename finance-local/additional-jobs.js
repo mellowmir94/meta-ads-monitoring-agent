@@ -82,6 +82,7 @@ function additionalJobsHistoryRender(view) {
     body.append(row);
   }
   if(grouped.size){view.querySelector('[data-deduction-history-empty]').hidden=true;view.querySelector('[data-deduction-history-feedback]').textContent+=' '+grouped.size+' Additional Job-only rider period'+(grouped.size===1?'':'s')+' shown separately; deduction counts are unchanged.';}
+  deductionHistorySortNumbers(view);
 }
 document.addEventListener('input', event => {
   const row=event.target.closest?.('[data-job-row]'), host=row?.closest('[data-additional-table]'); if(!host)return;

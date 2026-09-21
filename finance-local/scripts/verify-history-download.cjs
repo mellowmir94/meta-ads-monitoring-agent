@@ -28,6 +28,13 @@ const record=(id,type,count)=>({id,batchId:'download-test',rider:'Test Rider',re
   assert.equal(headers[7],'Additional Job');
   assert.match(await row.locator('[data-additional-history-cell]').innerText(),/additional jobs/);
   const jobOnly=page.locator('[data-additional-only-row]');assert.equal(await jobOnly.count(),1);assert.equal(await jobOnly.locator('td').count(),14);assert.match(await jobOnly.innerText(),/RM 1.00/);
+  const numbers=()=>page.locator('[data-deduction-history-body] > tr > td:first-child').allTextContents();
+  assert.deepEqual(await numbers(),['1','2']);
+  await page.locator('[data-deduction-number-sort]').click();
+  assert.deepEqual(await numbers(),['2','1']);
+  assert.equal(await page.locator('#deductionHistoryView thead th').first().getAttribute('aria-sort'),'descending');
+  await page.locator('[data-deduction-number-sort]').press('Enter');
+  assert.deepEqual(await numbers(),['1','2']);
   await row.locator('[data-deduction-history-type-payment-select][data-deduction-history-payment-type="epf"]').selectOption('epf|1');
   assert.match(await row.locator('.deduction-history-download-item').innerText(),/EPF payment 2.*Special Case payment 1/s);
   // Mixed weeks with no History date filter previously blocked this exact click.
