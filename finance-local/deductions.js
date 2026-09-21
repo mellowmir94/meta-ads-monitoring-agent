@@ -217,9 +217,11 @@ function deductionUpdateInline(summary) {
       if (breakdown) breakdown.textContent = evenlySplit ? deductionMoney(cents / count) + ' × ' + count + ' = ' + deductionMoney(cents) + ' total' : 'Total must split evenly to cents';
     } else total += cents * count;
   }
-  const button = summary.querySelector('[data-deduction-inline-create]'); if (button) button.disabled = !valid || !deductionState.loaded;
+  const jobsOnly = !choices.length && typeof additionalJobsCanProceed === 'function' && additionalJobsCanProceed(summary.dataset.deductionTable);
+  const button = summary.querySelector('[data-deduction-inline-create]'); if (button) button.disabled = !(valid && deductionState.loaded || jobsOnly);
   const preview = summary.querySelector('[data-deduction-inline-preview]'); if (preview) preview.textContent = 'Deduction preview: ' + (choices.length ? deductionMoney(total) + ' applied in full' : '—');
   const message = summary.querySelector('[data-deduction-inline-message]'); if (message && choices.length) message.textContent = valid ? 'Ready. Proceed applies the deduction and opens History.' : 'Enter a valid amount for every selected deduction.';
+  if(message&&!choices.length)message.textContent=jobsOnly?'Ready. Proceed saves Additional Jobs only. No deduction will be created.':'Select a deduction or add a valid Additional Job to proceed.';
 }
 function deductionDialog(title) {
   document.getElementById('deductionDialog')?.remove();
@@ -1083,6 +1085,11 @@ document.addEventListener('click', async event => {
   if (!auditIdentity(id)) return;
   if (!summary) return deductionProceedBatch(id, [button.dataset.deductionCreate || 'manual'], {}, button);
   deductionUpdateInline(summary); if (button.disabled) return;
+  if (!deductionDrafts.get(id)?.selected.length && additionalJobsCanProceed(id)) {
+    const saved = await additionalJobsSave(summary.querySelector('[data-additional-table]'));
+    if (saved) await deductionHistoryOpen();
+    return;
+  }
   const draft = deductionDrafts.get(id), drafts = {};
   draft.selected.forEach(type => { drafts[type] = { amount: draft.amounts[type], pricingMode: type === 'battery-tester' ? draft.batteryPlan : type === 'epf' ? 'fixed-epf' : 'manual', ...(type === 'battery-tester' ? { installmentCount: draft.batteryCount } : type === 'manual' ? { installmentCount: draft.manualCount } : {}) }; }); return deductionProceedBatch(id, draft.selected, drafts, button);
 }, true);
