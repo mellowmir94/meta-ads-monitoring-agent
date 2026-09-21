@@ -55,14 +55,14 @@ document.addEventListener('change',event=>{
   if(!event.target.matches?.('[data-additional-toggle]'))return;
   const host=event.target.closest('[data-additional-table]'),draft=additionalJobDrafts.get(host.dataset.additionalTable);
   draft.enabled=event.target.checked;
-  if(draft.enabled&&!draft.rows.length)draft.rows.push({id:crypto.randomUUID(),description:'',amount:''});
+  if(draft.enabled&&!draft.rows.length)draft.rows.push({id:crypto.randomUUID(),description:'Additional Job',amount:''});
   const editor=host.querySelector('[data-additional-editor]');editor.hidden=!draft.enabled;editor.innerHTML=additionalJobsEditor(draft);
 });
 document.addEventListener('click',async event=>{
   const button=event.target.closest?.('[data-job-add],[data-job-remove],[data-job-save]');if(!button)return;
   const host=button.closest('[data-additional-table]'),id=host.dataset.additionalTable,draft=additionalJobDrafts.get(id),editor=host.querySelector('[data-additional-editor]'),feedback=host.querySelector('[data-additional-feedback]');
   if(draft.saving)return;
-  if(button.hasAttribute('data-job-add')){draft.rows.push({id:crypto.randomUUID(),description:'',amount:''});editor.innerHTML=additionalJobsEditor(draft);return;}
+  if(button.hasAttribute('data-job-add')){draft.rows.push({id:crypto.randomUUID(),description:'Additional Job',amount:''});editor.innerHTML=additionalJobsEditor(draft);return;}
   if(button.hasAttribute('data-job-remove')){draft.rows=draft.rows.filter(row=>row.id!==button.closest('[data-job-row]').dataset.jobRow);editor.innerHTML=additionalJobsEditor(draft);return;}
   const pending=draft.rows.filter(row=>!row.saved),rider=deductionSingleRider(deductionRows(id,true)),dates=auditCapture(id)?.scope?.dates||{};
   if(!pending.length){feedback.textContent='All entered jobs are already saved. Use + Add row for another job.';return;}
