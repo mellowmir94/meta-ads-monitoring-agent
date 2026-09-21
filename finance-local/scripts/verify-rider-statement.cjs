@@ -21,6 +21,9 @@ function section(a,b){return html.slice(html.indexOf(a),html.indexOf(b,html.inde
   assert.ok(xml.indexOf('TOTAL DEDUCTIONS')<xml.indexOf('ADDITIONAL JOB 1'));
   assert.ok(xml.indexOf('JOB-249')<xml.indexOf('NET COMMISSION'));
   const styles=await zip.file('xl/styles.xml').async('string');assert.match(styles,/FFFFEB3B/);assert.match(styles,/FF12754B/);
+  assert.match(styles,/horizontal="center" vertical="center" wrapText="1"/);
+  assert.match(styles,/left style="thin"/);
+  assert.match(xml,/<row r="6" customHeight="1" ht="(?:3[2-9]|[4-9]\d|\d{3})"/);
   for(const [label,color] of [['ADDITIONAL JOB 1',[18,117,75]],['NET COMMISSION',[255,235,59]]]){
     const cell={styles:{}};pdfTable.didParseCell({section:'body',row:{index:1,raw:[label]},cell});assert.deepEqual(Array.from(cell.styles.fillColor),color);
   }

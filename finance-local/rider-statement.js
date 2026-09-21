@@ -23,13 +23,38 @@ async function prepareRiderStatement(payload) {
 async function downloadMasterRiderExcel(payload) {
   if(!window.JSZip)throw new Error('Excel export is not ready. Please retry.');
   const zip=new window.JSZip(),logo=await financePdfLogo(),n=payload.columns.length,last=excelColumnReference(n-1);
+  const widths=payload.columns.map(column=>{
+    const key=String(column.key).toLowerCase();
+    if(/created_at|request_at|dispatched_on/.test(key))return 20;
+    if(/products|vehicle_name/.test(key))return 32;
+    if(/rider_name|branch_name/.test(key))return 25;
+    if(/status|payment_type|promocode/.test(key))return 20;
+    return Math.min(22,Math.max(14,String(column.label).length+3));
+  });
+  // Excel does not auto-fit custom-height wrapped rows on opening the workbook.
+  // Size each row for the longest wrapped cell, including explicit date/time lines.
+  const wrappedLines=(value,width)=>String(value??'').split(/\r?\n/).reduce((total,line)=>{
+    const capacity=Math.max(8,Math.floor(width*.8));let lines=1,used=0;
+    for(const word of line.split(/\s+/)){
+      if(used&&used+1+word.length>capacity){lines++;used=0;}
+      if(word.length>capacity){lines+=Math.floor((word.length-1)/capacity);used=(word.length-1)%capacity+1;}
+      else used+=(used?1:0)+word.length;
+    }
+    return total+lines;
+  },0);
+  const tableValues=row=>payload.columns.map(column=>{
+    const value=financeExcelCellValue(column,row,payload.panelTitle);
+    return typeof value==='string'&&/created_at|request_at|dispatched_on/.test(column.key)?value.replace(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/,'$1\n$2'):value;
+  });
   const rows=[],merges=[];
   const add=(values,style=0,height=20)=>{const number=rows.length+1;rows.push(`<row r="${number}" customHeight="1" ht="${height}">${values.map((value,i)=>xlsxCellXml(value,excelColumnReference(i)+number,style)).join('')}</row>`);return number;};
-  add([],0,34);add([payload.panelTitle],4,24);add([payload.title],4,24);add([payload.period],0,40);
+  add([],0,40);add([payload.panelTitle],4,24);add([payload.title],4,24);add([payload.period],0,Math.max(32,wrappedLines(payload.period,widths.reduce((a,b)=>a+b,0))*14+10));
   if(n>1)for(const number of [1,2,3,4])merges.push(`A${number}:${last}${number}`);
   const header=add(payload.columns.map(column=>column.label),1,30);
   payload.rows.forEach(row=>{
-    const number=add(payload.columns.map(column=>financeExcelCellValue(column,row,payload.panelTitle)),0,row.__additionalJob?Math.max(40,Math.ceil(row.description.length/80)*16):20);
+    const values=tableValues(row);
+    const height=Math.max(32,...values.map((value,i)=>wrappedLines(value,widths[i])*14+10));
+    const number=add(values,0,Math.min(409,height));
     const index=payload.columns.findIndex(column=>column.key==='commission');
     if(row.__additionalJob&&index>1)merges.push(`A${number}:${excelColumnReference(index-1)}${number}`);
   });
@@ -45,8 +70,8 @@ async function downloadMasterRiderExcel(payload) {
   zip.file('xl/workbook.xml',`<workbook xmlns="${ns}spreadsheetml/2006/main" xmlns:r="${docrel}"><sheets><sheet name="Rider Statement" sheetId="1" r:id="rId1"/></sheets></workbook>`);
   zip.file('xl/_rels/workbook.xml.rels',`<Relationships xmlns="${rel}"><Relationship Id="rId1" Type="${docrel}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="${docrel}/styles" Target="styles.xml"/></Relationships>`);
   const fills=['1D4ED8','174C3B','D9952F','FFFFFF','12754B','FFEB3B'];
-  zip.file('xl/styles.xml',`<styleSheet xmlns="${ns}spreadsheetml/2006/main"><fonts count="3"><font><sz val="11"/><name val="Aptos"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Aptos"/></font><font><b/><color rgb="FF142135"/><sz val="11"/><name val="Aptos"/></font></fonts><fills count="8"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>${fills.map(color=>`<fill><patternFill patternType="solid"><fgColor rgb="FF${color}"/><bgColor indexed="64"/></patternFill></fill>`).join('')}</fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="7">${[0,2,3,4,5,6,7].map((fill,index)=>`<xf numFmtId="0" fontId="${index===0?0:[3,4,6].includes(index)?2:1}" fillId="${fill}" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>`).join('')}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`);
-  zip.file('xl/worksheets/sheet1.xml',`<worksheet xmlns="${ns}spreadsheetml/2006/main" xmlns:r="${docrel}"><sheetViews><sheetView workbookViewId="0"><pane ySplit="${header}" topLeftCell="A${header+1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${payload.columns.map((column,index)=>`<col min="${index+1}" max="${index+1}" width="${Math.min(32,Math.max(14,String(column.label).length+3))}" customWidth="1"/>`).join('')}</cols><sheetData>${rows.join('')}</sheetData><autoFilter ref="A${header}:${last}${header+payload.rows.length}"/><mergeCells count="${merges.length}">${merges.map(ref=>`<mergeCell ref="${ref}"/>`).join('')}</mergeCells><pageMargins left="0.3" right="0.3" top="0.3" bottom="0.3" header="0.1" footer="0.1"/><pageSetup orientation="landscape" paperSize="9" fitToWidth="1" fitToHeight="0"/><drawing r:id="rId1"/></worksheet>`);
+  zip.file('xl/styles.xml',`<styleSheet xmlns="${ns}spreadsheetml/2006/main"><fonts count="3"><font><sz val="10"/><name val="Aptos"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Aptos"/></font><font><b/><color rgb="FF142135"/><sz val="10"/><name val="Aptos"/></font></fonts><fills count="8"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>${fills.map(color=>`<fill><patternFill patternType="solid"><fgColor rgb="FF${color}"/><bgColor indexed="64"/></patternFill></fill>`).join('')}</fills><borders count="1"><border><left style="thin"><color rgb="FFDADFE5"/></left><right style="thin"><color rgb="FFDADFE5"/></right><top style="thin"><color rgb="FFDADFE5"/></top><bottom style="thin"><color rgb="FFDADFE5"/></bottom><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="7">${[0,2,3,4,5,6,7].map((fill,index)=>`<xf numFmtId="0" fontId="${index===0?0:[3,4,6].includes(index)?2:1}" fillId="${fill}" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>`).join('')}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`);
+  zip.file('xl/worksheets/sheet1.xml',`<worksheet xmlns="${ns}spreadsheetml/2006/main" xmlns:r="${docrel}"><sheetViews><sheetView workbookViewId="0"><pane ySplit="${header}" topLeftCell="A${header+1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${payload.columns.map((column,index)=>`<col min="${index+1}" max="${index+1}" width="${widths[index]}" customWidth="1"/>`).join('')}</cols><sheetData>${rows.join('')}</sheetData><autoFilter ref="A${header}:${last}${header+payload.rows.length}"/><mergeCells count="${merges.length}">${merges.map(ref=>`<mergeCell ref="${ref}"/>`).join('')}</mergeCells><pageMargins left="0.3" right="0.3" top="0.3" bottom="0.3" header="0.1" footer="0.1"/><pageSetup orientation="landscape" paperSize="9" fitToWidth="1" fitToHeight="0"/><drawing r:id="rId1"/></worksheet>`);
   zip.file('xl/worksheets/_rels/sheet1.xml.rels',`<Relationships xmlns="${rel}"><Relationship Id="rId1" Type="${docrel}/drawing" Target="../drawings/drawing1.xml"/></Relationships>`);
   zip.file('xl/drawings/_rels/drawing1.xml.rels',`<Relationships xmlns="${rel}"><Relationship Id="rId1" Type="${docrel}/image" Target="../media/logo.png"/></Relationships>`);
   zip.file('xl/media/logo.png',logo.split(',')[1],{base64:true});
