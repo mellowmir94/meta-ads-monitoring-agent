@@ -6499,8 +6499,8 @@
   }
   body { background: var(--bg); }
   .app-rail { background: var(--surface); }
-  /* The sidebar keeps its brand mark without the workspace attribution copy. */
-  .app:not(.sidebar-collapsed) .brand > div { display: none; }
+  /* Keep the workspace title and developer credit visible beneath the logo. */
+  .app:not(.sidebar-collapsed) .brand > div { display: block; width: 100%; text-align: center; }
   .app:not(.sidebar-collapsed) .brand { justify-content: center; min-height: 54px; padding-bottom: 8px; }
   .button.primary,
   .filter-search-action,
@@ -6631,7 +6631,7 @@
   #financeSidebar .brand {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
     gap: 20px;
     padding-top: 16px;
     padding-bottom: 24px;
