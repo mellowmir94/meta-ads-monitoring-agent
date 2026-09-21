@@ -25,8 +25,13 @@ test('overview opens and data reloads default to the whole-month range', async (
 
 test('overview first-day movement uses the exact preceding calendar-day sales row', async () => {
   const dashboard = await readFile(dashboardPath, 'utf8');
+  const overview = dashboard.slice(dashboard.indexOf('function renderOverview()'), dashboard.indexOf('function renderPitstops()', dashboard.indexOf('function renderOverview()')));
 
   assert.match(dashboard, /function priorDailySalesRow\(date\)[\s\S]*?shiftIsoDate\(date, -1\)[\s\S]*?row\.date === priorDate/);
-  assert.match(dashboard, /firstPrior = rows\.length \? priorDailySalesRow\(rows\[0\]\.date\) : null/);
-  assert.match(dashboard, /var prior = index \? rows\[index - 1\] : firstPrior/);
+  assert.match(dashboard, /var liveRows = state\.grafanaEmailSalesRows \|\| \[\], savedRows = state\.data\.dailySales \|\| \[\]/);
+  assert.match(dashboard, /latest earlier source row/);
+  assert.match(overview, /firstPrior = rows\.length \? priorDailySalesRow\(rows\[0\]\.date\) : null/);
+  assert.match(overview, /var prior = index \? rows\[index - 1\] : firstPrior/);
+  assert.match(overview, /movement = row\.total >= \(prior \? prior\.total : 0\) \? 'Increase' : 'Decrease'/);
+  assert.doesNotMatch(overview, /movement = !prior \? 'First day'/);
 });

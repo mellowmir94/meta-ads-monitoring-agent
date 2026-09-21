@@ -1857,8 +1857,13 @@
   function priorDailySalesRow(date) {
     var priorDate = shiftIsoDate(date, -1);
     if (!priorDate) return null;
-    var rows = HOSTED_MODE ? (state.grafanaEmailSalesRows || []) : (state.data.dailySales || []);
-    return rows.filter(function(row) { return row && row.date === priorDate; }).pop() || null;
+    var liveRows = state.grafanaEmailSalesRows || [], savedRows = state.data.dailySales || [];
+    var exact = liveRows.concat(savedRows).filter(function(row) { return row && row.date === priorDate; }).pop();
+    if (exact) return exact;
+    // The selected range intentionally hides the boundary row. If a source
+    // omits the exact boundary row, use the latest earlier source row so the
+    // movement cell still remains a directional comparison.
+    return liveRows.concat(savedRows).filter(function(row) { return row && row.date && row.date < date; }).sort(function(a, b) { return a.date.localeCompare(b.date); }).pop() || null;
   }
   function manualBGarageRowsForWindow(from, to) {
     var rows = [];
@@ -2082,7 +2087,7 @@
     var salesHeaders = detailChannel === 'all' ? '<th>Date</th><th>HQ units</th><th>BP units</th><th>Total units</th><th>Movement</th>' + (hasDailyTarget ? '<th>Target status</th>' : '') : '<th>Date</th><th>' + detailLabel + ' units</th><th>Total units</th><th>Movement</th>' + (hasDailyTarget ? '<th>Target status</th>' : '');
     var salesColspan = detailChannel === 'all' ? (hasDailyTarget ? 6 : 5) : (hasDailyTarget ? 5 : 4);
     var salesTableRows = rows.map(function(row, index) {
-      var prior = index ? rows[index - 1] : firstPrior, movement = !prior ? 'First day' : row.total >= prior.total ? 'Increase' : 'Decrease', movementHtml = '<span class="movement-badge ' + (movement === 'Increase' ? 'increase' : movement === 'Decrease' ? 'decrease' : '') + '">' + movement + '</span>', statusHtml = hasDailyTarget ? (row.total >= data.benchmark ? '<span class="performance-badge achieved">Target met</span>' : '<span class="performance-badge critical">Below target</span>') : '';
+      var prior = index ? rows[index - 1] : firstPrior, movement = row.total >= (prior ? prior.total : 0) ? 'Increase' : 'Decrease', movementHtml = '<span class="movement-badge ' + (movement === 'Increase' ? 'increase' : 'decrease') + '">' + movement + '</span>', statusHtml = hasDailyTarget ? (row.total >= data.benchmark ? '<span class="performance-badge achieved">Target met</span>' : '<span class="performance-badge critical">Below target</span>') : '';
       if (detailChannel === 'all') return '<tr><td><strong>' + escapeHtml(formatDate(row.date, true)) + '</strong></td><td><strong>' + formatNumber(dailyDetailValue(row, 'hq')) + '</strong></td><td><strong>' + formatNumber(dailyDetailValue(row, 'bp')) + '</strong></td><td><strong>' + formatNumber(row.total) + '</strong></td><td>' + movementHtml + '</td>' + (hasDailyTarget ? '<td>' + statusHtml + '</td>' : '') + '</tr>';
       var value = detailChannel === 'wh' && !row.whAvailable ? '-' : formatNumber(dailyDetailValue(row, detailChannel));
       return '<tr><td><strong>' + escapeHtml(formatDate(row.date, true)) + '</strong></td><td><strong>' + value + '</strong></td><td><strong>' + formatNumber(row.total) + '</strong></td><td>' + movementHtml + '</td>' + (hasDailyTarget ? '<td>' + statusHtml + '</td>' : '') + '</tr>';
