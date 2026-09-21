@@ -4,9 +4,11 @@ const root=path.resolve(__dirname,'../cloudflare/public');
 const record=(id,type,count)=>({id,batchId:'download-test',rider:'Test Rider',reference:'TEST-'+id,type,status:'applied',amountCents:2500,installmentCount:count,pricingMode:'manual',createdAt:'2026-09-14T00:00:00Z',createdBy:'Test Finance',periodStart:'2026-09-14',periodEnd:'2026-09-20',deductionDate:'2026-09-18',audit:[],installments:Array.from({length:count},(_,index)=>({index,status:'applied',dueDate:index?'2026-09-24':'2026-09-18',settlementPeriodStart:'2026-09-14',settlementPeriodEnd:'2026-09-20',amountCents:2500}))});
 (async()=>{
  const fixtures=[record('epf','epf',4),record('manual','manual',1)];
- const jobs=Array.from({length:process.env.STATEMENT_QA?250:3},(_,i)=>({riderKey:'test rider',periodStart:'2026-09-14',periodEnd:'2026-09-20',reference:'JOB-'+(i+1),description:'Additional Job',amountCents:1250}));
+ const standaloneJob={rider:'Job-only Rider',riderKey:'job-only rider',periodStart:'2026-09-14',periodEnd:'2026-09-20',reference:'JOB-ONLY',description:'Additional Job',amountCents:100,createdBy:'Finance'};
+ const jobs=[...Array.from({length:process.env.STATEMENT_QA?250:3},(_,i)=>({riderKey:'test rider',periodStart:'2026-09-14',periodEnd:'2026-09-20',reference:'JOB-'+(i+1),description:'Additional Job',amountCents:1250})),standaloneJob];
  let html=fs.readFileSync(path.join(root,'index.html'),'utf8');
  html=html.replace('function additionalJobsHistoryRender(view) {',`window.__setHistoryJobs=jobs=>{additionalJobsState.jobs=jobs;additionalJobsState.loaded=true;deductionHistoryRender();};\nfunction additionalJobsHistoryRender(view) {`);
+ html=html.replace('async function additionalJobsStatementPayload(rider, start, end) {',`window.__jobStatement=async(...args)=>prepareRiderStatement(await additionalJobsStatementPayload(...args));\nasync function additionalJobsStatementPayload(rider, start, end) {`);
  html=html.replace('function deductionHistoryRender() {',`window.__downloadFixture=records=>{deductionState.records=records;deductionState.loaded=true;deductionState.actor={role:'maker'};state.api.loaded['commission-main']=true;const view=deductionHistoryEnsure();view.hidden=false;document.getElementById('tab-commission').hidden=false;document.getElementById('tab-commission').classList.add('deduction-history-active');view.querySelector('[data-deduction-history-period-start]').value='2026-09-14';view.querySelector('[data-deduction-history-period-end]').value='2026-09-20';deductionHistoryRender();};\nfunction deductionHistoryRender() {`);
  const browser=await chromium.launch({headless:true});
  try{for(const {formats,retry} of [{formats:['pdf','excel']},{formats:['pdf']},{formats:['excel']},{formats:['pdf','excel'],retry:true}]){
@@ -23,11 +25,12 @@ const record=(id,type,count)=>({id,batchId:'download-test',rider:'Test Rider',re
   await page.goto('http://localhost:4399/');await page.waitForFunction(()=>typeof window.__downloadFixture==='function');
   await page.locator('[data-deduction-history-open]').click();await page.evaluate(records=>window.__downloadFixture(records),fixtures);
   const row=page.locator('[data-deduction-batch-id="download-test"]');
-  await page.evaluate(jobs=>window.__setHistoryJobs(jobs),[...jobs,{rider:'Job-only Rider',riderKey:'job-only rider',periodStart:'2026-09-14',periodEnd:'2026-09-20',reference:'JOB-ONLY',description:'Additional Job',amountCents:100,createdBy:'Finance'}]);
+  await page.evaluate(jobs=>window.__setHistoryJobs(jobs),jobs);
   const headers=await page.locator('#deductionHistoryView thead th').allTextContents();
   assert.equal(headers[7],'Additional Job');
   assert.match(await row.locator('[data-additional-history-cell]').innerText(),/additional jobs/);
   const jobOnly=page.locator('[data-additional-only-row]');assert.equal(await jobOnly.count(),1);assert.equal(await jobOnly.locator('td').count(),14);assert.match(await jobOnly.innerText(),/RM 1.00/);
+  assert.equal(await jobOnly.locator('[data-additional-download]').count(),1,'Additional Job-only rows need a working Download button');
   const numbers=()=>page.locator('[data-deduction-history-body] > tr > td:first-child').allTextContents();
   assert.deepEqual(await numbers(),['1','2']);
   await page.locator('[data-deduction-number-sort]').click();
@@ -53,6 +56,20 @@ const record=(id,type,count)=>({id,batchId:'download-test',rider:'Test Rider',re
   assert.equal(downloads.length,formats.length,feedback);for(const d of downloads)assert.equal(await d.failure(),null);
   if(process.env.STATEMENT_QA&&!retry&&formats.length===2)for(const d of downloads)await d.saveAs(path.resolve(root,'../../preview-evidence/additional-job-layout'+path.extname(d.suggestedFilename())));
   assert.equal(requests.filter(p=>p.endsWith('/mark-sent')).length,formats.includes('pdf')?1:0,'Upcoming EPF payment must not be marked sent');
+  assert.equal(await jobOnly.locator('.deduction-history-status').innerText(),'Applied');
+  assert.equal(await jobOnly.locator('[data-statement-file-format="pdf"]').isChecked(),true);
+  for(const format of ['pdf','excel'])await jobOnly.locator('[data-statement-file-format="'+format+'"]').setChecked(formats.includes(format));
+  const before=downloads.length,marks=requests.filter(p=>p.endsWith('/mark-sent')).length;
+  await jobOnly.locator('[data-additional-download]').click();
+  await page.waitForFunction(()=>document.querySelector('[data-additional-download]')?.textContent==='Download');
+  for(let attempt=0;attempt<30&&downloads.length<before+formats.length;attempt++)await new Promise(resolve=>setTimeout(resolve,100));
+  assert.equal(downloads.length,before+formats.length,await jobOnly.innerText());
+  for(const d of downloads.slice(before)){assert.equal(await d.failure(),null);assert.match(d.suggestedFilename(),/Job-only/);}
+  assert.equal(requests.filter(p=>p.endsWith('/mark-sent')).length,marks,'Job-only exports must not modify deductions');
+  const statement=await page.evaluate(()=>window.__jobStatement('Job-only Rider','2026-09-14','2026-09-20'));
+  assert.equal(statement.rows.length,0,'Another rider commission must never enter this statement');
+  assert.equal(statement.summary.value,'RM 1.00');
+  assert.match(JSON.stringify(statement.footerRows),/JOB-ONLY/);
   assert.deepEqual(errors,[]);await page.close();
  }}finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

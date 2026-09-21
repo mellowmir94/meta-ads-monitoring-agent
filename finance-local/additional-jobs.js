@@ -68,7 +68,7 @@ function additionalJobsHistoryRender(view) {
   }
   // Job-only scopes have no deduction batch. Keep them in the same table without
   // manufacturing deductions, payment schedules, completion flags or delete actions.
-  if(scope.tab==='completed'||scope.installment||scope.progress||scope.dueStart||scope.dueEnd||filters.type||filters.status||filters.timing||filters.month)return;
+  if(scope.tab==='completed'||scope.installment||scope.progress||scope.dueStart||scope.dueEnd||filters.type||(filters.status&&filters.status!=='applied')||filters.timing||filters.month)return;
   const standalone=additionalJobsState.jobs.filter(job=>!allGroups.some(group=>matching(group,job))&&
     (!filters.search||deductionRiderKey([job.rider,job.reference,job.description].join(' ')).includes(filters.search))&&
     (!filters.periodStart||job.periodStart>=filters.periodStart)&&(!filters.periodEnd||job.periodEnd<=filters.periodEnd)&&
@@ -78,12 +78,45 @@ function additionalJobsHistoryRender(view) {
   let number=body.querySelectorAll('tr').length;
   for(const jobs of grouped.values()){
     const job=jobs[0],row=document.createElement('tr');row.setAttribute('data-additional-only-row','');
-    row.innerHTML='<td>'+(++number)+'</td><td>—</td><td><strong>'+esc(job.rider)+'</strong><small>Additional Jobs only</small></td>'+ '<td>—</td>'.repeat(4)+'<td>'+additionalJobsHistoryCell(jobs)+'</td><td><small>Included in rider Excel/PDF statements from Commission Rider.</small></td><td>'+esc(job.periodStart+' - '+job.periodEnd)+'</td><td>'+esc(deductionMoney(0))+'</td><td>—</td><td>Saved earnings</td><td>'+esc(job.createdBy||'')+'</td>';
+    row.dataset.jobRider=job.rider;row.dataset.jobStart=job.periodStart;row.dataset.jobEnd=job.periodEnd;
+    row.innerHTML='<td>'+(++number)+'</td><td>—</td><td><strong>'+esc(job.rider)+'</strong><small>Additional Jobs only</small></td>'+ '<td>—</td>'.repeat(4)+'<td>'+additionalJobsHistoryCell(jobs)+'</td><td class="deduction-history-download-cell"><div class="deduction-history-download-item"><strong>'+jobs.length+' Additional Job'+(jobs.length===1?'':'s')+'</strong><small>Ready to download</small><div><label><input type="checkbox" data-statement-file-format="pdf" checked> PDF</label> <label><input type="checkbox" data-statement-file-format="excel"> Excel</label></div><button type="button" data-additional-download>Download</button></div></td><td>'+esc(job.periodStart+' - '+job.periodEnd)+'</td><td>'+esc(deductionMoney(0))+'</td><td>—</td><td><span class="deduction-history-status applied">Applied</span></td><td>'+esc(job.createdBy||'')+'</td>';
     body.append(row);
   }
   if(grouped.size){view.querySelector('[data-deduction-history-empty]').hidden=true;view.querySelector('[data-deduction-history-feedback]').textContent+=' '+grouped.size+' Additional Job-only rider period'+(grouped.size===1?'':'s')+' shown separately; deduction counts are unchanged.';}
   deductionHistorySortNumbers(view);
 }
+// Job-only statements have no deduction installment to select or mark as sent.
+async function additionalJobsStatementPayload(rider, start, end) {
+  if(!rider||!start||!end)throw new Error('A rider and commission period are required.');
+  const panel=panels.find(panel=>panel.id==='commission-main');
+  const params=new URLSearchParams({panel:'commission-main',scope:'selection',part:'primary',from:start+' 00:00:00',to:end+' 23:59:59',filters:'{}',revision:'commission-kpi-v9',refresh:'1'});
+  const {response,payload}=await requestFinancePayload(FINANCE_API_ENDPOINT+'?'+params,'additional-statement:'+rider+':'+start+':'+end,true);
+  if(!response.ok||payload?.truncated)throw new Error('Complete Commission Rider data could not be loaded. Please retry.');
+  const rows=(await canonicalizeFinancePayloadRows(panel,payload)).filter(row=>deductionRiderKey(row.rider_name)===deductionRiderKey(rider));
+  const columns=visibleTableColumns(panel).map(column=>({key:column.key,label:column.label,value:row=>row[column.key]}));
+  const index=columns.findIndex(column=>column.key==='commission');
+  if(index<0)throw new Error('The Commission Rider table has no commission column.');
+  const gross=Math.round(rows.reduce((sum,row)=>sum+numberValue(row.commission),0)*100);
+  const footer=(label,value)=>columns.map((_,i)=>i===0?label:i===index?value:'');
+  const filename=rider.replace(/[<>:"/\\|?*\u0000-\u001f]/g,'_').replace(/[. ]+$/,'').slice(0,160)||'Rider';
+  return {statementScope:{rider,start,end},panelTitle:'Commission Rider',title:rider,filename:filename+'-Commission-Statement',pdfFilename:filename+'-Commission-Statement.pdf',columns,rows,period:'Commission period: '+deductionPeriodLabel({start,end}),summary:{label:'Net Commission',value:deductionMoney(gross)},footerRows:[footer('Filtered total',deductionMoney(gross)),footer('TOTAL DEDUCTIONS',deductionMoney(0))]};
+}
+document.addEventListener('click',async event=>{
+  const button=event.target.closest?.('[data-additional-download]');if(!button||button.disabled)return;
+  const row=button.closest('[data-additional-only-row]'),formats=[...row.querySelectorAll('[data-statement-file-format]:checked')].map(input=>input.dataset.statementFileFormat);
+  if(!formats.length){deductionDownloadFeedback(button,'Select PDF, Excel, or both before downloading.');return;}
+  button.disabled=true;button.textContent='Preparing…';button.setAttribute('aria-busy','true');
+  try{
+    const jobsReady=additionalJobsLoad(true);
+    const [,raw]=await Promise.all([Promise.all(formats.map(ensureFinanceExportBundle)),additionalJobsStatementPayload(row.dataset.jobRider,row.dataset.jobStart,row.dataset.jobEnd),jobsReady,financePdfLogo().catch(()=>null)]);
+    if(!additionalJobsForScope(row.dataset.jobRider,row.dataset.jobStart,row.dataset.jobEnd).length)throw new Error('These Additional Jobs are no longer available. Refresh History.');
+    const payload=await prepareRiderStatement(raw,jobsReady);
+    if(formats.includes('excel'))await downloadExcelTable(payload);
+    if(formats.includes('pdf')&&!await downloadPdfTable(payload)){deductionDownloadFeedback(button,'PDF download was cancelled.');return;}
+    deductionDownloadFeedback(button,formats.map(format=>format==='pdf'?'PDF':'Excel').join(' and ')+' downloaded.');
+  }catch(error){deductionDownloadFeedback(button,error.message||'Statement could not be downloaded. Please retry.');}
+  finally{button.disabled=false;button.textContent='Download';button.removeAttribute('aria-busy');}
+});
 document.addEventListener('input', event => {
   const row=event.target.closest?.('[data-job-row]'), host=row?.closest('[data-additional-table]'); if(!host)return;
   const draft=additionalJobDrafts.get(host.dataset.additionalTable), item=draft?.rows.find(item=>item.id===row.dataset.jobRow);
