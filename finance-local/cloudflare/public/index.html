@@ -6976,7 +6976,7 @@
             <strong id="statusTitle">Connecting to Grafana</strong>
             <p id="statusText">Finance data is requested securely through the Finance API.</p>
           </div>
-          <span class="status-pill" id="statusPill">Live API</span>
+          <span class="status-pill" id="statusPill">Live data</span>
         </section>
 
         <!-- BEGIN LEDGER FINSIGHT: PANEL -->
@@ -9182,10 +9182,10 @@
         if (LOCAL_PREVIEW) return { label: "Layout preview", state: "sample" };
         if (meta.checksum === SAMPLE_DATA_VERSION || meta.filename === "Built-in finance sample") return { label: "Sample · not live", state: "sample" };
         if (meta.sourceKind === "file") return { label: "Imported · not live", state: "sample" };
-        if (state.api.loading[panel.id]) return { label: "API: Refreshing", state: "loading" };
-        if (state.api.errors[panel.id]) return { label: "API: Error", state: "error" };
-        if (state.api.loaded[panel.id]) return { label: "API: Connected", state: "healthy" };
-        return { label: meta.uploadedAt ? "Imported · not live" : "API: Not loaded", state: "sample" };
+        if (state.api.loading[panel.id]) return { label: "Refreshing data", state: "loading" };
+        if (state.api.errors[panel.id]) return { label: "Connection error", state: "error" };
+        if (state.api.loaded[panel.id]) return { label: "Live data", state: "healthy" };
+        return { label: meta.uploadedAt ? "Imported · not live" : "Data not loaded", state: "sample" };
       }
 
       function syncFinanceConnectionPill(panel) {
