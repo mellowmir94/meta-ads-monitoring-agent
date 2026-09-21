@@ -46,8 +46,22 @@ const { chromium } = require(process.env.PLAYWRIGHT_PATH || 'playwright');
     await page.locator('#finsightQuestion').fill('do in table form neatly');
     await page.locator('#finsightForm').evaluate(form=>form.requestSubmit());
     await page.waitForFunction(()=>document.querySelectorAll('.finsight-table-scroll tbody tr').length===500);
+    const checkScrollSeparation = async () => {
+      const result = await page.evaluate(() => {
+        const snapshot = document.querySelector('.finsight-snapshot').getBoundingClientRect();
+        const messages = document.querySelector('#finsightMessages');
+        messages.scrollTop = messages.scrollHeight;
+        const table = messages.querySelector('.finsight-table-scroll');
+        table.scrollTop = 180;
+        return { gap:messages.getBoundingClientRect().top - snapshot.bottom, count:messages.querySelectorAll('tbody tr').length };
+      });
+      assert.ok(result.gap >= 20, `Summary and scrolling answers need separation; actual gap: ${result.gap}px`);
+      assert.equal(result.count,500);
+    };
+    await checkScrollSeparation();
     await page.screenshot({path:path.resolve(__dirname,'../preview-evidence/finsight-table-desktop.png'),fullPage:true});
     await page.setViewportSize({width:390,height:844});
+    await checkScrollSeparation();
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=390));
     await page.screenshot({path:path.resolve(__dirname,'../preview-evidence/finsight-reference-mobile.png'),fullPage:true});
     assert.deepEqual(errors,[]);
