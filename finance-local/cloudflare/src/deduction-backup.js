@@ -4,7 +4,12 @@ const digest = async value => [...new Uint8Array(await crypto.subtle.digest('SHA
 const recordStates = new Set(['pending', 'approved', 'applied', 'cancelled', 'rejected', 'reversed']);
 
 export async function createDeductionSnapshot(storage, createdAt = new Date().toISOString()) {
-  const entries = [...await storage.list()].sort(([left], [right]) => left.localeCompare(right));
+  const entries = []; let after = '';
+  do {
+    const page = [...await storage.list({ limit: 500, ...(after ? { startAfter: after } : {}) })];
+    entries.push(...page); after = page.length === 500 ? page.at(-1)[0] : '';
+  } while (after);
+  entries.sort(([left], [right]) => left.localeCompare(right));
   const payload = { schema, version: 2, revision: Number(await storage.get('counter:revision') || 0), createdAt, entries };
   return { ...payload, checksumSha256: await digest(payload) };
 }
@@ -16,10 +21,12 @@ export async function validateDeductionSnapshot(snapshot) {
   if (typeof checksumSha256 !== 'string' || checksumSha256 !== await digest(payload)) throw new Error('Deduction backup checksum mismatch.');
   const entries = new Map();
   for (const entry of snapshot.entries) {
-    if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string' || !/^(record:|job:|request:|duplicate:|epf:|epf-week:|deleted:|counter:)/.test(entry[0]) || entries.has(entry[0])) throw new Error('Deduction backup contains invalid or duplicate storage keys.');
+    if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string' || !/^(record:|job:|booking:|booking-event:|booking-import:|booking-meta:|booking-receipt:|request:|duplicate:|epf:|epf-week:|deleted:|counter:)/.test(entry[0]) || entries.has(entry[0])) throw new Error('Deduction backup contains invalid or duplicate storage keys.');
     entries.set(entry[0], entry[1]);
   }
   for (const [key, record] of entries) {
+    if (key.startsWith('booking:') && (!record || key !== 'booking:' + record.id || !record.source || !record.original || !record.originalWeek || !Number.isInteger(record.version))) throw new Error('Backup contains an incomplete booking.');
+    if (key.startsWith('booking-event:') && (!record?.action || !record?.at || !record?.by)) throw new Error('Backup contains an incomplete booking history entry.');
     if (key.startsWith('job:') && (!record || key !== 'job:' + record.id || !record.riderKey || !record.description || !record.periodStart || !record.periodEnd || !Number.isSafeInteger(record.amountCents) || record.amountCents <= 0 || !record.audit?.length)) throw new Error('Backup contains an incomplete additional job.');
     if (!key.startsWith('record:')) continue;
     if (!record || key !== 'record:' + record.id || typeof record.rider !== 'string' || !record.riderKey || !recordStates.has(record.status) || !Number.isSafeInteger(record.amountCents) || record.amountCents <= 0 || !Array.isArray(record.audit) || !record.audit.length || !Array.isArray(record.installments) || record.installments.length !== record.installmentCount) throw new Error('Deduction backup contains an incomplete record.');

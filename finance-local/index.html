@@ -6390,6 +6390,24 @@
 .additional-job-history-table { overflow-x:auto; }
 @media(max-width:600px){.additional-job-row{grid-template-columns:24px minmax(0,1fr)}.additional-job-row label:nth-of-type(2){grid-column:2}.additional-job-row button{grid-column:2}}
 
+.booking-workspace { min-width:0; color:var(--text); }
+body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; }
+.booking-head,.booking-toolbar,.booking-actions,.booking-pagination { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+.booking-head { justify-content:space-between; margin-bottom:20px; }
+.booking-head h2 { margin:0 0 8px; }.booking-head p,.booking-source { color:var(--text-soft); font-size:.82rem; line-height:1.6; }
+.booking-toolbar { padding:16px; border:1px solid var(--line); border-radius:12px; background:var(--surface); align-items:end; }
+.booking-workspace label,.booking-dialog form>label { display:flex; flex-direction:column; gap:6px; font-size:.8rem; }
+.booking-workspace input,.booking-workspace select,.booking-dialog input:not([type=checkbox]),.booking-dialog textarea { color:var(--text); background:var(--surface-muted); border:1px solid var(--line); border-radius:8px; padding:10px; font:inherit; min-width:0; max-width:100%; }
+.booking-workspace button,.booking-dialog button { color:var(--text); background:var(--surface); border:1px solid var(--line); padding:10px 14px; border-radius:8px; font:inherit; cursor:pointer; }
+.booking-workspace button:disabled { opacity:.5; cursor:default; }.booking-workspace :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.booking-workspace .booking-upload { background:var(--accent-fill,var(--accent)); color:var(--accent-on-fill); padding:10px 14px; border-radius:8px; font-weight:700; cursor:pointer; }
+.booking-upload input { width:210px; padding:5px; font-size:.7rem; }
+.booking-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-top:18px; }.booking-kpis>div { border:1px solid var(--line); border-radius:12px; background:var(--surface); padding:16px; }.booking-kpis span { color:var(--text-soft); font-size:.8rem; }.booking-kpis strong { display:block; font-size:1.7rem; margin-top:8px; color:var(--accent); }
+.booking-table { overflow:auto; max-width:100%; border:1px solid var(--line); border-radius:10px; }.booking-table table { width:100%; border-collapse:collapse; font-size:.8rem; }.booking-table th { background:var(--surface-muted); text-align:left; padding:12px; white-space:nowrap; }.booking-table td { padding:12px; border-top:1px solid var(--line); min-width:100px; max-width:260px; vertical-align:top; overflow-wrap:anywhere; white-space:normal; text-overflow:clip; }.booking-table td:first-child { min-width:40px; }.booking-table td:nth-child(5) { min-width:180px; }
+.booking-badge { display:block; color:var(--accent); font-size:.72rem; margin-top:5px; }.booking-message { color:var(--text-soft); margin:12px 0; }.booking-empty { padding:36px 16px; text-align:center; color:var(--text-soft); }.booking-pagination { justify-content:flex-end; padding:16px 0; }.booking-pagination span { margin-right:auto; color:var(--text-soft); }
+.booking-dialog { width:min(1000px,95vw); }.booking-dialog form { display:grid; gap:12px; margin:20px 0; }.booking-dialog .booking-reviewed { flex-direction:row; align-items:center; }.booking-dialog dl { display:grid; grid-template-columns:1fr 2fr; gap:8px; }.booking-dialog dd { margin:0; overflow-wrap:anywhere; }.booking-dialog summary { cursor:pointer; padding:12px 0; }.booking-history { border-top:1px solid var(--line); padding:14px 0; }
+@media(max-width:700px){.booking-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.booking-toolbar>label{flex:1 1 180px}.booking-toolbar input,.booking-toolbar select{width:100%}.booking-actions{width:100%}.booking-dialog dl{grid-template-columns:1fr}.booking-pagination{justify-content:flex-start}}
+
 </style>
 <!-- END DEDUCTION STYLES -->
 <!-- BEGIN BATERIKU REFERENCE THEME -->
@@ -6939,6 +6957,7 @@
         <!-- END LEDGER FINSIGHT -->
         <button class="nav-button" type="button" role="tab" data-tab="commission"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-commission"></use></svg></span>Commission Rider</button>
         <button class="nav-button" type="button" data-deduction-history-open><span class="nav-icon" aria-hidden="true">↶</span>Deduction History</button>
+        <button class="nav-button" type="button" role="tab" data-tab="bookingjobs"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-booking"></use></svg></span>Booking Jobs</button>
       </nav>
       <button class="sidebar-toggle sidebar-collapse" id="sidebarToggle" type="button" aria-controls="financeSidebar" aria-expanded="true" title="Hide sidebar">
         <span class="sidebar-toggle-icon" aria-hidden="true">&#171;</span>
@@ -6961,6 +6980,7 @@
               <option value="finsight">FinSight Agent</option>
               <!-- END LEDGER FINSIGHT -->
               <option value="commission">Commission Rider</option>
+              <option value="bookingjobs">Booking Jobs</option>
               <option value="reimbursement">Reimbursement</option>
               <option value="branch">Branch Overview</option>
               <option value="hqdealer">HQ &amp; Dealer Overview</option>
@@ -7088,6 +7108,7 @@
           <div class="visual-grid single" id="hqDealerVisual"></div>
         </section>
 
+        <section class="section tab-panel booking-workspace" id="tab-bookingjobs" data-tab-panel="bookingjobs" aria-label="Booking Jobs" hidden><div id="bookingJobsView"></div></section>
         <section class="section tab-panel" id="tab-jobbooking" data-tab-panel="jobbooking" aria-labelledby="jobBookingTitle">
           <div class="section-head"><div><h2 id="jobBookingTitle">Job Booking</h2><p>Booking volume, commission value, Grafana filters, and transaction-level detail.</p></div><div class="section-meta"><span class="tag green">4 KPI cards</span><span class="tag">1 chart</span><span class="tag">1 table</span></div></div>
           <div class="visual-grid single" id="jobBookingVisual"></div>
@@ -7128,6 +7149,7 @@
     <button class="nav-button" type="button" role="tab" data-tab="branch"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-branch"></use></svg></span>Branch</button>
     <button class="nav-button" type="button" role="tab" data-tab="hqdealer"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-hq"></use></svg></span>HQ Dealer</button>
     <button class="nav-button" type="button" role="tab" data-tab="jobbooking" data-optional-tab="jobbooking"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-booking"></use></svg></span>Booking</button>
+    <button class="nav-button" type="button" role="tab" data-tab="bookingjobs"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-booking"></use></svg></span>Booking Jobs</button>
     <button class="nav-button" type="button" role="tab" data-tab="pendingjob" data-optional-tab="pendingjob"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-pending-job"></use></svg></span>Pending Job</button>
     <button class="nav-button" type="button" role="tab" data-tab="pendingpayment" data-optional-tab="pendingpayment"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-payment"></use></svg></span>Payments</button>
     <button class="nav-button" type="button" role="tab" data-tab="quantity" data-optional-tab="quantity"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-quantity"></use></svg></span>Quantity</button>
@@ -7241,6 +7263,7 @@
           title: "Commission Rider",
           description: "Monitor eligible rider orders, commission concentration, and payment liability."
         },
+        { id: "bookingjobs", title: "Booking Jobs", description: "Track uploaded bookings and their assigned reporting weeks." },
         {
           id: "reimbursement",
           title: "Reimbursement Exposure",
@@ -9831,6 +9854,7 @@
 
       function renderTabs() {
         syncOptionalTabVisibility();
+        document.body.classList.toggle('booking-jobs-active', state.activeTab === 'bookingjobs');
         const active = financeTabs.find((tab) => tab.id === state.activeTab) || financeTabs[0];
         document.querySelectorAll("[data-tab]").forEach((button) => {
           const isActive = button.dataset.tab === active.id;
@@ -14143,6 +14167,7 @@
         renderRowsCache = null;
         if (typeof auditMount === "function") auditMount();
         if (typeof deductionMount === "function") deductionMount();
+        if (typeof bookingMount === "function") bookingMount();
       }
 
       function parseCsv(text) {
@@ -17274,6 +17299,90 @@ async function downloadMasterRiderExcel(payload) {
   const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',compression:'DEFLATE'});
   const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=(payload.pdfFilename?.replace(/\.pdf$/i,'')||payload.filename)+'.xlsx';document.body.append(link);link.click();link.remove();URL.revokeObjectURL(link.href);return true;
 }
+// Uploaded booking records have their own reporting weeks and do not feed commission totals.
+const bookingState={records:[],loaded:false,loading:false,busy:false,error:'',latest:null,week:'',search:'',branch:'',status:'active',view:'week',page:0};
+const bookingSourceColumns=['Rider_ID','order_id','parent_id','created_at','request_at','dispatched_on','rider_name','arrival_status','order_status','vpn','branch_name','products','battery_size','vehicle_name','promocode','level','payment_type','sales_source','paymenttotal','payment_status','quantity','commission'];
+function bookingMonday(day){const date=new Date(day+'T00:00:00Z');if(!Number.isFinite(date.getTime()))return '';date.setUTCDate(date.getUTCDate()-(date.getUTCDay()+6)%7);return date.toISOString().slice(0,10);}
+function bookingToday(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kuala_Lumpur',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}
+function bookingAddDay(day,delta){const date=new Date(day+'T00:00:00Z');date.setUTCDate(date.getUTCDate()+delta);return date.toISOString().slice(0,10);}
+function bookingDateLabel(day){if(!/^\d{4}-\d{2}-\d{2}/.test(day||''))return 'Unassigned';const date=new Date(day.slice(0,10)+'T00:00:00Z');if(!Number.isFinite(date.getTime()))return day;const n=date.getUTCDate(),suffix=n%100>=11&&n%100<=13?'th':({1:'st',2:'nd',3:'rd'}[n%10]||'th');return n+suffix+' '+date.toLocaleDateString('en-GB',{month:'long',year:'numeric',timeZone:'UTC'});}
+function bookingWeekLabel(day){return day?bookingDateLabel(day)+' - '+bookingDateLabel(bookingAddDay(day,6)):'Unassigned';}
+function bookingWeekNumber(day){const date=new Date(day+'T00:00:00Z');date.setUTCDate(date.getUTCDate()+3-(date.getUTCDay()+6)%7);const year=date.getUTCFullYear();return Math.ceil((((date-new Date(Date.UTC(year,0,1)))/86400000)+1)/7);}
+function bookingTerminal(record){return ['cancelled','refunded'].includes(record.source.order_status.toLowerCase())?'cancelled':record.source.order_status.toLowerCase()==='completed'?'completed':'';}
+function bookingNeedsReview(record){return !record.reviewed&&record.reviewReasons.length>0;}
+function bookingCarried(record){return Boolean(record.assignedWeek&&record.createdWeek&&record.assignedWeek>record.createdWeek);}
+async function bookingRequest(path,input){const result=await fetch('/api/bookings'+path,{credentials:'same-origin',...(input?{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(input)}:{})});const body=await result.json().catch(()=>({error:'Unable to read the booking response. Refresh and try again.'}));if(!result.ok)throw Error(body.error||'Unable to process bookings');return body;}
+async function bookingLoad(){
+  if(bookingState.loading)return;bookingState.loading=true;bookingState.error='';bookingPaint();
+  try{let next='',revision=null;const records=[],seen=new Set();do{const result=await bookingRequest('/list'+(next?'?after='+encodeURIComponent(next):''));if(revision!==null&&revision!==result.revision)throw Error('Bookings changed while loading. Refresh to load a consistent register.');revision=result.revision;records.push(...result.records);bookingState.latest=result.latest;next=result.next;if(next&&seen.has(next))throw Error('Incomplete booking register. Please refresh.');seen.add(next);}while(next);bookingState.records=records;bookingState.loaded=true;}
+  catch(error){bookingState.error=error.message;bookingState.loaded=false;}finally{bookingState.loading=false;bookingPaint();}
+}
+function bookingBaseRows(){const query=bookingState.search.toLowerCase();return bookingState.records.filter(r=>(!bookingState.branch||r.source.branch_name===bookingState.branch)&&(!query||[r.id,r.source.rider_name,r.source.branch_name,r.source.products,r.source.vpn,r.override?.note].join(' ').toLowerCase().includes(query)));}
+function bookingFiltered(){return bookingBaseRows().filter(r=>{
+  const view=bookingState.view,week=bookingState.week;
+  const within=r.assignedWeek===week||(!r.assignedWeek&&r.originalWeek===week);
+  if(view==='week'&&!within)return false;
+  if(view==='carried'&&(!within||!bookingCarried(r)||bookingTerminal(r)))return false;
+  if(view==='upcoming'&&(!(r.assignedWeek>week)||bookingTerminal(r)))return false;
+  if(view==='review'&&!bookingNeedsReview(r))return false;
+  const status=bookingState.status;return !status||status==='review'&&bookingNeedsReview(r)||status==='active'&&!bookingTerminal(r)||bookingTerminal(r)===status;
+});}
+function bookingIndicator(record){if(bookingNeedsReview(record))return 'Needs review';if(bookingTerminal(record))return bookingTerminal(record)==='completed'?'Completed':'Cancelled / refunded';if(bookingCarried(record))return 'Brought forward from Week '+bookingWeekNumber(record.createdWeek);return record.assignedWeek>bookingState.week?'Upcoming':'This week';}
+function bookingMount(){if(state.activeTab!=='bookingjobs')return;bookingState.week||=bookingMonday(bookingToday());const host=document.getElementById('bookingJobsView');if(!host.childElementCount)bookingPaint();if(!bookingState.loaded&&!bookingState.loading&&!bookingState.error)void bookingLoad();}
+function bookingPaint(){
+  const host=document.getElementById('bookingJobsView');if(!host)return;
+  if(state.activeTab==='bookingjobs'){const pill=document.getElementById('statusPill');if(pill){pill.textContent=bookingState.loading?'Loading bookings':bookingState.error?'Booking connection error':'Saved bookings';pill.title='Booking Jobs uses confirmed Excel imports.';}}
+  const rows=bookingState.loaded?bookingFiltered():[],base=bookingBaseRows(),week=bookingState.week,active=r=>!bookingTerminal(r),summary=[['This week',base.filter(r=>r.assignedWeek===week&&active(r)).length],['Brought forward',base.filter(r=>r.assignedWeek===week&&active(r)&&bookingCarried(r)).length],['Upcoming',base.filter(r=>r.assignedWeek>week&&active(r)).length],['Needs review',base.filter(bookingNeedsReview).length]];
+  const pages=Math.max(1,Math.ceil(rows.length/50));bookingState.page=Math.min(bookingState.page,pages-1);const start=bookingState.page*50;
+  const select=(name,label,options,value)=>'<label>'+label+'<select data-booking-filter="'+name+'">'+options.map(([key,text])=>'<option value="'+esc(key)+'"'+(value===key?' selected':'')+'>'+esc(text)+'</option>').join('')+'</select></label>';
+  host.innerHTML='<div class="booking-head"><div><h2>Booking Jobs</h2><p>Upload weekly orders and track when each booking is scheduled to start.</p></div><div class="booking-actions"><label class="booking-upload">Upload Excel<input type="file" accept=".xlsx" data-booking-upload '+(bookingState.busy?'disabled':'')+'></label><button type="button" data-booking-refresh '+(bookingState.loading||bookingState.busy?'disabled':'')+'>Refresh</button><button type="button" data-booking-export '+(!rows.length||bookingState.busy?'disabled':'')+'>Export Excel</button></div></div>'+ 
+    '<div role="status" class="booking-message">'+esc(bookingState.busy?'Processing workbook…':bookingState.loading?'Loading saved bookings…':bookingState.error||'')+'</div>'+
+    (bookingState.latest?'<p class="booking-source">Latest upload: '+esc(bookingState.latest.filename)+' · '+esc(bookingState.latest.at)+' · '+bookingState.latest.total+' rows · '+bookingState.latest.new+' new · '+bookingState.latest.updated+' updated · '+bookingState.latest.unchanged+' unchanged</p>':'')+
+    '<div class="booking-toolbar"><label>Reporting week<input type="date" data-booking-filter="week" value="'+esc(week)+'"></label><button type="button" data-booking-week="-7" aria-label="Previous week">←</button><button type="button" data-booking-week="0">Current week</button><button type="button" data-booking-week="7" aria-label="Next week">→</button><label>Search<input type="search" data-booking-search value="'+esc(bookingState.search)+'" placeholder="Order ID, rider, branch, product or VPN"></label>'+select('branch','Branch',[['','All branches'],...[...new Set(bookingState.records.map(r=>r.source.branch_name))].sort().map(b=>[b,b])],bookingState.branch)+select('status','Status',[['','All statuses'],['active','Active'],['completed','Completed'],['cancelled','Cancelled / refunded'],['review','Needs review']],bookingState.status)+select('view','View',[['week','Selected week'],['carried','Brought forward'],['upcoming','Upcoming'],['review','Needs review · all weeks'],['all','All weeks']],bookingState.view)+'<button type="button" data-booking-reset>Reset filters</button></div>'+
+    '<p>'+esc(bookingWeekLabel(week))+'</p><div class="booking-kpis">'+summary.map(([label,value])=>'<div><span>'+label+'</span><strong>'+value.toLocaleString('en-MY')+'</strong></div>').join('')+'</div><p class="booking-source">Week counts show active bookings. Needs review covers all weeks. Dispatch date is not proof of the actual start date.</p>'+
+    '<div class="booking-table"><table><thead><tr>'+['No.','Order ID','Rider','Branch','Job / Product','Created date','Scheduled date','Dispatch date','Order status','Payment status','Sales RM','Commission RM','Assigned week','Notes','Details'].map(label=>'<th>'+label+'</th>').join('')+'</tr></thead><tbody>'+rows.slice(start,start+50).map((r,index)=>'<tr><td>'+(start+index+1)+'</td><td>'+esc(r.id)+'<small class="booking-badge">'+esc(bookingIndicator(r))+'</small></td><td>'+esc(r.source.rider_name)+'</td><td>'+esc(r.source.branch_name)+'</td><td>'+esc(r.source.products)+'</td><td>'+esc(r.source.created_at)+'</td><td>'+esc(r.source.request_at)+'</td><td>'+esc(r.source.dispatched_on||'—')+'</td><td>'+esc(r.source.order_status)+'</td><td>'+esc(r.source.payment_status)+'</td><td>'+(r.source.paymenttotal===null?'—':Number(r.source.paymenttotal).toFixed(2))+'</td><td>'+(r.source.commission===null?'—':Number(r.source.commission).toFixed(2))+'</td><td>'+esc(bookingWeekLabel(r.assignedWeek))+'</td><td>'+esc(r.override?.note||r.reviewReasons.join('; ')||'—')+'</td><td><button type="button" data-booking-detail="'+esc(r.id)+'">Details</button></td></tr>').join('')+'</tbody></table></div>'+(!rows.length?'<p class="booking-empty">'+(bookingState.loaded?'No bookings match this view. Upload a workbook or change the week and filters.':'Saved bookings will appear here once loaded.')+'</p>':'')+
+    '<div class="booking-pagination"><span>'+rows.length.toLocaleString('en-MY')+' matching bookings · Page '+(bookingState.page+1)+' of '+pages+'</span><button type="button" data-booking-page="-1" '+(!bookingState.page?'disabled':'')+'>Previous</button><button type="button" data-booking-page="1" '+(bookingState.page>=pages-1?'disabled':'')+'>Next</button></div>';
+}
+async function bookingReadExcel(file){
+  if(!/\.xlsx$/i.test(file.name)||file.size>20000000)throw Error('Choose an .xlsx workbook up to 20 MB.');
+  await ensureFinanceExportBundle('excel');const zip=await window.JSZip.loadAsync(await file.arrayBuffer());
+  const xml=async name=>{const entry=zip.file(name);if(!entry)throw Error('Workbook is missing '+name);const text=await entry.async('string');if(text.length>64000000)throw Error('Expanded worksheet is too large.');const doc=new DOMParser().parseFromString(text,'application/xml');if(doc.querySelector('parsererror'))throw Error('Invalid workbook XML');return doc;};
+  const workbook=await xml('xl/workbook.xml'),rels=await xml('xl/_rels/workbook.xml.rels'),sheet=workbook.getElementsByTagName('sheet')[0];if(!sheet)throw Error('Workbook contains no worksheet.');
+  const relationship=[...rels.getElementsByTagName('Relationship')].find(r=>r.getAttribute('Id')===sheet.getAttribute('r:id'));if(!relationship)throw Error('Worksheet relationship is missing');
+  const target=relationship.getAttribute('Target');const path=target.startsWith('/')?target.slice(1):'xl/'+target.replace(/^\.\//,'');if(path.includes('..'))throw Error('Unsupported worksheet path');
+  const shared=zip.file('xl/sharedStrings.xml')?[...(await xml('xl/sharedStrings.xml')).getElementsByTagName('si')].map(si=>[...si.getElementsByTagName('t')].map(t=>t.textContent).join('')):[];
+  const epoch1904=['1','true'].includes(workbook.getElementsByTagName('workbookPr')[0]?.getAttribute('date1904'));
+  const values=[...(await xml(path)).getElementsByTagName('row')].map(row=>{const cells=[];for(const cell of row.getElementsByTagName('c')){const letters=cell.getAttribute('r')?.match(/^[A-Z]+/)?.[0];if(!letters)continue;let index=0;for(const letter of letters)index=index*26+letter.charCodeAt(0)-64;const type=cell.getAttribute('t'),raw=cell.getElementsByTagName('v')[0]?.textContent;cells[index-1]=type==='s'?shared[Number(raw)]:type==='inlineStr'?[...cell.getElementsByTagName('t')].map(t=>t.textContent).join(''):raw===undefined?'':type==='str'?raw:Number.isFinite(Number(raw))?Number(raw):raw;}return cells;}).filter(row=>row.some(cell=>cell!==''&&cell!==null));
+  const headers=values.shift()?.map(value=>String(value??'').trim())||[],missing=bookingSourceColumns.filter(key=>!headers.includes(key));if(missing.length)throw Error('Missing required headers: '+missing.join(', '));if(new Set(headers).size!==headers.length)throw Error('Duplicate column headers found.');
+  const rows=values.map(values=>Object.fromEntries(bookingSourceColumns.map(key=>{let value=values[headers.indexOf(key)]??'';if(['created_at','request_at','dispatched_on'].includes(key)&&typeof value==='number'){const serial=value,date=new Date((serial-(epoch1904?24107:25569))*86400000);value=Number.isFinite(date.getTime())?date.toISOString().slice(0,19).replace('T',' '):String(serial);}return [key,value];})));
+  const weeks=new Map();for(const row of rows){const day=String(row.created_at).slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(day)){const week=bookingMonday(day);if(week)weeks.set(week,(weeks.get(week)||0)+1);}}
+  return {rows,sheet:sheet.getAttribute('name'),sourceWeek:[...weeks].sort((a,b)=>b[1]-a[1])[0]?.[0]};
+}
+function bookingDialog(title){const dialog=deductionDialog(title);dialog.classList.add('booking-dialog');dialog.querySelector('.deduction-eyebrow').textContent='Booking Jobs';dialog.querySelector('[data-deduction-close]').setAttribute('aria-label','Close booking dialog');return dialog;}
+async function bookingPreview(file){
+  bookingState.busy=true;bookingPaint();
+  try{
+    const parsed=await bookingReadExcel(file),input={filename:file.name,sourceWeek:parsed.sourceWeek||bookingState.week,rows:parsed.rows},dialog=bookingDialog('Preview Booking Jobs import'),body=dialog.querySelector('[data-deduction-body]');
+    body.innerHTML='<p>'+esc(file.name)+' · Sheet: '+esc(parsed.sheet)+' · '+parsed.rows.length+' rows</p><label>Original upload week<input type="date" data-booking-import-week value="'+esc(input.sourceWeek)+'"></label><p>Choose the week covered by this source file. Scheduled dates determine each booking’s suggested week.</p><button type="button" data-booking-validate>Validate preview</button><div data-booking-preview role="status"></div>';
+    const output=body.querySelector('[data-booking-preview]'),validate=body.querySelector('[data-booking-validate]'),weekInput=body.querySelector('[data-booking-import-week]');
+    weekInput.onchange=()=>{input.sourceWeek=bookingMonday(weekInput.value);weekInput.value=input.sourceWeek;output.innerHTML='Week changed. Validate again before importing.';};
+    validate.onclick=async()=>{validate.disabled=true;weekInput.disabled=true;output.textContent='Validating rows against the saved register…';try{input.sourceWeek=bookingMonday(weekInput.value);const result=await bookingRequest('/preview',input);input.expectedRevision=result.revision;
+      output.innerHTML='<p><strong>'+result.counts.new+' new · '+result.counts.updated+' updated · '+result.counts.unchanged+' unchanged · '+result.counts.invalid+' invalid · '+result.counts.needsReview+' need review</strong></p>'+result.invalid.slice(0,20).map(item=>'<p>Row '+item.row+': '+esc(item.error)+'</p>').join('')+'<p>Preview shows the first '+result.sample.length+' rows. All '+result.counts.total+' rows were checked.</p><div class="booking-table"><table><thead><tr><th>Order ID</th><th>Rider</th><th>Scheduled date</th><th>Import action</th><th>Review reason</th></tr></thead><tbody>'+result.sample.map(r=>'<tr><td>'+esc(r.orderId)+'</td><td>'+esc(r.rider)+'</td><td>'+esc(r.scheduled)+'</td><td>'+esc(r.kind)+'</td><td>'+esc(r.issues.join('; '))+'</td></tr>').join('')+'</tbody></table></div><button type="button" data-booking-confirm '+(result.counts.invalid?'disabled':'')+'>Confirm import</button><p data-booking-import-message role="status"></p>';
+      body.querySelector('[data-booking-confirm]').onclick=async event=>{event.target.disabled=true;validate.disabled=true;weekInput.disabled=true;const message=body.querySelector('[data-booking-import-message]');message.textContent='Saving bookings. Keep this window open…';try{const saved=await bookingRequest('/import',input);message.textContent=(saved.repeated?'This workbook was already imported. No duplicates created.':'Import saved: '+saved.new+' new, '+saved.updated+' updated, '+saved.unchanged+' unchanged.')+' '+(saved.backupWarning||'');await bookingLoad();}catch(error){message.textContent=error.message+' Retry this import after a connection error; repeated imports are safe.';event.target.disabled=false;validate.disabled=false;weekInput.disabled=false;}};
+    }catch(error){output.textContent=error.message;}finally{validate.disabled=false;weekInput.disabled=false;}};await validate.onclick();
+  }catch(error){bookingState.error=error.message;}finally{bookingState.busy=false;bookingPaint();}
+}
+async function bookingDetails(id){
+  const dialog=bookingDialog('Booking '+id),body=dialog.querySelector('[data-deduction-body]');body.textContent='Loading booking and history…';
+  try{const {record:r,history}=await bookingRequest('/detail?id='+encodeURIComponent(id));
+    body.innerHTML='<p><strong>'+esc(r.source.rider_name)+'</strong> · '+esc(r.source.branch_name)+'</p><p>Original source week: '+esc(bookingWeekLabel(r.originalWeek))+'<br>Assigned week: '+esc(bookingWeekLabel(r.assignedWeek))+'</p><p>'+esc(r.reviewReasons.join('; ')||'No date conflicts detected.')+'</p><form data-booking-edit><label>Assigned date<input name="date" type="date" required value="'+esc(r.assignedDate)+'"></label><label>Finance note<textarea name="note" required maxlength="1000">'+esc(r.override?.note||'')+'</textarea></label><label class="booking-reviewed"><input type="checkbox" name="reviewed" '+(r.reviewed?'checked':'')+'> Date conflicts reviewed</label><button type="submit">Save assignment</button><p data-booking-save-message role="status"></p></form><details><summary>All imported fields</summary><dl>'+bookingSourceColumns.map(key=>'<dt>'+esc(key.replaceAll('_',' '))+'</dt><dd>'+esc(r.source[key]??'—')+'</dd>').join('')+'</dl></details><details><summary>Original imported values</summary><dl>'+bookingSourceColumns.map(key=>'<dt>'+esc(key.replaceAll('_',' '))+'</dt><dd>'+esc(r.original[key]??'—')+'</dd>').join('')+'</dl></details><h3>Change history</h3>'+history.map(event=>'<div class="booking-history"><strong>'+esc(event.action)+'</strong><p>'+esc(event.at+' · '+event.by)+'</p><p>'+esc((event.fromWeek?event.fromWeek+' → ':'')+event.toWeek+' '+(event.note||event.filename||''))+'</p>'+(event.changes?'<details><summary>'+event.changes.length+' field changes</summary>'+event.changes.map(change=>'<p>'+esc(change.field)+': '+esc(change.from??'—')+' → '+esc(change.to??'—')+'</p>').join('')+'</details>':'')+'</div>').join('');
+    let pending=null;body.querySelector('form').onsubmit=async event=>{event.preventDefault();const form=event.target,button=form.querySelector('button'),message=form.querySelector('[data-booking-save-message]');const data={id,date:form.elements.date.value,note:form.elements.note.value,reviewed:form.elements.reviewed.checked,expectedVersion:r.version};if(!pending||JSON.stringify(pending.data)!==JSON.stringify(data))pending={data,requestId:crypto.randomUUID()};button.disabled=true;try{const saved=await bookingRequest('/update',{...data,requestId:pending.requestId});form.innerHTML='<p role="status">Assignment saved. '+esc(saved.backupWarning||'')+'</p>';await bookingLoad();}catch(error){message.textContent=error.message;button.disabled=false;}};
+  }catch(error){body.textContent=error.message;}
+}
+async function bookingExport(){const records=bookingFiltered();await ensureFinanceExportBundle('excel');const columns=[['order_id','Order ID'],['rider_name','Rider'],['branch_name','Branch'],['products','Job / Product'],['created_at','Created date'],['request_at','Scheduled date'],['dispatched_on','Dispatch date'],['order_status','Order status'],['payment_status','Payment status'],['paymenttotal','Sales RM'],['commission','Commission RM']].map(([key,label])=>({key,label,value:r=>r.source[key]}));columns.unshift({key:'number',label:'No.',value:r=>r.rowNumber});for(const [key,label,get] of [['assignedWeek','Assigned week',r=>r.assignedWeek],['originalWeek','Original source week',r=>r.originalWeek],['indicator','Week indicator',bookingIndicator],['notes','Finance notes',r=>r.override?.note||''],['review','Review reason',r=>r.reviewReasons.join('; ')],['source','Source filename',r=>r.sourceFilename],['updated','Last seen',r=>r.lastSeenAt],['rescheduled','Week changes',r=>r.rescheduleCount]])columns.push({key,label,value:get});await downloadExcelTable({title:'Booking Jobs',panelTitle:'Booking Jobs',filename:'Booking-Jobs-'+bookingState.week,period:bookingWeekLabel(bookingState.week),rows:records.map((r,index)=>({...r,rowNumber:index+1})),columns});}
+document.addEventListener('change',event=>{if(event.target.matches?.('[data-booking-upload]')){const file=event.target.files[0];if(file)void bookingPreview(file);return;}const key=event.target.dataset?.bookingFilter;if(key){bookingState[key]=key==='week'?bookingMonday(event.target.value)||bookingMonday(bookingToday()):event.target.value;bookingState.page=0;bookingPaint();}});
+document.addEventListener('input',event=>{if(!event.target.matches?.('[data-booking-search]'))return;bookingState.search=event.target.value;bookingState.page=0;const position=event.target.selectionStart;bookingPaint();const input=document.querySelector('[data-booking-search]');input.focus();input.setSelectionRange(position,position);});
+document.addEventListener('click',async event=>{const button=event.target.closest?.('#bookingJobsView button');if(!button)return;try{if(button.hasAttribute('data-booking-refresh'))return await bookingLoad();if(button.hasAttribute('data-booking-export')){button.disabled=true;try{return await bookingExport();}finally{button.disabled=false;}}if(button.dataset.bookingDetail)return await bookingDetails(button.dataset.bookingDetail);if(button.hasAttribute('data-booking-week')){const delta=Number(button.dataset.bookingWeek);bookingState.week=delta?bookingAddDay(bookingState.week,delta):bookingMonday(bookingToday());bookingState.page=0;}if(button.hasAttribute('data-booking-page'))bookingState.page+=Number(button.dataset.bookingPage);if(button.hasAttribute('data-booking-reset'))Object.assign(bookingState,{search:'',branch:'',status:'',view:'week',page:0});bookingPaint();}catch(error){bookingState.error=error.message;bookingPaint();}});
 // Read-only installment aggregation. Completion uses the History reconciliation rule.
 const deductionExposureScope = { month: '', installment: '', progress: '', metric: 'amount' };
 const deductionExposureStages = { statement: 'Awaiting statement', reconciliation: 'Awaiting reconciliation', completed: 'Completed' };

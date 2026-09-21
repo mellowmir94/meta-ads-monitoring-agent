@@ -2,6 +2,7 @@
 // optional R2 writes in the gateway are append-only disaster-recovery snapshots.
 import { verifyWeeklyCommission } from './deduction-verification.js';
 import { createDeductionSnapshot } from './deduction-backup.js';
+import { handleBookings } from './bookings.js';
 const types = ['insurance', 'battery-tester', 'manual', 'epf'];
 const subtypes = ['accident', 'ganti rugi lost item', 'repair accident', 'insurance', 'battery tester', 'EPF', 'other'];
 const checkerRoles = new Set(['checker', 'admin']);
@@ -117,6 +118,7 @@ export class DeductionRegister {
       const url = new URL(request.url);
       const actor = { sessionId: request.headers.get('x-deduction-session') || '', name: request.headers.get('x-deduction-user') || '', role: request.headers.get('x-deduction-role') || 'maker' };
       if (!actor.sessionId || !actor.name) return reply({ error: 'Authenticated Finance identity required.' }, 401);
+      if (url.pathname.startsWith('/booking/')) return handleBookings(this.storage, request, actor, this.now().toISOString());
       if (request.method === 'GET') {
         if (url.pathname === '/jobs') {
           const after = url.searchParams.get('after');

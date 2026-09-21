@@ -1,5 +1,6 @@
 import { ConcurrencyLimiter, concurrencyConfig } from "./concurrency.js";
 import { DeductionRegister, deductionsApi } from "./deductions.js";
+import { bookingsApi } from "./bookings.js";
 
 export { ConcurrencyLimiter };
 export { DeductionRegister };
@@ -468,6 +469,7 @@ export default {
       }
       if (url.pathname === "/api/public-holidays" && request.method === "GET") return malaysiaPublicHolidaysApi(url);
       if (url.pathname === "/api/deductions" || url.pathname.startsWith("/api/deductions/")) return deductionsApi(request, env, session, context);
+      if (url.pathname === "/api/bookings" || url.pathname.startsWith("/api/bookings/")) return bookingsApi(request, env, session);
       if (url.pathname === "/api/dashboard-layout") return dashboardLayoutApi(request, env, session.sessionId);
       if (url.pathname === "/api/grafana/finance" || url.pathname === "/api/finance/data") return financeDataApi(request, env, context);
       return json({ error: "API route not found." }, 404);

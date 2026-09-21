@@ -6,7 +6,7 @@ const file = resolve(root, 'index.html');
 let html = readFileSync(file, 'utf8');
 const cssStart = '<!-- BEGIN DEDUCTION STYLES -->';
 const cssEnd = '<!-- END DEDUCTION STYLES -->';
-const style = cssStart + '\n<style>\n' + readFileSync(resolve(root, 'deductions.css'), 'utf8') + '\n</style>\n' + cssEnd;
+const style = cssStart + '\n<style>\n' + readFileSync(resolve(root, 'deductions.css'), 'utf8') + '\n' + readFileSync(resolve(root, 'booking-jobs.css'), 'utf8') + '\n</style>\n' + cssEnd;
 if (html.includes(cssStart)) {
   html = html.slice(0, html.indexOf(cssStart)) + style + html.slice(html.indexOf(cssEnd) + cssEnd.length);
 } else html = html.replace('</head>', style + '\n</head>');
@@ -34,6 +34,6 @@ if (html.includes(finsightRuntimeStart)) {
 const start = html.indexOf('      // BEGIN TABLE FILTER TEMPLATES');
 const end = html.indexOf('      // END TABLE FILTER TEMPLATES', start);
 if (start < 0 || end < 0) throw new Error('Missing audit template embed markers');
-const moduleCode = ['audit-templates.js', 'deductions.js', 'additional-jobs.js', 'rider-statement.js', 'deduction-exposure.js', 'commission-kpi-comparison.js'].map(name => readFileSync(resolve(root, name), 'utf8').trim()).join('\n');
+const moduleCode = ['audit-templates.js', 'deductions.js', 'additional-jobs.js', 'rider-statement.js', 'booking-jobs.js', 'deduction-exposure.js', 'commission-kpi-comparison.js'].map(name => readFileSync(resolve(root, name), 'utf8').trim()).join('\n');
 writeFileSync(file, html.slice(0, start) + '      // BEGIN TABLE FILTER TEMPLATES\n' + moduleCode + '\n' + html.slice(end));
 copyFileSync(file, resolve(root, 'cloudflare/public/index.html'));
