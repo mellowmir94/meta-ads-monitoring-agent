@@ -6,6 +6,7 @@ const record=(id,type,count)=>({id,batchId:'download-test',rider:'Test Rider',re
  const fixtures=[record('epf','epf',4),record('manual','manual',1)];
  const jobs=Array.from({length:process.env.STATEMENT_QA?250:3},(_,i)=>({riderKey:'test rider',periodStart:'2026-09-14',periodEnd:'2026-09-20',reference:'JOB-'+(i+1),description:'Additional Job',amountCents:1250}));
  let html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+ html=html.replace('function additionalJobsHistoryRender(view) {',`window.__setHistoryJobs=jobs=>{additionalJobsState.jobs=jobs;additionalJobsState.loaded=true;deductionHistoryRender();};\nfunction additionalJobsHistoryRender(view) {`);
  html=html.replace('function deductionHistoryRender() {',`window.__downloadFixture=records=>{deductionState.records=records;deductionState.loaded=true;deductionState.actor={role:'maker'};state.api.loaded['commission-main']=true;const view=deductionHistoryEnsure();view.hidden=false;document.getElementById('tab-commission').hidden=false;document.getElementById('tab-commission').classList.add('deduction-history-active');view.querySelector('[data-deduction-history-period-start]').value='2026-09-14';view.querySelector('[data-deduction-history-period-end]').value='2026-09-20';deductionHistoryRender();};\nfunction deductionHistoryRender() {`);
  const browser=await chromium.launch({headless:true});
  try{for(const {formats,retry} of [{formats:['pdf','excel']},{formats:['pdf']},{formats:['excel']},{formats:['pdf','excel'],retry:true}]){
@@ -22,6 +23,11 @@ const record=(id,type,count)=>({id,batchId:'download-test',rider:'Test Rider',re
   await page.goto('http://localhost:4399/');await page.waitForFunction(()=>typeof window.__downloadFixture==='function');
   await page.locator('[data-deduction-history-open]').click();await page.evaluate(records=>window.__downloadFixture(records),fixtures);
   const row=page.locator('[data-deduction-batch-id="download-test"]');
+  await page.evaluate(jobs=>window.__setHistoryJobs(jobs),[...jobs,{rider:'Job-only Rider',riderKey:'job-only rider',periodStart:'2026-09-14',periodEnd:'2026-09-20',reference:'JOB-ONLY',description:'Additional Job',amountCents:100,createdBy:'Finance'}]);
+  const headers=await page.locator('#deductionHistoryView thead th').allTextContents();
+  assert.equal(headers[7],'Additional Job');
+  assert.match(await row.locator('[data-additional-history-cell]').innerText(),/additional jobs/);
+  const jobOnly=page.locator('[data-additional-only-row]');assert.equal(await jobOnly.count(),1);assert.equal(await jobOnly.locator('td').count(),14);assert.match(await jobOnly.innerText(),/RM 1.00/);
   await row.locator('[data-deduction-history-type-payment-select][data-deduction-history-payment-type="epf"]').selectOption('epf|1');
   assert.match(await row.locator('.deduction-history-download-item').innerText(),/EPF payment 2.*Special Case payment 1/s);
   // Mixed weeks with no History date filter previously blocked this exact click.

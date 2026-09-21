@@ -42,13 +42,40 @@ function additionalJobsCanProceed(id) {
   const draft=additionalJobDrafts.get(id),pending=draft?.rows.filter(row=>!row.saved)||[];
   return Boolean(draft?.enabled&&!draft.saving&&pending.length&&pending.every(row=>row.description.trim()&&/^\d+(\.\d{1,2})?$/.test(row.amount)&&Number(row.amount)>0&&Number(row.amount)<=1000000));
 }
+function additionalJobsHistoryCell(jobs) {
+  if(!jobs.length)return '—';
+  return '<strong style="color:var(--success)">+ '+esc(deductionMoney(jobs.reduce((sum,job)=>sum+job.amountCents,0)))+'</strong><small>'+jobs.length+' additional job'+(jobs.length===1?'':'s')+' · earnings, not deductions</small><details><summary>View jobs</summary>'+jobs.map(job=>'<p><strong>'+esc(job.reference)+'</strong><br>'+esc(job.description)+'<br>+ '+esc(deductionMoney(job.amountCents))+'</p>').join('')+'</details>';
+}
 function additionalJobsHistoryRender(view) {
-  if (!view) return;
-  let host=view.querySelector('[data-additional-history]');
-  if (!host) { host=document.createElement('section'); host.dataset.additionalHistory=''; host.className='additional-jobs'; view.append(host); }
-  const filters=deductionHistoryFilters(view), search=filters.search, month=deductionWorkflowScope.month;
-  const jobs=additionalJobsState.jobs.filter(job => (!search || deductionRiderKey([job.rider,job.reference,job.description].join(' ')).includes(search)) && (!month || job.periodStart.slice(0,7)<=month && job.periodEnd.slice(0,7)>=month) && (!filters.periodStart || job.periodStart>=filters.periodStart) && (!filters.periodEnd || job.periodEnd<=filters.periodEnd));
-  host.innerHTML='<h3>Additional Job History</h3><p>Separate earnings, not deductions. Uses rider search and commission period / payment month; deduction type and installment progress do not apply.</p>'+(!additionalJobsState.loaded?'<p>'+esc(additionalJobsState.error||'Loading…')+'</p>':'<p>'+jobs.length+' jobs · '+esc(deductionMoney(jobs.reduce((sum,job)=>sum+job.amountCents,0)))+'</p><div class="additional-job-history-table"><table><thead><tr><th>No.</th><th>Reference</th><th>Rider</th><th>Commission period</th><th>Job</th><th>Amount</th><th>Saved by</th></tr></thead><tbody>'+jobs.map((job,index)=>'<tr><td>'+(index+1)+'</td><td>'+esc(job.reference)+'</td><td>'+esc(job.rider)+'</td><td>'+esc(job.periodStart+' - '+job.periodEnd)+'</td><td>'+esc(job.description)+'</td><td>'+esc(deductionMoney(job.amountCents))+'</td><td>'+esc(job.createdBy+' · '+job.createdAt)+'</td></tr>').join('')+'</tbody></table></div>');
+  if(!view)return;
+  view.querySelector('[data-additional-history]')?.remove();
+  view.querySelectorAll('[data-additional-only-row]').forEach(row=>row.remove());
+  const body=view.querySelector('[data-deduction-history-body]');if(!body||!deductionState.loaded)return;
+  const filters=deductionHistoryFilters(view),scope=deductionWorkflowScope,used=new Set();
+  const allGroups=deductionHistoryGroups(deductionState.records);
+  const matching=(group,job)=>deductionRiderKey(group.rider)===job.riderKey&&group.periodStart===job.periodStart&&group.periodEnd===job.periodEnd;
+  for(const row of body.querySelectorAll('[data-deduction-batch-id]')){
+    const group=allGroups.find(group=>group.id===row.dataset.deductionBatchId),cell=row.querySelector('[data-additional-history-cell]');
+    const jobs=group?additionalJobsState.jobs.filter(job=>matching(group,job)&&!used.has(job.reference)):[];
+    jobs.forEach(job=>used.add(job.reference));
+    if(cell)cell.innerHTML=additionalJobsState.loaded?additionalJobsHistoryCell(jobs):esc(additionalJobsState.error||'Loading jobs…');
+  }
+  // Job-only scopes have no deduction batch. Keep them in the same table without
+  // manufacturing deductions, payment schedules, completion flags or delete actions.
+  if(scope.tab==='completed'||scope.installment||scope.progress||scope.dueStart||scope.dueEnd||filters.type||filters.status||filters.timing||filters.month)return;
+  const standalone=additionalJobsState.jobs.filter(job=>!allGroups.some(group=>matching(group,job))&&
+    (!filters.search||deductionRiderKey([job.rider,job.reference,job.description].join(' ')).includes(filters.search))&&
+    (!filters.periodStart||job.periodStart>=filters.periodStart)&&(!filters.periodEnd||job.periodEnd<=filters.periodEnd)&&
+    (!scope.month||job.periodStart.slice(0,7)<=scope.month&&job.periodEnd.slice(0,7)>=scope.month));
+  const grouped=new Map();
+  for(const job of standalone){const key=[job.riderKey,job.periodStart,job.periodEnd].join('|');if(!grouped.has(key))grouped.set(key,[]);grouped.get(key).push(job);}
+  let number=body.querySelectorAll('tr').length;
+  for(const jobs of grouped.values()){
+    const job=jobs[0],row=document.createElement('tr');row.setAttribute('data-additional-only-row','');
+    row.innerHTML='<td>'+(++number)+'</td><td>—</td><td><strong>'+esc(job.rider)+'</strong><small>Additional Jobs only</small></td>'+ '<td>—</td>'.repeat(4)+'<td>'+additionalJobsHistoryCell(jobs)+'</td><td><small>Included in rider Excel/PDF statements from Commission Rider.</small></td><td>'+esc(job.periodStart+' - '+job.periodEnd)+'</td><td>'+esc(deductionMoney(0))+'</td><td>—</td><td>Saved earnings</td><td>'+esc(job.createdBy||'')+'</td>';
+    body.append(row);
+  }
+  if(grouped.size){view.querySelector('[data-deduction-history-empty]').hidden=true;view.querySelector('[data-deduction-history-feedback]').textContent+=' '+grouped.size+' Additional Job-only rider period'+(grouped.size===1?'':'s')+' shown separately; deduction counts are unchanged.';}
 }
 document.addEventListener('input', event => {
   const row=event.target.closest?.('[data-job-row]'), host=row?.closest('[data-additional-table]'); if(!host)return;
