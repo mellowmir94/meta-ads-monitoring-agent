@@ -736,17 +736,35 @@ async function deductionCombinedPaymentStatementPayload(options, commissionRange
   const statementDetails = payments.map(option => (deductionTypes[option.record.type] || option.record.type) + ' · Payment ' + (option.index + 1) + ' of ' + option.count + ' · Deduction date: ' + deductionDateLabel(option.item.dueDate)).join(' | ');
   return { ...payload, filename: filename + '_payment-' + highestPaymentCount, pdfFilename: filename + '_payment-' + highestPaymentCount + '.pdf', period: statementDetails + ' · Commission period: ' + deductionPeriodLabel(pdfPeriod) + ' · refreshed from Grafana', summary: { label: 'Net Commission', value: deductionMoney(netCents) }, footerRows: [filteredTotal, ...paymentRows, footerRow('TOTAL DEDUCTED', '- ' + deductionMoney(deductedCents)), footerRow('NET COMMISSION', deductionMoney(netCents))] };
 }
+function deductionDownloadFeedback(button, message) {
+  const feedback = deductionHistoryEnsure()?.querySelector('[data-deduction-history-feedback]');
+  if (feedback) feedback.textContent = message;
+  const container = button.closest('.deduction-history-download-item');
+  let local = container?.querySelector('[data-statement-download-feedback]');
+  if (container && !local) {
+    local = document.createElement('small');
+    local.setAttribute('data-statement-download-feedback', '');
+    local.setAttribute('role', 'status');
+    local.style.cssText = 'white-space:normal;overflow-wrap:anywhere;display:block;max-width:260px';
+    container.append(local);
+  }
+  if (local) local.textContent = message;
+}
 async function deductionHistoryDownloadBatch(groupId, button) {
+  if (button.disabled) return;
+  const originalLabel = button.textContent;
+  const feedback = { set textContent(message) { deductionDownloadFeedback(button, message); } };
+  try {
   const formats = [...button.closest('.deduction-history-download-item').querySelectorAll('[data-statement-file-format]:checked')].map(input => input.dataset.statementFileFormat);
-  const view = deductionHistoryEnsure(), feedback = view?.querySelector('[data-deduction-history-feedback]');
   if (!formats.length) { if (feedback) feedback.textContent = 'Select PDF, Excel, or both before downloading.'; return; }
   const group = deductionHistoryGroups(deductionState.records).find(item => item.id === groupId);
   if (!group) throw new Error('This deduction request is no longer available. Refresh History and try again.');
   const filters = deductionHistoryFilters(deductionHistoryEnsure()), options = deductionHistoryDownloadOptions(group, {}, deductionToday(), filters.periodStart, filters.periodEnd);
   if (!options.length) throw new Error('Select at least one Include in PDF payment.');
   button.disabled = true;
+  button.textContent = 'Preparing…';
+  button.setAttribute('aria-busy', 'true');
   if (feedback) feedback.textContent = 'Preparing ' + formats.map(format => format === 'pdf' ? 'PDF' : 'Excel').join(' and ') + ' for ' + options.length + ' selected payment' + (options.length === 1 ? '' : 's') + '…';
-  try {
     const [, rawPayload] = await Promise.all([Promise.all(formats.map(format => ensureFinanceExportBundle(format))), deductionCombinedPaymentStatementPayload(options, { start: filters.periodStart, end: filters.periodEnd })]);
     const payload = await prepareRiderStatement(rawPayload);
     if (formats.includes('excel')) await downloadExcelTable(payload);
@@ -767,7 +785,7 @@ async function deductionHistoryDownloadBatch(groupId, button) {
   } catch (error) {
     if (feedback) feedback.textContent = error.message || 'The selected statement files could not be downloaded.';
     throw error;
-  } finally { if (button.isConnected) button.disabled = false; }
+  } finally { if (button.isConnected) { button.disabled = false; button.textContent = originalLabel; button.removeAttribute('aria-busy'); } }
 }
 async function deductionHistoryExport(format) {
   await deductionLoad();

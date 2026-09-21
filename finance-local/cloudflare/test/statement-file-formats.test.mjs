@@ -9,9 +9,10 @@ function fixture(formats, failPdf = false) {
   const calls = [], feedback = {textContent: ''}, payload = {rows: ['same statement']};
   const button = {disabled: false, isConnected: true, closest: () => ({
     querySelectorAll: () => formats.map(format => ({dataset: {statementFileFormat: format}}))
-  })};
+  }), setAttribute() {}, removeAttribute() {}};
   const context = vm.createContext({
     crypto: {randomUUID: () => 'test-request'}, deductionState: {records: []},
+    deductionDownloadFeedback: (_button, message) => { feedback.textContent = message; },
     deductionHistoryEnsure: () => ({querySelector: () => feedback}),
     deductionHistoryGroups: () => [{id: 'group'}], deductionHistoryFilters: () => ({}),
     deductionToday: () => '2026-09-21',
