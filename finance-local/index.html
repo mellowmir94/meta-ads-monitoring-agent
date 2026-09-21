@@ -6113,7 +6113,7 @@
 .deduction-choice-card > small { color: var(--text-soft); font-size: .64rem; line-height: 1.5; }
 .deduction-card-applied { margin-top: auto; padding-top: 8px; display: flex; justify-content: space-between; gap: 8px; color: var(--text-soft); border-top: 1px solid var(--line); font-size: .65rem; }
 .deduction-card-applied b { color: var(--text); font-variant-numeric: tabular-nums; }
-.deduction-settlement-strip { display: grid; grid-template-columns: 1fr 24px 1.25fr 24px 1fr; gap: 12px; align-items: center; margin-top: 16px; border-top: 1px solid var(--deduction-border); padding-top: 14px; }
+.deduction-settlement-strip { display: grid; grid-template-columns: 1fr 16px 1fr 16px 1.25fr 16px 1fr; gap: 10px; align-items: center; margin-top: 16px; border-top: 1px solid var(--deduction-border); padding-top: 14px; }
 .deduction-settlement-strip > div { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
 .deduction-settlement-strip > div > span { font-size: .68rem; color: var(--text-soft); }
 .deduction-settlement-strip strong { color: var(--text); font-size: 1.02rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -6375,6 +6375,17 @@
 .deduction-exposure-values button { display:inline-flex; align-items:center; gap:5px; padding:2px 0; background:transparent; color:var(--text); border:0; font-size:11px; text-align:left; }
 .deduction-exposure-values i { width:8px; height:8px; border-radius:50%; flex:none; }
 .deduction-exposure button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+/* Manual earnings are visually separate from deductions. */
+.additional-jobs { margin:18px 0; padding:18px; border:1px solid var(--line); border-radius:12px; background:var(--surface); }
+.additional-jobs p,.additional-jobs small { display:block; font-size:12px; line-height:1.5; color:var(--text-soft); }
+.additional-jobs fieldset { border:0; padding:0; min-width:0; }
+.additional-job-row { display:grid; grid-template-columns:24px minmax(0,1fr) 150px auto; gap:12px; align-items:end; margin-bottom:12px; }
+.additional-job-row label { display:grid; gap:6px; font-size:12px; }
+.additional-job-row input { min-width:0; width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--surface-strong); color:var(--text); }
+.additional-job-actions { display:flex; flex-wrap:wrap; gap:10px; }
+.additional-jobs button { padding:9px 12px; border:1px solid var(--line); border-radius:8px; background:var(--surface-muted); color:var(--text); }
+.additional-job-history-table { overflow-x:auto; }
+@media(max-width:600px){.additional-job-row{grid-template-columns:24px minmax(0,1fr)}.additional-job-row label:nth-of-type(2){grid-column:2}.additional-job-row button{grid-column:2}}
 
 </style>
 <!-- END DEDUCTION STYLES -->
@@ -11631,7 +11642,8 @@
           ? [...includedDeductions, ["Total Deducted", `- ${money(exportDeductedCents)}`]]
           : [];
         const footerRows = [footer, ...pdfDeductionItems.map(([label, value]) => columns.map((_column, index) => index === 0 ? label : index === commissionIndex ? value : ""))];
-        return { summary: { label: "Net Commission", value: money(exportNetCents) }, footer, footerRows, exportSummaryRows: summaryItems };
+        const statementDates = typeof auditCapture === "function" ? auditCapture(tableId || tableFilterId(panel.id))?.scope?.dates : state.dates[panel.id];
+        return { statementScope: {rider: exportRows[0].rider_name, start:String(statementDates?.start||'').slice(0,10), end:String(statementDates?.end||'').slice(0,10)}, summary: { label: "Net Commission", value: money(exportNetCents) }, footer, footerRows, exportSummaryRows: summaryItems };
       }
 
       function financeTableExportPayload(panelId, sourceKey = "", copyId = "") {
@@ -11709,6 +11721,8 @@
       }
 
       async function downloadExcelTable(payload) {
+        payload = await prepareRiderStatement(payload);
+        if (payload.statementPrepared) return downloadMasterRiderExcel(payload);
         if (!window.JSZip) throw new Error("The Excel export library could not be loaded.");
         const zip = new window.JSZip();
         const lastColumn = excelColumnReference(Math.max(0, payload.columns.length - 1));
@@ -11782,13 +11796,11 @@
       }
 
       function financePdfCellValue(column, row) {
-        const value = column.value(row);
-        return /^(created_at|request_at)$/.test(String(column.key).trim().toLowerCase())
-          ? formatGrafanaTimestamp(value).replace(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})$/, "$1\n$2")
-          : String(value ?? "");
+        return String(financeExcelCellValue(column, row, 'Commission Rider') ?? '');
       }
 
       async function downloadPdfTable(payload) {
+        payload = await prepareRiderStatement(payload);
         const jsPDF = window.jspdf?.jsPDF;
         if (!jsPDF) throw new Error("The PDF export library could not be loaded.");
         if (payload.rows.length > 5000 && !window.confirm(`This PDF contains ${formatNumber(payload.rows.length)} rows and may take a while to prepare. Export the complete filtered table?`)) return false;
@@ -11822,8 +11834,12 @@
           doc.text(payload.summary.value, pageWidth - 28, 56, { align: "right" });
         }
         doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(88, 101, 120);
-        doc.text(`${payload.title ? `${payload.title} · ` : ""}${formatNumber(payload.rows.length)} filtered rows · ${payload.period}`, 28, 66, { maxWidth: pageWidth - 56 });
-        const body = payload.rows.map((row) => payload.columns.map((column) => financePdfCellValue(column, row)));
+        doc.text(`${payload.title ? `${payload.title} · ` : ""}${formatNumber(payload.rows.length)} ${payload.statementPrepared ? 'statement' : 'filtered'} rows · ${payload.period}`, 28, 66, { maxWidth: pageWidth - 56 });
+        const body = payload.rows.map((row) => {
+          const values=payload.columns.map((column) => financePdfCellValue(column, row));
+          const index=payload.columns.findIndex(column=>column.key==='commission');
+          return row.__additionalJob && index>1 ? [{content:values[0],colSpan:index,styles:{halign:'left'}},...values.slice(index)] : values;
+        });
         doc.autoTable({
           startY: 78,
           head: [payload.columns.map((column) => column.label)],
@@ -11836,7 +11852,7 @@
           footStyles: { fillColor: [23, 76, 59], textColor: [239, 252, 246], fontStyle: "bold" },
           didParseCell: (data) => {
             const label = data.section === "foot" ? String(data.row?.raw?.[0] ?? "").trim().toUpperCase() : "";
-            if (label === "APPLIED DEDUCTIONS" || label === "TOTAL DEDUCTED") {
+            if (label === "TOTAL DEDUCTIONS" || label === "APPLIED DEDUCTIONS" || label === "TOTAL DEDUCTED") {
               data.cell.styles.fillColor = [217, 149, 47];
               data.cell.styles.textColor = [30, 41, 30];
             } else if (label === "NET COMMISSION") {
@@ -16199,7 +16215,8 @@ function deductionSummaryForRows(dataRows, dates) {
     statementAmounts[record.type] = (statementAmounts[record.type] || 0) + deductionStatementAmountForRecord(record, includedApplied);
   });
   const approvedCents = Object.values(amounts).reduce((sum, value) => sum + value, 0);
-  return { loaded: deductionState.loaded, error: deductionState.error, riderValid: rider.valid, grossCents, amounts, statementAmounts, approvedCents, appliedCents: approvedCents, pendingCents, netCents: grossCents - approvedCents, legacyCount };
+  const additionalCents = typeof additionalJobsForScope === 'function' ? additionalJobsForScope(rider.rider, scopeStart, scopeEnd).reduce((sum,job)=>sum+job.amountCents,0) : 0;
+  return { loaded: deductionState.loaded, error: deductionState.error, riderValid: rider.valid, grossCents, additionalCents, amounts, statementAmounts, approvedCents, appliedCents: approvedCents, pendingCents, netCents: grossCents + additionalCents - approvedCents, legacyCount };
 }
 function deductionDraftFor(id, rider, dates) {
   const key = [rider.key || '', dates.start || '', dates.end || ''].join('|');
@@ -16222,7 +16239,8 @@ function deductionSummaryMarkup(dataRows, tableId) {
     (error ? '<div class="deduction-feedback is-error" role="alert">' + esc(error) + (summary.error ? ' <button type="button" data-deduction-retry>Retry register</button>' : '') + '</div>' : !summary.loaded ? '<div class="deduction-feedback" role="status">Loading deduction register…</div>' : '') +
     '<div class="deduction-choice-grid">' + card('epf', field('epf', '25.00', true), 'RM25 × first 4 weeks · RM100 monthly<br>Thursday; Friday when Wednesday is a holiday') + card('insurance', field('insurance', draft.amounts.insurance), 'Amount per payment · 2 weekly payments') +
     card('battery-tester', '<select aria-label="Battery Tester payment plan" data-deduction-inline-battery-plan' + disabled + '><option value="fixed-2"' + (draft.batteryPlan === 'fixed-2' ? ' selected' : '') + '>2 × RM50 · RM100 total</option><option value="fixed-7"' + (draft.batteryPlan === 'fixed-7' ? ' selected' : '') + '>7 × RM40 · RM280 total</option><option value="manual"' + (draft.batteryPlan === 'manual' ? ' selected' : '') + '>Manual · set amount and payments</option></select>' + field('battery-tester', draft.batteryPlan === 'manual' ? draft.amounts['battery-tester'] : draft.batteryPlan === 'fixed-7' ? '40.00' : '50.00', draft.batteryPlan !== 'manual') + '<label class="deduction-payment-count"><span>Payments</span><input aria-label="Battery Tester number of payments" type="number" min="1" max="52" step="1" inputmode="numeric" data-deduction-inline-battery-count value="' + esc(draft.batteryPlan === 'fixed-7' ? '7' : draft.batteryPlan === 'fixed-2' ? '2' : String(draft.batteryCount || 3)) + '"' + (draft.batteryPlan !== 'manual' ? ' readonly' : '') + disabled + '></label>', 'Fixed weekly schedule or Finance-set weekly payments') + card('manual', field('manual', draft.amounts.manual, false, true) + '<label class="deduction-payment-count"><span>Payments</span><input aria-label="Special Case number of payments" type="number" min="1" max="52" step="1" inputmode="numeric" data-deduction-inline-manual-count value="' + esc(String(draft.manualCount || 1)) + '"' + disabled + '></label><strong class="deduction-payment-breakdown" data-deduction-inline-breakdown="manual"></strong>', 'Enter the total deduction, then split it into weekly payments') + '</div>' +
-    '<div class="deduction-settlement-strip"><div><span>Gross commission</span><strong>' + esc(deductionMoney(summary.grossCents)) + '</strong></div><span class="deduction-equation-sign" aria-hidden="true">−</span><div><span>Applied deductions</span><strong>' + esc(enabled ? deductionMoney(summary.approvedCents) : '—') + '</strong><small>' + esc(enabled ? 'Saved deductions are applied immediately' : 'Requires one rider and a complete register') + '</small></div><span class="deduction-equation-sign" aria-hidden="true">=</span><div class="commission-net-total' + (summary.netCents < 0 ? ' is-negative' : '') + '"><span>Net commission</span><strong>' + esc(enabled ? deductionMoney(summary.netCents) : '—') + '</strong></div></div>' +
+    '<div class="deduction-settlement-strip"><div><span>Gross commission</span><strong>' + esc(deductionMoney(summary.grossCents)) + '</strong></div><span class="deduction-equation-sign" aria-hidden="true">+</span><div><span>Additional Jobs</span><strong>' + esc(deductionMoney(summary.additionalCents)) + '</strong></div><span class="deduction-equation-sign" aria-hidden="true">−</span><div><span>Total deductions</span><strong>' + esc(enabled ? deductionMoney(summary.approvedCents) : '—') + '</strong><small>' + esc(enabled ? 'Saved deductions are applied immediately' : 'Requires one rider and a complete register') + '</small></div><span class="deduction-equation-sign" aria-hidden="true">=</span><div class="commission-net-total' + (summary.netCents < 0 ? ' is-negative' : '') + '"><span>Net commission</span><strong>' + esc(enabled ? deductionMoney(summary.netCents) : '—') + '</strong></div></div>' +
+    additionalJobsMarkup(tableId, rider, dates, summary) +
     (summary.legacyCount ? '<p class="deduction-legacy-note">' + summary.legacyCount + ' legacy applied payment(s) use their original due date for this report.</p>' : '') +
     '<footer class="deduction-inline-actions"><button type="button" data-deduction-history-open>History</button><div><strong data-deduction-inline-preview>Deduction preview: —</strong><span data-deduction-inline-message>' + esc(enabled ? 'Choose one or more types, then Proceed. Dates and remarks can be edited in History.' : error || 'Waiting for the deduction register.') + '</span></div><strong class="deduction-inline-total">Total Deducted: ' + esc(enabled ? deductionMoney(summary.approvedCents) : '—') + '</strong><button type="button" data-deduction-inline-create' + (enabled && draft.selected.length ? '' : ' disabled') + '>Proceed</button></footer></section>';
 }
@@ -16665,6 +16683,7 @@ function deductionHistoryRender() {
     return '<tr data-deduction-batch-id="' + esc(group.id) + '"><td>' + (rowIndex + 1) + '</td><td class="deduction-export-check"><div class="deduction-row-controls"><input type="checkbox" data-deduction-history-select aria-label="Select ' + esc(group.rider) + ' request for Rider PDF"' + (deductionHistorySelected.has(group.id) ? ' checked' : '') + '><button type="button" data-deduction-delete-batch aria-label="Delete ' + esc(group.rider) + ' deduction request" title="Delete request">×</button></div></td><td><strong>' + esc(group.rider) + '</strong><small>' + group.records.length + ' deductions in one request</small><small>' + esc(group.references.join(' | ')) + '</small>' + deductionHistoryBatchPaymentPicker(group) + '</td>' + deductionHistoryTypeCell(group, 'epf', checker, '', filters.periodStart, filters.periodEnd) + deductionHistoryTypeCell(group, 'insurance', checker, '', filters.periodStart, filters.periodEnd) + deductionHistoryTypeCell(group, 'battery-tester', checker, '', filters.periodStart, filters.periodEnd) + deductionHistoryTypeCell(group, 'manual', checker, '', filters.periodStart, filters.periodEnd) + deductionHistoryDownloadCell(group, {}, deductionToday(), filters.periodStart, filters.periodEnd) + '<td>' + esc((group.periodStart || '-') + ' - ' + (group.periodEnd || '-')) + '</td><td>' + esc(deductionMoney(p.appliedCents)) + '</td><td>' + esc(deductionMoney(p.remainingCents)) + '</td><td><span class="deduction-history-status ' + esc(group.status) + '">' + esc(deductionDisplayStatus(group.status)) + '</span></td><td>' + esc(group.createdBy || '-') + '<small>' + esc(formatGrafanaTimestamp(group.createdAt)) + '</small></td></tr>';
   }).join('') : '<tr><td colspan="13">History is unavailable until the full register loads. <button type="button" data-deduction-retry>Retry register</button></td></tr>';
   view.querySelector('[data-deduction-history-empty]').hidden = !deductionState.loaded || shown.length > 0;
+  additionalJobsHistoryRender(view);
 }
 function deductionHistoryStatementPayload(records) {
   if (typeof financeTableExportPayload !== 'function') throw new Error('The Commission Rider table is not ready for PDF export.');
@@ -16699,6 +16718,7 @@ function deductionHistoryStatementPayload(records) {
   }).filter(Boolean);
   const footer = payload.footer || row('Filtered total', deductionMoney(grossCents));
   const netCents = grossCents - appliedCents;
+  payload.statementScope = {rider:rider.rider,start,end};
   const filename = rider.rider.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/, '').slice(0, 160) || 'Rider';
   return { ...payload, title: rider.rider, filename: filename + '-Commission-Statement', pdfFilename: filename + '.pdf', period: (start && end ? start + ' - ' + end : payload.period) + ' | saved deductions are applied immediately', summary: { label: 'Net Commission', value: deductionMoney(netCents) }, footerRows: [footer, ...typeRows, row('APPLIED DEDUCTIONS', '- ' + deductionMoney(appliedCents)), row('NET COMMISSION', deductionMoney(netCents))] };
 }
@@ -16731,7 +16751,7 @@ async function deductionFreshPaymentStatementPayload(record, index, commissionRa
   const paymentRow = (label, date, amount) => columns.map((_column, columnIndex) => columnIndex === 0 ? label : columnIndex === paymentDateColumnIndex ? date : columnIndex === commissionIndex ? amount : '');
   const filteredTotal = columns.map(column => column === columns[0] ? 'Filtered total' : column === quantityColumn ? formatNumber(rows.reduce((sum, row) => sum + Number(row.quantity || 0), 0)) : column === commissionColumn ? deductionMoney(grossCents) : '');
   const payment = Number.isInteger(Number(item.index)) ? Number(item.index) + 1 : index + 1, paymentCount = Number(record.installmentCount || progress.items.length || payment), type = (deductionTypes[record.type] || record.type || 'Deduction').toUpperCase(), filename = String(record.rider || 'Rider').trim().replace(/\s+/g, '_').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/, '').slice(0, 160) || 'Rider';
-  return { title: record.rider, panelTitle: 'Commission Rider', filename: filename + '_payment-' + paymentCount, pdfFilename: filename + '_payment-' + paymentCount + '.pdf', columns, rows, period: type + ' · Payment ' + payment + ' of ' + paymentCount + ' · Deduction date: ' + deductionDateLabel(item.dueDate) + ' · Commission period: ' + deductionPeriodLabel(period) + ' · refreshed from Grafana', summary: { label: 'Net Commission', value: deductionMoney(netCents) }, footerRows: [filteredTotal, paymentRow(type + ' — PAYMENT ' + payment + ' OF ' + paymentCount, deductionDateLabel(item.dueDate), '- ' + deductionMoney(deductedCents)), footerRow('TOTAL DEDUCTED', '- ' + deductionMoney(deductedCents)), footerRow('NET COMMISSION', deductionMoney(netCents))] };
+  return { statementScope:{rider:record.rider,start:period.start,end:period.end}, title: record.rider, panelTitle: 'Commission Rider', filename: filename + '_payment-' + paymentCount, pdfFilename: filename + '_payment-' + paymentCount + '.pdf', columns, rows, period: type + ' · Payment ' + payment + ' of ' + paymentCount + ' · Deduction date: ' + deductionDateLabel(item.dueDate) + ' · Commission period: ' + deductionPeriodLabel(period) + ' · refreshed from Grafana', summary: { label: 'Net Commission', value: deductionMoney(netCents) }, footerRows: [filteredTotal, paymentRow(type + ' — PAYMENT ' + payment + ' OF ' + paymentCount, deductionDateLabel(item.dueDate), '- ' + deductionMoney(deductedCents)), footerRow('TOTAL DEDUCTIONS', '- ' + deductionMoney(deductedCents)), footerRow('NET COMMISSION', deductionMoney(netCents))] };
 }
 function deductionPrefetchPaymentStatement(record, index, commissionRange = null) {
   const key = deductionPaymentStatementCacheKey(record, index, commissionRange), existing = deductionStatementPayloadCache.get(key);
@@ -16768,6 +16788,7 @@ async function deductionCombinedPaymentStatementPayload(options, commissionRange
   return { ...payload, filename: filename + '_payment-' + highestPaymentCount, pdfFilename: filename + '_payment-' + highestPaymentCount + '.pdf', period: statementDetails + ' · Commission period: ' + deductionPeriodLabel(pdfPeriod) + ' · refreshed from Grafana', summary: { label: 'Net Commission', value: deductionMoney(netCents) }, footerRows: [filteredTotal, ...paymentRows, footerRow('TOTAL DEDUCTED', '- ' + deductionMoney(deductedCents)), footerRow('NET COMMISSION', deductionMoney(netCents))] };
 }
 async function deductionHistoryDownloadBatch(groupId, button) {
+  const format = button.dataset.statementFormat || 'pdf';
   const group = deductionHistoryGroups(deductionState.records).find(item => item.id === groupId);
   if (!group) throw new Error('This deduction request is no longer available. Refresh History and try again.');
   const filters = deductionHistoryFilters(deductionHistoryEnsure()), options = deductionHistoryDownloadOptions(group, {}, deductionToday(), filters.periodStart, filters.periodEnd);
@@ -16776,7 +16797,8 @@ async function deductionHistoryDownloadBatch(groupId, button) {
   const view = deductionHistoryEnsure(), feedback = view?.querySelector('[data-deduction-history-feedback]');
   if (feedback) feedback.textContent = 'Preparing one PDF for ' + options.length + ' selected payment' + (options.length === 1 ? '' : 's') + '…';
   try {
-    const [, payload] = await Promise.all([ensureFinanceExportBundle('pdf'), deductionCombinedPaymentStatementPayload(options, { start: filters.periodStart, end: filters.periodEnd })]);
+    const [, payload] = await Promise.all([ensureFinanceExportBundle(format), deductionCombinedPaymentStatementPayload(options, { start: filters.periodStart, end: filters.periodEnd })]);
+    if (format === 'excel') { await downloadExcelTable(payload); if (feedback) feedback.textContent='Rider Excel statement downloaded. The PDF uses the same statement data.'; return; }
     const downloaded = await downloadPdfTable(payload);
     if (!downloaded) { if (feedback) feedback.textContent = 'PDF download was cancelled.'; return; }
     const eligible = options.filter(option => option.state !== 'upcoming' && option.state !== 'sent' && !option.item.statementSentAt);
@@ -16957,6 +16979,7 @@ function deductionRegisterDialog() { return deductionHistoryOpen(); }
 function deductionCancelDialog(recordId) { return deductionActionDialog(recordId, 'cancel'); }
 function deductionMount() {
   deductionHistoryEnsure();
+  if (state.activeTab === 'commission' && !additionalJobsState.loaded && !additionalJobsState.loading && !additionalJobsState.error) void additionalJobsLoad().then(() => { render(); additionalJobsHistoryRender(document.getElementById('deductionHistoryView')); }).catch(() => render());
   const cards = [...document.querySelectorAll('#commission-main-ledger, .table-copy[data-audit-table]')];
   // The deduction register powers both the green Commission Rider form and
   // Rider deduction history. Do not request it until Commission Rider opens.
@@ -17105,6 +17128,151 @@ document.addEventListener('change', event => {
   if (checkbox.checked) deductionHistorySelected.add(id);
   const button = deductionHistoryEnsure()?.querySelector('[data-deduction-history-export="pdf"]'); if (button) button.disabled = deductionHistorySelected.size !== 1 || !deductionState.loaded;
 });
+// Additional earnings are separate from deduction records and source order rows.
+const additionalJobsState = { jobs: [], loaded: false, loading: null, error: '' };
+const additionalJobDrafts = new Map();
+async function additionalJobsLoad(force = false) {
+  if (additionalJobsState.loading) return additionalJobsState.loading;
+  if (additionalJobsState.loaded && !force) return additionalJobsState.jobs;
+  additionalJobsState.loading = (async () => {
+    const jobs = [], seen = new Set(); let next = '';
+    do {
+      const response = await deductionRequest('/jobs' + (next ? '?after=' + encodeURIComponent(next) : ''));
+      if (!Array.isArray(response.jobs)) throw new Error('Additional Jobs could not be loaded. Retry before exporting.');
+      jobs.push(...response.jobs); next = response.next || '';
+      if (next && seen.has(next)) throw new Error('Additional Jobs register is incomplete.');
+      seen.add(next);
+    } while (next);
+    Object.assign(additionalJobsState, {jobs,loaded:true,error:''}); return jobs;
+  })().catch(error => { additionalJobsState.loaded=false; additionalJobsState.error=error.message; throw error; }).finally(() => { additionalJobsState.loading=null; });
+  return additionalJobsState.loading;
+}
+function additionalJobsForScope(rider, start, end) {
+  const key = deductionRiderKey(rider);
+  return additionalJobsState.jobs.filter(job => job.riderKey === key && job.periodStart >= start && job.periodEnd <= end);
+}
+function additionalJobDraft(id, rider, dates) {
+  const scope = [rider.key,dates.start,dates.end].join('|');
+  if (additionalJobDrafts.get(id)?.scope !== scope) additionalJobDrafts.set(id,{scope,enabled:false,rows:[],saving:false});
+  return additionalJobDrafts.get(id);
+}
+function additionalJobsMarkup(id, rider, dates, summary) {
+  const draft = additionalJobDraft(id,rider,dates), start=String(dates.start||'').slice(0,10), end=String(dates.end||'').slice(0,10);
+  const saved = additionalJobsForScope(rider.rider,start,end), cents=saved.reduce((sum,job)=>sum+job.amountCents,0);
+  return `<section class="additional-jobs" data-additional-table="${esc(id)}"><label class="deduction-inline-choice"><input type="checkbox" data-additional-toggle ${draft.enabled?'checked':''} ${rider.valid?'':'disabled'}><strong>Additional Job</strong></label><p>Extra jobs outside Line Item Audit. Add a description/reference and RM amount for each job. Save jobs separately before exporting.</p><div data-additional-editor ${draft.enabled?'':'hidden'}>${additionalJobsEditor(draft)}</div><p data-additional-feedback role="status">${esc(additionalJobsState.error || (!additionalJobsState.loaded?'Loading saved additional jobs…':`${saved.length} saved jobs · ${deductionMoney(cents)} additional commission`))}</p><strong>Statement preview: ${additionalJobsState.loaded && summary.loaded ? esc(deductionMoney(summary.grossCents)+' + '+deductionMoney(cents)+' − '+deductionMoney(Object.values(summary.statementAmounts).reduce((s,n)=>s+n,0))+' = '+deductionMoney(summary.grossCents+cents-Object.values(summary.statementAmounts).reduce((s,n)=>s+n,0))) : 'Loading…'}</strong><small>Line Item Audit commission + saved Additional Jobs − statement deductions. Unsaved rows are not included.</small></section>`;
+}
+function additionalJobsEditor(draft) {
+  const rows=draft.rows.map((row,index)=>{
+    const locked=row.saved||Boolean(row.payload);
+    return `<div class="additional-job-row" data-job-row="${esc(row.id)}"><span>${index+1}</span><label>Job description / reference<input data-job-description maxlength="500" value="${esc(row.description)}" ${locked?'readonly':''}></label><label>Amount (RM)<input data-job-amount type="number" step="0.01" min="0.01" max="1000000" value="${esc(row.amount)}" ${locked?'readonly':''}></label>${row.saved?'<span>Saved</span>':locked?'<span>Retry to confirm save</span>':'<button type="button" data-job-remove aria-label="Remove job '+(index+1)+'">Remove</button>'}</div>`;
+  }).join('');
+  return `<fieldset ${draft.saving?'disabled':''}><div class="additional-job-rows">${rows}</div><div class="additional-job-actions"><button type="button" data-job-add>+ Add row</button><button type="button" data-job-save>Save Additional Jobs</button></div></fieldset>`;
+}
+function additionalJobsHistoryRender(view) {
+  if (!view) return;
+  // Offer both formats from the exact same selected installment payload.
+  view.querySelectorAll('[data-deduction-history-batch-download]:not([data-statement-format])').forEach(pdf=>{
+    if(pdf.parentElement.querySelector('[data-statement-format="excel"]'))return;
+    const excel=pdf.cloneNode(true);excel.dataset.statementFormat='excel';excel.textContent='Download Excel';pdf.before(excel);
+  });
+  let host=view.querySelector('[data-additional-history]');
+  if (!host) { host=document.createElement('section'); host.dataset.additionalHistory=''; host.className='additional-jobs'; view.append(host); }
+  const filters=deductionHistoryFilters(view), search=filters.search, month=deductionWorkflowScope.month;
+  const jobs=additionalJobsState.jobs.filter(job => (!search || deductionRiderKey([job.rider,job.reference,job.description].join(' ')).includes(search)) && (!month || job.periodStart.slice(0,7)<=month && job.periodEnd.slice(0,7)>=month) && (!filters.periodStart || job.periodStart>=filters.periodStart) && (!filters.periodEnd || job.periodEnd<=filters.periodEnd));
+  host.innerHTML='<h3>Additional Job History</h3><p>Separate earnings, not deductions. Uses rider search and commission period / payment month; deduction type and installment progress do not apply.</p>'+(!additionalJobsState.loaded?'<p>'+esc(additionalJobsState.error||'Loading…')+'</p>':'<p>'+jobs.length+' jobs · '+esc(deductionMoney(jobs.reduce((sum,job)=>sum+job.amountCents,0)))+'</p><div class="additional-job-history-table"><table><thead><tr><th>No.</th><th>Reference</th><th>Rider</th><th>Commission period</th><th>Job</th><th>Amount</th><th>Saved by</th></tr></thead><tbody>'+jobs.map((job,index)=>'<tr><td>'+(index+1)+'</td><td>'+esc(job.reference)+'</td><td>'+esc(job.rider)+'</td><td>'+esc(job.periodStart+' - '+job.periodEnd)+'</td><td>'+esc(job.description)+'</td><td>'+esc(deductionMoney(job.amountCents))+'</td><td>'+esc(job.createdBy+' · '+job.createdAt)+'</td></tr>').join('')+'</tbody></table></div>');
+}
+document.addEventListener('input', event => {
+  const row=event.target.closest?.('[data-job-row]'), host=row?.closest('[data-additional-table]'); if(!host)return;
+  const draft=additionalJobDrafts.get(host.dataset.additionalTable), item=draft?.rows.find(item=>item.id===row.dataset.jobRow);
+  if(item&&!item.saved&&!item.payload&&!draft.saving){item.description=row.querySelector('[data-job-description]').value;item.amount=row.querySelector('[data-job-amount]').value;}
+});
+document.addEventListener('change',event=>{
+  if(!event.target.matches?.('[data-additional-toggle]'))return;
+  const host=event.target.closest('[data-additional-table]'),draft=additionalJobDrafts.get(host.dataset.additionalTable);
+  draft.enabled=event.target.checked;
+  if(draft.enabled&&!draft.rows.length)draft.rows.push({id:crypto.randomUUID(),description:'',amount:''});
+  const editor=host.querySelector('[data-additional-editor]');editor.hidden=!draft.enabled;editor.innerHTML=additionalJobsEditor(draft);
+});
+document.addEventListener('click',async event=>{
+  const button=event.target.closest?.('[data-job-add],[data-job-remove],[data-job-save]');if(!button)return;
+  const host=button.closest('[data-additional-table]'),id=host.dataset.additionalTable,draft=additionalJobDrafts.get(id),editor=host.querySelector('[data-additional-editor]'),feedback=host.querySelector('[data-additional-feedback]');
+  if(draft.saving)return;
+  if(button.hasAttribute('data-job-add')){draft.rows.push({id:crypto.randomUUID(),description:'',amount:''});editor.innerHTML=additionalJobsEditor(draft);return;}
+  if(button.hasAttribute('data-job-remove')){draft.rows=draft.rows.filter(row=>row.id!==button.closest('[data-job-row]').dataset.jobRow);editor.innerHTML=additionalJobsEditor(draft);return;}
+  const pending=draft.rows.filter(row=>!row.saved),rider=deductionSingleRider(deductionRows(id,true)),dates=auditCapture(id)?.scope?.dates||{};
+  if(!pending.length){feedback.textContent='All entered jobs are already saved. Use + Add row for another job.';return;}
+  if(!rider.valid||draft.scope!==[rider.key,dates.start,dates.end].join('|')){feedback.textContent='Rider or period changed. Review the selection first.';return;}
+  if(!pending.length||pending.some(row=>!row.description.trim()||!/^\d+(\.\d{1,2})?$/.test(row.amount)||Number(row.amount)<=0||Number(row.amount)>1000000)){feedback.textContent='Enter a description and RM0.01–RM1,000,000 (up to 2 decimals) for every new job.';return;}
+  draft.saving=true;editor.innerHTML=additionalJobsEditor(draft);let warning='';
+  try {
+    // Each row has its own idempotency key; a interrupted large save resumes safely.
+    for(const row of pending){
+      row.payload ||= {requestId:row.id,rider:rider.rider,periodStart:String(dates.start).slice(0,10),periodEnd:String(dates.end).slice(0,10),description:row.description.trim(),amount:row.amount};
+      const result=await deductionRequest('/save-job',row.payload); row.saved=true;
+    if(result.backupWarning)warning=result.backupWarning;
+      feedback.textContent=draft.rows.filter(item=>item.saved).length+' jobs saved…';
+    }
+    await additionalJobsLoad(true);deductionStatementPayloadCache.clear();draft.saving=false;render();
+    const current=document.querySelector('[data-additional-table="'+id+'"] [data-additional-feedback]');if(current)current.textContent=warning||'Additional Jobs saved in History and included in rider Excel/PDF statements.';
+  }catch(error){feedback.textContent=error.message+' Saved rows are preserved. Retry to continue without duplicates.';}
+  finally{draft.saving=false;if(editor.isConnected)editor.innerHTML=additionalJobsEditor(draft);}
+});
+// Canonical statement model: Excel is the master table; PDF consumes the same rows.
+async function prepareRiderStatement(payload) {
+  if(payload.statementPrepared || payload.panelTitle!=='Commission Rider' || !payload.summary || !payload.columns.some(column=>column.key==='commission'))return payload;
+  const scope=payload.statementScope;
+  if(!scope?.rider || !scope.start || !scope.end)throw new Error('A rider and commission period are required for a complete statement.');
+  await additionalJobsLoad(true);
+  const jobs=additionalJobsForScope(scope.rider,scope.start,scope.end),index=payload.columns.findIndex(column=>column.key==='commission');
+  const row=(label,value)=>payload.columns.map((_,i)=>i===0?label:i===index?value:'');
+  const clean=value=>typeof value==='string'?value.replace(/\s*\(applied\)/gi,'').replace(/APPLIED DEDUCTIONS|TOTAL DEDUCTED/gi,'TOTAL DEDUCTIONS'):value;
+  let footerRows=(payload.footerRows||[payload.footer]).filter(Boolean).map(row=>row.map(clean));
+  footerRows=footerRows.filter(row=>!/^net commission$/i.test(String(row[0])));
+  const extras=jobs.reduce((sum,job)=>sum+job.amountCents,0);
+  const baseNet=Math.round(Number(String(payload.summary.value).replace(/[^\d.-]/g,''))*100);
+  if(!Number.isSafeInteger(baseNet+extras))throw new Error('Statement total is outside the supported currency range.');
+  const totalIndex=footerRows.findIndex(row=>/^total deductions$/i.test(String(row[0])));
+  footerRows.splice(totalIndex<0?footerRows.length:totalIndex,0,...(jobs.length?[row('TOTAL ADDITIONAL JOBS','+ '+deductionMoney(extras))]:[]));
+  if(totalIndex<0)footerRows.push(row('TOTAL DEDUCTIONS',deductionMoney(0)));
+  footerRows.push(row('NET COMMISSION',deductionMoney(baseNet+extras)));
+  const columns=payload.columns.map((column,i)=>({...column,value:record=>record.__additionalJob ? i===0?'ADDITIONAL JOB · '+record.reference+' · '+record.description : i===index?record.amountCents/100:'' : column.value(record)}));
+  return {...payload,title:scope.rider,statementPrepared:true,sourceRowCount:payload.rows.length,columns,rows:[...payload.rows,...jobs.map(job=>({...job,__additionalJob:true}))],footerRows,exportSummaryRows:[],summary:{label:'Net Commission',value:deductionMoney(baseNet+extras)}};
+}
+
+async function downloadMasterRiderExcel(payload) {
+  if(!window.JSZip)throw new Error('Excel export is not ready. Please retry.');
+  const zip=new window.JSZip(),logo=await financePdfLogo(),n=payload.columns.length,last=excelColumnReference(n-1);
+  const rows=[],merges=[];
+  const add=(values,style=0,height=20)=>{const number=rows.length+1;rows.push(`<row r="${number}" customHeight="1" ht="${height}">${values.map((value,i)=>xlsxCellXml(value,excelColumnReference(i)+number,style)).join('')}</row>`);return number;};
+  add([],0,34);add([payload.panelTitle],4,24);add([payload.title],4,24);add([payload.period],0,40);
+  if(n>1)for(const number of [1,2,3,4])merges.push(`A${number}:${last}${number}`);
+  const header=add(payload.columns.map(column=>column.label),1,30);
+  payload.rows.forEach(row=>{
+    const number=add(payload.columns.map(column=>financeExcelCellValue(column,row,payload.panelTitle)),0,row.__additionalJob?Math.max(40,Math.ceil(row.description.length/80)*16):20);
+    const index=payload.columns.findIndex(column=>column.key==='commission');
+    if(row.__additionalJob&&index>1)merges.push(`A${number}:${excelColumnReference(index-1)}${number}`);
+  });
+  for(const footer of payload.footerRows){
+    const label=String(footer[0]||'').toUpperCase(),style=label==='TOTAL DEDUCTIONS'?3:label==='NET COMMISSION'?5:2;
+    const number=add(footer,style,label.startsWith('ADDITIONAL JOB')?40:24);
+    const firstValue=footer.findIndex((value,index)=>index>0&&value!=='');
+    if(firstValue>1)merges.push(`A${number}:${excelColumnReference(firstValue-1)}${number}`);
+  }
+  const ns='http://schemas.openxmlformats.org/',rel=ns+'package/2006/relationships',docrel=ns+'officeDocument/2006/relationships';
+  zip.file('[Content_Types].xml',`<Types xmlns="${ns}package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>`);
+  zip.file('_rels/.rels',`<Relationships xmlns="${rel}"><Relationship Id="rId1" Type="${docrel}/officeDocument" Target="xl/workbook.xml"/></Relationships>`);
+  zip.file('xl/workbook.xml',`<workbook xmlns="${ns}spreadsheetml/2006/main" xmlns:r="${docrel}"><sheets><sheet name="Rider Statement" sheetId="1" r:id="rId1"/></sheets></workbook>`);
+  zip.file('xl/_rels/workbook.xml.rels',`<Relationships xmlns="${rel}"><Relationship Id="rId1" Type="${docrel}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="${docrel}/styles" Target="styles.xml"/></Relationships>`);
+  const fills=['1D4ED8','174C3B','D9952F','FFFFFF','12754B'];
+  zip.file('xl/styles.xml',`<styleSheet xmlns="${ns}spreadsheetml/2006/main"><fonts count="3"><font><sz val="11"/><name val="Aptos"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Aptos"/></font><font><b/><color rgb="FF142135"/><sz val="11"/><name val="Aptos"/></font></fonts><fills count="7"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>${fills.map(color=>`<fill><patternFill patternType="solid"><fgColor rgb="FF${color}"/><bgColor indexed="64"/></patternFill></fill>`).join('')}</fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="6">${[0,2,3,4,5,6].map((fill,index)=>`<xf numFmtId="0" fontId="${index===0?0:[3,4].includes(index)?2:1}" fillId="${fill}" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>`).join('')}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`);
+  zip.file('xl/worksheets/sheet1.xml',`<worksheet xmlns="${ns}spreadsheetml/2006/main" xmlns:r="${docrel}"><sheetViews><sheetView workbookViewId="0"><pane ySplit="${header}" topLeftCell="A${header+1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${payload.columns.map((column,index)=>`<col min="${index+1}" max="${index+1}" width="${Math.min(32,Math.max(14,String(column.label).length+3))}" customWidth="1"/>`).join('')}</cols><sheetData>${rows.join('')}</sheetData><autoFilter ref="A${header}:${last}${header+payload.rows.length}"/><mergeCells count="${merges.length}">${merges.map(ref=>`<mergeCell ref="${ref}"/>`).join('')}</mergeCells><pageMargins left="0.3" right="0.3" top="0.3" bottom="0.3" header="0.1" footer="0.1"/><pageSetup orientation="landscape" paperSize="9" fitToWidth="1" fitToHeight="0"/><drawing r:id="rId1"/></worksheet>`);
+  zip.file('xl/worksheets/_rels/sheet1.xml.rels',`<Relationships xmlns="${rel}"><Relationship Id="rId1" Type="${docrel}/drawing" Target="../drawings/drawing1.xml"/></Relationships>`);
+  zip.file('xl/drawings/_rels/drawing1.xml.rels',`<Relationships xmlns="${rel}"><Relationship Id="rId1" Type="${docrel}/image" Target="../media/logo.png"/></Relationships>`);
+  zip.file('xl/media/logo.png',logo.split(',')[1],{base64:true});
+  zip.file('xl/drawings/drawing1.xml',`<xdr:wsDr xmlns:xdr="${ns}drawingml/2006/spreadsheetDrawing" xmlns:a="${ns}drawingml/2006/main"><xdr:oneCellAnchor><xdr:from><xdr:col>0</xdr:col><xdr:colOff>40000</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>40000</xdr:rowOff></xdr:from><xdr:ext cx="2324100" cy="358140"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="1" name="Bateriku logo"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip xmlns:r="${docrel}" r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor></xdr:wsDr>`);
+  const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',compression:'DEFLATE'});
+  const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=(payload.pdfFilename?.replace(/\.pdf$/i,'')||payload.filename)+'.xlsx';document.body.append(link);link.click();link.remove();URL.revokeObjectURL(link.href);return true;
+}
 // Read-only installment aggregation. Completion uses the History reconciliation rule.
 const deductionExposureScope = { month: '', installment: '', progress: '', metric: 'amount' };
 const deductionExposureStages = { statement: 'Awaiting statement', reconciliation: 'Awaiting reconciliation', completed: 'Completed' };

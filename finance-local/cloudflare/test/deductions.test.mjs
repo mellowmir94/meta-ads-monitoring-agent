@@ -189,6 +189,7 @@ test('only applied installments reduce rider commission; scheduled installments 
   const context = vm.createContext({ document: { addEventListener() {} }, auditViews: { tables: {} }, auditCapture: () => ({ scope: { dates: { start: '2026-09-07', end: '2026-09-13' } } }), formatGrafanaTimestamp: value => String(value).replace('T', ' ').replace('Z', ''), numberValue: value => Number(value) || 0, formatNumber: value => Number(value).toLocaleString('en-US'), formatMoney: value => `RM ${Number(value).toFixed(2)}`, esc: value => String(value) });
   vm.runInContext(source + '\nglobalThis.registerState = deductionState;', context);
   context.registerState.loaded = true;
+  vm.runInContext(readFileSync(new URL('../../additional-jobs.js', import.meta.url),'utf8'),context);
   const insurance = validateDeduction({ ...base, amount: '10', deductionDate: '2026-09-07' });
   insurance.status = insurance.approvalStatus = 'approved'; insurance.installments[0].status = 'applied';
   const scheduled = validateDeduction({ ...base, amount: '99', deductionDate: '2026-09-07' });
@@ -206,7 +207,7 @@ test('only applied installments reduce rider commission; scheduled installments 
   assert.match(active, /<h3>Rider A<\/h3>/);
   assert.match(active, /data-deduction-inline-type/);
   assert.match(active, /data-deduction-history-open>History<\/button>/);
-  assert.match(active, /Applied deductions<\/span><strong>RM 35\.00/);
+  assert.match(active, /Total deductions<\/span><strong>RM 35\.00/);
   assert.match(active, /Net commission<\/span><strong>RM 315\.00/);
   assert.doesNotMatch(active, /data-deduction-inline-type disabled/);
   const inactive = context.deductionSummaryMarkup([...rows, { rider_name: 'Rider B', created_at: '2026-09-10 11:00:00', commission: 20 }], 'main');

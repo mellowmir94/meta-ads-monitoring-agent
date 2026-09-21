@@ -118,6 +118,12 @@ export class DeductionRegister {
       const actor = { sessionId: request.headers.get('x-deduction-session') || '', name: request.headers.get('x-deduction-user') || '', role: request.headers.get('x-deduction-role') || 'maker' };
       if (!actor.sessionId || !actor.name) return reply({ error: 'Authenticated Finance identity required.' }, 401);
       if (request.method === 'GET') {
+        if (url.pathname === '/jobs') {
+          const after = url.searchParams.get('after');
+          if (after && !/^job:[a-z0-9-]+$/i.test(after)) return reply({ error: 'Invalid job cursor.' }, 400);
+          const page = [...await this.storage.list({ prefix: 'job:', limit: 101, ...(after ? {startAfter: after} : {}) })];
+          return reply({ jobs: page.slice(0,100).map(([,job]) => job), next: page.length > 100 ? page[99][0] : null });
+        }
         if (url.pathname === '/snapshot' && request.headers.get('x-deduction-internal') === '1') return reply(await this.storage.transaction(tx => createDeductionSnapshot(tx, this.now().toISOString())));
         if (url.pathname === '/record' && request.headers.get('x-deduction-internal') === '1') {
           const record = await this.storage.get('record:' + required(url.searchParams.get('id'), 'Record ID', 90));
@@ -134,7 +140,7 @@ export class DeductionRegister {
         return reply({ found: true, result: prior.result });
       }
       if (!/^[a-z0-9-]{16,80}$/i.test(input.requestId || '')) return reply({ error: 'A valid request ID is required.' }, 400);
-      if (!['/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/mark-sent', '/complete-installment', '/reopen-installment', '/delete-batch'].includes(url.pathname)) return reply({ error: 'Deduction action not found.' }, 404);
+      if (!['/save-job', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/mark-sent', '/complete-installment', '/reopen-installment', '/delete-batch'].includes(url.pathname)) return reply({ error: 'Deduction action not found.' }, 404);
       const signature = requestSignature(url.pathname, input);
       const result = await this.storage.transaction(async tx => {
         const prior = await tx.get('request:' + input.requestId);
@@ -143,7 +149,20 @@ export class DeductionRegister {
           return prior.result;
         }
         const now = this.now().toISOString(); let result;
-        if (url.pathname === '/delete-batch') {
+        if (url.pathname === '/save-job') {
+          const rider = required(input.rider, 'Rider'), description = required(input.description, 'Job description / reference', 500);
+          const periodStart = date(input.periodStart, 'Commission period start'), periodEnd = date(input.periodEnd, 'Commission period end');
+          if (periodEnd < periodStart) throw new Error('Commission period end must follow its start.');
+          const amount = String(input.amount ?? '');
+          if (!/^\d+(\.\d{1,2})?$/.test(amount)) throw new Error('Enter a positive RM amount with up to two decimal places.');
+          const amountCents = Math.round(Number(amount) * 100);
+          if (!Number.isSafeInteger(amountCents) || amountCents <= 0 || amountCents > 100000000) throw new Error('Additional Job amount must be RM0.01 to RM1,000,000.');
+          const counter = Number(await tx.get('counter:job-reference') || 0) + 1;
+          const job = { id: input.requestId, reference: 'JOB-' + String(counter).padStart(6,'0'), rider, riderKey: rider.normalize('NFKC').toLowerCase().replace(/\s+/g,' '), periodStart, periodEnd, description, amountCents, createdAt: now, createdBy: actor.name, status: 'saved', audit: [{action:'additional-job-saved',at:now,by:actor.name,amountCents}] };
+          await tx.put('job:' + job.id, job);
+          await tx.put('counter:job-reference',counter);
+          result = { job };
+        } else if (url.pathname === '/delete-batch') {
           if (request.headers.get('x-deduction-delete-authorized') !== '1') throw new Error('Delete PIN authorization is required.');
           const batchId = required(input.batchId, 'Batch ID', 90), all = await tx.list({ prefix: 'record:' });
           const records = [...all.values()].filter(record => (record.batchId || record.id) === batchId);
@@ -351,8 +370,8 @@ export async function deductionsApi(request, env, actor, context) {
     if (request.headers.get('origin') !== url.origin || !request.headers.get('content-type')?.startsWith('application/json')) return reply({ error: 'Same-origin JSON request required.' }, 403);
   }
   const path = url.pathname.slice('/api/deductions'.length) || '/';
-  if (!['/', '/eligibility', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/mark-sent', '/complete-installment', '/reopen-installment', '/delete-batch'].includes(path)) return reply({ error: 'Deduction action not found.' }, 404);
-  const readOnly = path === '/' || path === '/eligibility';
+  if (!['/', '/jobs', '/save-job', '/eligibility', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/mark-sent', '/complete-installment', '/reopen-installment', '/delete-batch'].includes(path)) return reply({ error: 'Deduction action not found.' }, 404);
+  const readOnly = path === '/' || path === '/eligibility' || path === '/jobs';
   if ((readOnly && request.method !== 'GET') || (!readOnly && request.method !== 'POST')) return reply({ error: 'Method not allowed.' }, 405);
   try {
     if (path === '/eligibility') return reply(await verifyWeeklyCommission(env, Object.fromEntries(url.searchParams)));

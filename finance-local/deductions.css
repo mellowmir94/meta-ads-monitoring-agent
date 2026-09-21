@@ -26,7 +26,7 @@
 .deduction-choice-card > small { color: var(--text-soft); font-size: .64rem; line-height: 1.5; }
 .deduction-card-applied { margin-top: auto; padding-top: 8px; display: flex; justify-content: space-between; gap: 8px; color: var(--text-soft); border-top: 1px solid var(--line); font-size: .65rem; }
 .deduction-card-applied b { color: var(--text); font-variant-numeric: tabular-nums; }
-.deduction-settlement-strip { display: grid; grid-template-columns: 1fr 24px 1.25fr 24px 1fr; gap: 12px; align-items: center; margin-top: 16px; border-top: 1px solid var(--deduction-border); padding-top: 14px; }
+.deduction-settlement-strip { display: grid; grid-template-columns: 1fr 16px 1fr 16px 1.25fr 16px 1fr; gap: 10px; align-items: center; margin-top: 16px; border-top: 1px solid var(--deduction-border); padding-top: 14px; }
 .deduction-settlement-strip > div { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
 .deduction-settlement-strip > div > span { font-size: .68rem; color: var(--text-soft); }
 .deduction-settlement-strip strong { color: var(--text); font-size: 1.02rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -288,3 +288,14 @@
 .deduction-exposure-values button { display:inline-flex; align-items:center; gap:5px; padding:2px 0; background:transparent; color:var(--text); border:0; font-size:11px; text-align:left; }
 .deduction-exposure-values i { width:8px; height:8px; border-radius:50%; flex:none; }
 .deduction-exposure button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+/* Manual earnings are visually separate from deductions. */
+.additional-jobs { margin:18px 0; padding:18px; border:1px solid var(--line); border-radius:12px; background:var(--surface); }
+.additional-jobs p,.additional-jobs small { display:block; font-size:12px; line-height:1.5; color:var(--text-soft); }
+.additional-jobs fieldset { border:0; padding:0; min-width:0; }
+.additional-job-row { display:grid; grid-template-columns:24px minmax(0,1fr) 150px auto; gap:12px; align-items:end; margin-bottom:12px; }
+.additional-job-row label { display:grid; gap:6px; font-size:12px; }
+.additional-job-row input { min-width:0; width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--surface-strong); color:var(--text); }
+.additional-job-actions { display:flex; flex-wrap:wrap; gap:10px; }
+.additional-jobs button { padding:9px 12px; border:1px solid var(--line); border-radius:8px; background:var(--surface-muted); color:var(--text); }
+.additional-job-history-table { overflow-x:auto; }
+@media(max-width:600px){.additional-job-row{grid-template-columns:24px minmax(0,1fr)}.additional-job-row label:nth-of-type(2){grid-column:2}.additional-job-row button{grid-column:2}}

@@ -16,10 +16,11 @@ export async function validateDeductionSnapshot(snapshot) {
   if (typeof checksumSha256 !== 'string' || checksumSha256 !== await digest(payload)) throw new Error('Deduction backup checksum mismatch.');
   const entries = new Map();
   for (const entry of snapshot.entries) {
-    if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string' || !/^(record:|request:|duplicate:|epf:|epf-week:|deleted:|counter:)/.test(entry[0]) || entries.has(entry[0])) throw new Error('Deduction backup contains invalid or duplicate storage keys.');
+    if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string' || !/^(record:|job:|request:|duplicate:|epf:|epf-week:|deleted:|counter:)/.test(entry[0]) || entries.has(entry[0])) throw new Error('Deduction backup contains invalid or duplicate storage keys.');
     entries.set(entry[0], entry[1]);
   }
   for (const [key, record] of entries) {
+    if (key.startsWith('job:') && (!record || key !== 'job:' + record.id || !record.riderKey || !record.description || !record.periodStart || !record.periodEnd || !Number.isSafeInteger(record.amountCents) || record.amountCents <= 0 || !record.audit?.length)) throw new Error('Backup contains an incomplete additional job.');
     if (!key.startsWith('record:')) continue;
     if (!record || key !== 'record:' + record.id || typeof record.rider !== 'string' || !record.riderKey || !recordStates.has(record.status) || !Number.isSafeInteger(record.amountCents) || record.amountCents <= 0 || !Array.isArray(record.audit) || !record.audit.length || !Array.isArray(record.installments) || record.installments.length !== record.installmentCount) throw new Error('Deduction backup contains an incomplete record.');
     if (record.installments.some((item, index) => !item || item.index !== index || !['scheduled', 'applied', 'reversed', 'cancelled'].includes(item.status))) throw new Error('Deduction backup contains an invalid installment schedule.');
