@@ -717,13 +717,13 @@ async function deductionCombinedPaymentStatementPayload(options, commissionRange
   const payments = options.filter(Boolean);
   if (!payments.length) throw new Error('Select at least one Include in PDF payment.');
   const periods = payments.map(option => deductionInstallmentSettlement(option.record, option.item, option.index) || deductionWeekBounds(option.item.dueDate));
-  const periodKeys = new Set(periods.map(period => (period?.start || '') + '|' + (period?.end || '')));
   const selectedRange = commissionRange?.start && commissionRange?.end ? { start: String(commissionRange.start).slice(0, 10), end: String(commissionRange.end).slice(0, 10) } : null;
-  if (!selectedRange && (periodKeys.size !== 1 || !periods[0]?.start || !periods[0]?.end)) throw new Error('Choose payments from the same Commission period before downloading one combined PDF.');
-  // The History date_range is the authoritative PDF table scope. Without it,
-  // preserve the single-payment-week behavior for direct payment downloads.
-  const pdfPeriod = selectedRange || periods[0];
-  const payload = await deductionPaymentStatementPayload(payments[0].record, payments[0].index, selectedRange), columns = payload.columns || [];
+  // Respect an explicit History range. Otherwise fetch the full combined span once
+  // so mixed payment weeks download together without counting commission twice.
+  const starts = periods.map(period => period?.start).filter(Boolean).sort();
+  const ends = periods.map(period => period?.end).filter(Boolean).sort();
+  const pdfPeriod = selectedRange || (starts.length && ends.length ? { start: starts[0], end: ends.at(-1) } : null);
+  const payload = await deductionPaymentStatementPayload(payments[0].record, payments[0].index, pdfPeriod), columns = payload.columns || [];
   const commissionColumn = columns.find(column => String(column.key || '').trim().toLowerCase().replace(/[\s-]+/g, '_') === 'commission');
   if (!commissionColumn) throw new Error('The Commission Rider table has no commission column.');
   const commissionIndex = columns.indexOf(commissionColumn), quantityColumn = columns.find(column => String(column.key || '').trim().toLowerCase().replace(/[\s-]+/g, '_') === 'quantity'), paymentDateColumnIndex = quantityColumn ? columns.indexOf(quantityColumn) : Math.max(1, commissionIndex - 1);
@@ -733,7 +733,7 @@ async function deductionCombinedPaymentStatementPayload(options, commissionRange
   const filteredTotal = columns.map(column => column === columns[0] ? 'Filtered total' : column === quantityColumn ? formatNumber((payload.rows || []).reduce((sum, row) => sum + Number(row.quantity || 0), 0)) : column === commissionColumn ? deductionMoney(grossCents) : '');
   const paymentRows = payments.map(option => paymentRow((deductionTypes[option.record.type] || option.record.type).toUpperCase() + ' — PAYMENT ' + (option.index + 1) + ' OF ' + option.count, deductionDateLabel(option.item.dueDate), '- ' + deductionMoney(deductionStatementAmountForRecord(option.record, [option.item]))));
   const filename = String(payments[0].record.rider || 'Rider').trim().replace(/\s+/g, '_').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/, '').slice(0, 160) || 'Rider', highestPaymentCount = Math.max(...payments.map(option => option.count));
-  const statementDetails = payments.map(option => (deductionTypes[option.record.type] || option.record.type) + ' · Payment ' + (option.index + 1) + ' of ' + option.count + ' · Deduction date: ' + deductionDateLabel(option.item.dueDate)).join(' | ');
+  const statementDetails = payments.map((option, index) => (deductionTypes[option.record.type] || option.record.type) + ' · Payment ' + (option.index + 1) + ' of ' + option.count + ' · Deduction date: ' + deductionDateLabel(option.item.dueDate) + (periods[index] ? ' · Payment commission period: ' + deductionPeriodLabel(periods[index]) : '')).join(' | ');
   return { ...payload, filename: filename + '_payment-' + highestPaymentCount, pdfFilename: filename + '_payment-' + highestPaymentCount + '.pdf', period: statementDetails + ' · Commission period: ' + deductionPeriodLabel(pdfPeriod) + ' · refreshed from Grafana', summary: { label: 'Net Commission', value: deductionMoney(netCents) }, footerRows: [filteredTotal, ...paymentRows, footerRow('TOTAL DEDUCTED', '- ' + deductionMoney(deductedCents)), footerRow('NET COMMISSION', deductionMoney(netCents))] };
 }
 function deductionDownloadFeedback(button, message) {

@@ -226,6 +226,27 @@ test('one History row combines its selected due payments into one PDF', async ()
   assert.match(payload.period, /Insurance · Payment 1 of 2 · Deduction date: 14\/09\/2026/);
   assert.match(payload.period, /OBD \/ Battery Tester · Payment 1 of 2 · Deduction date: 14\/09\/2026/);
 });
+test('mixed payment periods download together using one combined commission query', async () => {
+  const columns = [{ key: 'rider_name', label: 'Rider', value: row => row.rider_name }, { key: 'quantity', label: 'Quantity', value: row => row.quantity }, { key: 'commission', label: 'Commission', value: row => row.commission }];
+  const queries = [];
+  const api = runtime({
+    FINANCE_API_ENDPOINT: '/api/grafana/finance', panels: [{ id: 'commission-main', columns }], visibleTableColumns: panel => panel.columns,
+    financeGrafanaFilterParam: () => '{}', requestFinancePayload: async url => { queries.push(url); return { response: { ok: true }, payload: { rows: [{ rider_name: 'Rider A', quantity: 2, commission: 500 }] } }; },
+    canonicalizeFinancePayloadRows: async (_panel, payload) => payload.rows,
+  });
+  const group = { records: [
+    record({ id: 'epf', type: 'epf', amountCents: 2500, installments: [{ index: 0, dueDate: '2026-09-18', status: 'applied' }, { index: 1, dueDate: '2026-09-24', status: 'applied', settlementPeriodStart: '2026-09-14', settlementPeriodEnd: '2026-09-20' }] }),
+    record({ id: 'manual', type: 'manual', amountCents: 1000, installments: [{ index: 0, dueDate: '2026-09-18', status: 'applied', settlementPeriodStart: '2026-09-07', settlementPeriodEnd: '2026-09-13' }] }),
+  ] };
+  const payload = await api.deductionCombinedPaymentStatementPayload(api.deductionHistoryPaymentOptions(group, '2026-09-21').filter(option => option.record.id !== 'epf' || option.index === 1));
+  assert.equal(queries.length, 1);
+  assert.match(queries[0], /from=2026-09-07/);
+  assert.match(queries[0], /to=2026-09-27/);
+  assert.equal(payload.rows.length, 1);
+  assert.match(payload.period, /Payment commission period: 07\/09\/2026 – 13\/09\/2026/);
+  assert.match(payload.period, /Payment commission period: 21\/09\/2026 – 27\/09\/2026/);
+});
+
 test('History PDF table uses its selected Commission Rider date range', async () => {
   const columns = [{ key: 'rider_name', label: 'Rider', value: row => row.rider_name }, { key: 'quantity', label: 'Quantity', value: row => row.quantity }, { key: 'commission', label: 'Commission', value: row => row.commission }];
   let requestUrl = '';

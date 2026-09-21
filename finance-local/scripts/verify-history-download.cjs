@@ -23,6 +23,8 @@ const record=(id,type,count)=>({id,batchId:'download-test',rider:'Test Rider',re
   const row=page.locator('[data-deduction-batch-id="download-test"]');
   await row.locator('[data-deduction-history-type-payment-select][data-deduction-history-payment-type="epf"]').selectOption('epf|1');
   assert.match(await row.locator('.deduction-history-download-item').innerText(),/EPF payment 2.*Special Case payment 1/s);
+  // Mixed weeks with no History date filter previously blocked this exact click.
+  await page.evaluate(()=>{for(const key of ['start','end'])document.querySelector('[data-deduction-history-period-'+key+']').value='';});
   for(const format of ['pdf','excel'])await row.locator('[data-statement-file-format="'+format+'"]').setChecked(formats.includes(format));
   await row.locator('[data-deduction-history-batch-download]').click();
   await page.waitForFunction(()=>{const text=document.querySelector('[data-deduction-history-feedback]')?.textContent||'';return text&&!text.startsWith('Preparing');},{},{timeout:15000}).catch(()=>{});
