@@ -173,12 +173,12 @@ test('large Grafana snapshots stream through the Finance edge without full-body 
   assert.match(worker, /upstreamResponse\.clone\(\)/u);
 });
 
-test('the login shell prewarms the critical Commission snapshot before dashboard entry', () => {
+test('the login shell does not query Grafana before the user data mode is known', () => {
   assert.match(worker, /async function prewarmCommissionPrimary\(env\)/u);
   assert.match(worker, /url\.searchParams\.set\("panel", "commission-main"\)/u);
   assert.match(worker, /url\.searchParams\.set\("scope", "grafana"\)/u);
   assert.match(worker, /url\.searchParams\.set\("part", "primary"\)/u);
-  assert.match(worker, /context\.waitUntil\(prewarmCommissionPrimary\(env\)\.catch/u);
+  assert.doesNotMatch(worker, /context\.waitUntil\(prewarmCommissionPrimary\(env\)\.catch/u);
   assert.match(worker, /response\.body\.pipeTo\(new WritableStream\(\)\)/u);
 });
 
@@ -238,6 +238,6 @@ test('large Grafana tables use the compact lossless Finance transport', () => {
 
 test('background core preloads cannot overwrite the active tab status', () => {
   assert.match(html, /const setPanelStatus = \(title, detail\) => \{\s*if \(activePanel\(\)\?\.id === panelId\) setStatus\(title, detail\);\s*\};/u);
-  assert.match(html, /setPanelStatus\("Grafana data loaded", `\$\{formatNumber\(liveRows\.length\)\} rows loaded for \$\{panel\.title\}/u);
+  assert.match(html, /setPanelStatus\(payload\.syncedAt \? "Synced data" : "Grafana data loaded"/u);
   assert.match(html, /setPanelStatus\("Grafana connection error"/u);
 });

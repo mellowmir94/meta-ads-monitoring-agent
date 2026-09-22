@@ -1,6 +1,7 @@
 import { ConcurrencyLimiter, concurrencyConfig } from "./concurrency.js";
 import { DeductionRegister, deductionsApi } from "./deductions.js";
 import { bookingsApi } from "./bookings.js";
+import { dataSourceApi } from "./data-source.js";
 
 export { ConcurrencyLimiter };
 export { DeductionRegister };
@@ -383,7 +384,7 @@ export default {
     }
 
     if (url.pathname === "/login" && request.method === "GET") {
-      if (context && typeof context.waitUntil === "function") context.waitUntil(prewarmCommissionPrimary(env).catch(() => {}));
+      // Do not pull Grafana before the signed-in user's data mode is known.
       if (await hasValidSession(request, env)) return redirect("/");
       return html(loginPage(url.searchParams.get("error") === "1", env));
     }
@@ -447,6 +448,7 @@ export default {
     if (url.pathname.startsWith("/api/")) {
       if (leaseDenied) return leaseDenied;
       if (url.pathname === "/api/session" && request.method === "GET") return json({ name: session.name, role: session.role });
+      if (url.pathname.startsWith('/api/data-source/')) return dataSourceApi(request, env, session);
       if (url.pathname === "/api/finsight-chat") {
         if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
         if (!request.headers.get("content-type")?.includes("application/json")) return json({ error: "Use an application/json request." }, 415);

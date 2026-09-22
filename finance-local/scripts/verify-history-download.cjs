@@ -7,6 +7,7 @@ const record=(id,type,count)=>({id,batchId:'download-test',rider:'Test Rider',re
  const standaloneJob={rider:'Job-only Rider',riderKey:'job-only rider',periodStart:'2026-09-14',periodEnd:'2026-09-20',reference:'JOB-ONLY',description:'Additional Job',amountCents:100,createdBy:'Finance'};
  const jobs=[...Array.from({length:process.env.STATEMENT_QA?250:3},(_,i)=>({riderKey:'test rider',periodStart:'2026-09-14',periodEnd:'2026-09-20',reference:'JOB-'+(i+1),description:'Additional Job',amountCents:1250})),standaloneJob];
  let html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+ if(process.env.SYNC_MODE) html=html.replace('const financeSource = { ready: null, live: true','const financeSource = { ready: null, live: false');
  html=html.replace('function additionalJobsHistoryRender(view) {',`window.__setHistoryJobs=jobs=>{additionalJobsState.jobs=jobs;additionalJobsState.loaded=true;deductionHistoryRender();};\nfunction additionalJobsHistoryRender(view) {`);
  html=html.replace('async function additionalJobsStatementPayload(rider, start, end) {',`window.__jobStatement=async(...args)=>prepareRiderStatement(await additionalJobsStatementPayload(...args));\nasync function additionalJobsStatementPayload(rider, start, end) {`);
  html=html.replace('function deductionHistoryRender() {',`window.__downloadFixture=records=>{deductionState.records=records;deductionState.loaded=true;deductionState.actor={role:'maker'};state.api.loaded['commission-main']=true;const view=deductionHistoryEnsure();view.hidden=false;document.getElementById('tab-commission').hidden=false;document.getElementById('tab-commission').classList.add('deduction-history-active');view.querySelector('[data-deduction-history-period-start]').value='2026-09-14';view.querySelector('[data-deduction-history-period-end]').value='2026-09-20';deductionHistoryRender();};window.__historyStatementFooter=async()=>{const group=deductionHistoryGroups(deductionState.records).find(item=>item.id==='download-test');const options=deductionHistoryDownloadOptions(group,{},deductionToday(),'2026-09-14','2026-09-20');const payload=await deductionCombinedPaymentStatementPayload(options,{start:'2026-09-14',end:'2026-09-20'});return payload.footerRows.map(row=>row.filter(Boolean).join(' | '));};\nfunction deductionHistoryRender() {`);
@@ -94,5 +95,6 @@ const record=(id,type,count)=>({id,batchId:'download-test',rider:'Test Rider',re
     assert.equal(await jobOnly.count(),0);assert.equal(await row.count(),1);
   }else await page.evaluate(()=>document.querySelector('#deductionDialog').close());
   assert.deepEqual(errors,[]);await page.close();
+  if(process.env.SYNC_MODE) assert.equal(requests.filter(p=>p==='/api/grafana/finance'||p==='/api/finance/data').length,0,'Synced exports must never call Grafana');
  }}finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

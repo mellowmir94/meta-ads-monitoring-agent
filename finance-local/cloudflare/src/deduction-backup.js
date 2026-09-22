@@ -21,7 +21,7 @@ export async function validateDeductionSnapshot(snapshot) {
   if (typeof checksumSha256 !== 'string' || checksumSha256 !== await digest(payload)) throw new Error('Deduction backup checksum mismatch.');
   const entries = new Map();
   for (const entry of snapshot.entries) {
-    if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string' || !/^(record:|job:|booking:|booking-event:|booking-import:|booking-meta:|booking-receipt:|request:|duplicate:|epf:|epf-week:|deleted:|counter:)/.test(entry[0]) || entries.has(entry[0])) throw new Error('Deduction backup contains invalid or duplicate storage keys.');
+    if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string' || !/^(sync-week:|sync-pref:|record:|job:|booking:|booking-event:|booking-import:|booking-meta:|booking-receipt:|request:|duplicate:|epf:|epf-week:|deleted:|counter:)/.test(entry[0]) || entries.has(entry[0])) throw new Error('Deduction backup contains invalid or duplicate storage keys.');
     entries.set(entry[0], entry[1]);
   }
   for (const [key, record] of entries) {

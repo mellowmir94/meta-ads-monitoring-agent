@@ -3,6 +3,7 @@
 import { verifyWeeklyCommission } from './deduction-verification.js';
 import { createDeductionSnapshot } from './deduction-backup.js';
 import { handleBookings } from './bookings.js';
+import { handleDataSource } from './data-source.js';
 const types = ['insurance', 'battery-tester', 'manual', 'epf'];
 const subtypes = ['accident', 'ganti rugi lost item', 'repair accident', 'insurance', 'battery tester', 'EPF', 'other'];
 const checkerRoles = new Set(['checker', 'admin']);
@@ -91,7 +92,7 @@ export function validateDeduction(input) {
 }
 
 export class DeductionRegister {
-  constructor(state, env = {}, options = {}) { this.storage = state.storage; this.now = options.now || (() => new Date()); }
+  constructor(state, env = {}, options = {}) { this.storage = state.storage; this.env = env; this.now = options.now || (() => new Date()); }
   async list(url, actor) {
     const after = url.searchParams.get('after');
     if (after && !/^record:[a-z0-9-]+$/i.test(after)) return reply({ error: 'Invalid cursor.' }, 400);
@@ -118,6 +119,7 @@ export class DeductionRegister {
       const url = new URL(request.url);
       const actor = { sessionId: request.headers.get('x-deduction-session') || '', name: request.headers.get('x-deduction-user') || '', role: request.headers.get('x-deduction-role') || 'maker' };
       if (!actor.sessionId || !actor.name) return reply({ error: 'Authenticated Finance identity required.' }, 401);
+      if (url.pathname.startsWith('/source/')) return handleDataSource(this, request, actor);
       if (url.pathname.startsWith('/booking/')) return handleBookings(this.storage, request, actor, this.now().toISOString());
       if (request.method === 'GET') {
         if (url.pathname === '/jobs') {
