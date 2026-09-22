@@ -72,15 +72,31 @@ test('EPF creation does not depend on Grafana but keeps the recorded RM300 and f
   assert.equal((await call(setup().env, '/create', { ...epf, weeklyCommission: '299.99' })).status, 400);
   assert.equal((await call(setup().env, '/create', { ...epf, periodStart: '2026-09-08' })).status, 400);
 });
-test('same rider week cannot be duplicated by changing hold date or month, including legacy records', async () => {
+test('Finance can create separate EPF cases for the same rider week, including legacy records', async () => {
   const state = setup(); const created = await call(state.env, '/create', epf);
   assert.equal(created.status, 201);
   const second = await call(state.env, '/create', { ...epf, rider: '  RIDER  A ', deductionDate: '2026-10-01', epfScheduleMonth: '2026-10', installmentDates: ['2026-10-01', '2026-10-08', '2026-10-15', '2026-10-22'] });
-  assert.equal(second.status, 400);
-  assert.match(second.body.error, /week|duplicate/i);
+  assert.equal(second.status, 201);
+  assert.notEqual(second.body.id, created.body.id);
   for (const key of [...state.storage.data.keys()]) if (key.startsWith('epf-week:')) state.storage.data.delete(key);
-  assert.equal((await call(state.env, '/create', { ...epf, deductionDate: '2026-11-05', epfScheduleMonth: '2026-11', installmentDates: ['2026-11-05', '2026-11-12', '2026-11-19', '2026-11-26'] })).status, 400);
+  assert.equal((await call(state.env, '/create', { ...epf, deductionDate: '2026-11-05', epfScheduleMonth: '2026-11', installmentDates: ['2026-11-05', '2026-11-12', '2026-11-19', '2026-11-26'] })).status, 201);
 });
+test('identical Finance batches create separate cases while retrying a saved request does not', async () => {
+  const state = setup();
+  const input = { ...base, lines: [epf, base, { ...base, type: 'battery-tester', subtype: 'battery tester', pricingMode: 'manual' }, { ...base, type: 'manual', subtype: 'other' }] };
+  const first = await call(state.env, '/create-batch', input);
+  const requestId = crypto.randomUUID();
+  const second = await call(state.env, '/create-batch', { ...input, requestId });
+  assert.equal(first.status, 201);
+  assert.equal(second.status, 201);
+  assert.notEqual(first.body.batchId, second.body.batchId);
+  assert.equal((await state.storage.list({ prefix: 'record:' })).size, 8);
+  const retry = await call(state.env, '/create-batch', { ...input, requestId });
+  assert.equal(retry.status, 201);
+  assert.equal(retry.body.batchId, second.body.batchId);
+  assert.equal((await state.storage.list({ prefix: 'record:' })).size, 8);
+});
+
 test('creation applies every installment immediately to the selected earned commission week', async () => {
   const state = setup(); const created = await call(state.env, '/create', base);
   assert.equal(created.status, 201);
@@ -171,13 +187,13 @@ test('backup failure never misreports an already committed deduction as a failed
   assert.equal(retried.body.id, created.body.id);
   assert.equal(state.backups.length, 1);
 });
-test('EPF uniqueness remains atomic when same-week requests use different dates concurrently', async () => {
+test('separate concurrent same-week EPF requests each create a case', async () => {
   const state = setup();
   const results = await Promise.all(['2026-09-03', '2026-09-04'].map(deductionDate => call(state.env, '/create', { ...epf, deductionDate })));
-  assert.equal(results.filter(result => result.status === 201).length, 1);
-  assert.equal(results.filter(result => result.status === 400).length, 1);
+  assert.equal(results.filter(result => result.status === 201).length, 2);
+  assert.equal(new Set(results.map(result => result.body.id)).size, 2);
 });
-test('direct-applied EPF creates one four-week monthly plan and blocks a second plan in that month', async () => {
+test('direct-applied EPF permits another four-week plan in the same month', async () => {
   const state = setup();
   state.env.GRAFANA_PROXY.fetch = async request => {
     const query = new URL(request.url).searchParams;
@@ -187,7 +203,9 @@ test('direct-applied EPF creates one four-week monthly plan and blocks a second 
   const created = await call(state.env, '/create', epf);
   assert.equal(created.status, 201);
   const duplicateMonth = await call(state.env, '/create', { ...epf, periodStart: '2026-09-14', periodEnd: '2026-09-20' });
-  assert.equal(duplicateMonth.status, 400); assert.match(duplicateMonth.body.error, /monthly plan.*2026-09/i);
+  assert.equal(duplicateMonth.status, 201);
+  assert.notEqual(duplicateMonth.body.id, created.body.id);
+  assert.equal((await state.storage.get('epf:rider%20a:2026-09')).length, 2);
   const record = await state.storage.get('record:' + created.body.id);
   assert.equal(record.scheduledAmountCents, 10000);
   assert.deepEqual(record.installments.map(item => item.dueDate), epfSchedule);

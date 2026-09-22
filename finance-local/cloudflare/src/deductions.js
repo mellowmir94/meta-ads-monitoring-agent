@@ -213,17 +213,11 @@ export class DeductionRegister {
           if (new Set(validated.map(line => line.riderKey)).size !== 1) throw new Error('All deductions in one request must belong to the same rider.');
           const created = [];
           for (let index = 0; index < validated.length; index += 1) {
-            const data = validated[index]; const existingId = await tx.get(duplicateKey(data));
-            if (existingId) { const existing = await tx.get('record:' + existingId); if (existing && !['rejected', 'cancelled', 'reversed'].includes(existing.status)) throw new Error(`Possible duplicate ${data.type} deduction already exists as ${existing.reference || existing.id}.`); }
+            // Finance may intentionally create matching cases. Request receipts still deduplicate retries.
+            const data = validated[index];
             if (data.type === 'epf') {
-              // Scan as well as index: legacy records predate the unique rider/week key.
-              const previous = await tx.list({ prefix: 'record:' });
-              for (const record of previous.values()) {
-                if (record.type === 'epf' && record.riderKey === data.riderKey && record.periodStart === data.periodStart && record.periodEnd === data.periodEnd && !inactive(record)) throw new Error(`An EPF deduction already exists for this rider and commission week (${record.reference || record.id}).`);
-                if (record.type === 'epf' && record.riderKey === data.riderKey && epfHoldMonth(record) === data.epfScheduleMonth && !inactive(record)) throw new Error(`An EPF monthly plan already exists for this rider in ${data.epfScheduleMonth} (${record.reference || record.id}).`);
-              }
               const bucket = 'epf:' + encodeURIComponent(data.riderKey) + ':' + data.epfScheduleMonth;
-              await tx.put(bucket, [`${input.requestId}-${index + 1}`]);
+              await tx.put(bucket, [...(await tx.get(bucket) || []), `${input.requestId}-${index + 1}`]);
               await tx.put(epfWeekKey(data), `${input.requestId}-${index + 1}`);
               await tx.put(epfMonthKey(data), `${input.requestId}-${index + 1}`);
             }
