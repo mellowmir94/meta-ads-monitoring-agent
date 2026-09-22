@@ -82,12 +82,35 @@ function additionalJobsHistoryRender(view) {
     row.innerHTML='<td>'+(++number)+'</td><td>—</td><td><strong>'+esc(job.rider)+'</strong><small>Additional Jobs only</small></td>'+ '<td>—</td>'.repeat(4)+'<td>'+additionalJobsHistoryCell(jobs)+'</td><td class="deduction-history-download-cell"><div class="deduction-history-download-item"><strong>'+jobs.length+' Additional Job'+(jobs.length===1?'':'s')+'</strong><small>Ready to download</small><div><label><input type="checkbox" data-statement-file-format="pdf" checked> PDF</label> <label><input type="checkbox" data-statement-file-format="excel"> Excel</label></div><button type="button" data-additional-download>Download</button></div></td><td>'+esc(job.periodStart+' - '+job.periodEnd)+'</td><td>'+esc(deductionMoney(0))+'</td><td>—</td><td><span class="deduction-history-status applied">Applied</span></td><td>'+esc(job.createdBy||'')+'</td>';
     row.dataset.jobSelectionId='jobs:'+JSON.stringify([job.riderKey,job.periodStart,job.periodEnd]);
     row.cells[1].innerHTML='<input type="checkbox" data-deduction-history-select aria-label="Select '+esc(job.rider)+' request for Rider PDF"'+(deductionHistorySelected.has(row.dataset.jobSelectionId)?' checked':'')+'>';
+    row.cells[1].className='deduction-export-check';
+    row.cells[1].innerHTML='<div class="deduction-row-controls">'+row.cells[1].innerHTML+'<button type="button" data-additional-delete aria-label="Delete '+esc(job.rider)+' Additional Jobs" title="Delete Additional Jobs">×</button></div>';
     body.append(row);
   }
   if(grouped.size){view.querySelector('[data-deduction-history-empty]').hidden=true;view.querySelector('[data-deduction-history-feedback]').textContent+=' '+grouped.size+' Additional Job-only rider period'+(grouped.size===1?'':'s')+' shown separately; deduction counts are unchanged.';}
   deductionHistorySortNumbers(view);
 }
 // Job-only statements have no deduction installment to select or mark as sent.
+document.addEventListener('click',event=>{
+  const button=event.target.closest?.('[data-additional-delete]');if(!button)return;
+  const row=button.closest('[data-additional-only-row]'),rider=row.dataset.jobRider,periodStart=row.dataset.jobStart,periodEnd=row.dataset.jobEnd;
+  const jobs=additionalJobsForScope(rider,periodStart,periodEnd);
+  const expectedJobs=jobs.map(job=>({id:job.id,description:job.description,amountCents:job.amountCents}));
+  const dialog=deductionDialog('Delete Additional Jobs'),body=dialog.querySelector('[data-deduction-body]');
+  body.innerHTML='<form class="deduction-form deduction-delete-form"><strong>'+esc(rider)+'</strong><p>'+jobs.length+' Additional Jobs · '+esc(periodStart+' - '+periodEnd)+' · '+esc(deductionMoney(jobs.reduce((sum,job)=>sum+job.amountCents,0)))+'</p><p>Remove these jobs from active History and future statements? The audit history is retained. Existing downloaded files are unchanged.</p><label>4-digit deletion PIN<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="off"></label><p role="alert" data-deduction-error></p><button type="submit" class="deduction-danger-button">Delete Additional Jobs</button></form>';
+  const form=body.querySelector('form'),submit=form.querySelector('[type="submit"]'),requestId=crypto.randomUUID();let busy=false;
+  form.onsubmit=async event=>{
+    event.preventDefault();if(busy||!form.reportValidity())return;busy=true;submit.disabled=true;
+    const feedback=form.querySelector('[data-deduction-error]');feedback.textContent='Removing Additional Jobs…';
+    try{
+      const result=await deductionRequest('/delete-jobs',{rider,periodStart,periodEnd,expectedJobs,requestId,pin:form.elements.pin.value});
+      for(const [id,draft] of additionalJobDrafts)if(draft.scope===[deductionRiderKey(rider),periodStart,periodEnd].join('|'))additionalJobDrafts.delete(id);
+      deductionStatementPayloadCache.clear();deductionHistorySelected.delete(row.dataset.jobSelectionId);
+      await additionalJobsLoad(true);render();deductionHistoryRender();
+      body.innerHTML='<p role="status">'+Number(result.deleted)+' Additional Jobs removed. Audit history retained.</p><button type="button" data-job-delete-done>Done</button>';
+      body.querySelector('[data-job-delete-done]').onclick=()=>dialog.close();
+    }catch(error){feedback.textContent=error.message;busy=false;submit.disabled=false;}
+  };
+});
 async function additionalJobsStatementPayload(rider, start, end) {
   if(!rider||!start||!end)throw new Error('A rider and commission period are required.');
   const panel=panels.find(panel=>panel.id==='commission-main');

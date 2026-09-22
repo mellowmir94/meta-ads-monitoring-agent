@@ -16,6 +16,7 @@ const record=(id,type,count)=>({id,batchId:'download-test',rider:'Test Rider',re
   const page=await browser.newPage({viewport:{width:1500,height:1000},acceptDownloads:true}),downloads=[],errors=[],requests=[];
   page.on('download',d=>downloads.push(d));page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/*',async route=>{const url=new URL(route.request().url());if(url.hostname!=='localhost')return route.abort();
+   if(url.pathname==='/api/deductions/delete-jobs'){jobs.splice(jobs.indexOf(standaloneJob),1);return route.fulfill({contentType:'application/json',body:JSON.stringify({deleted:1})});}
    if(url.pathname==='/')return route.fulfill({contentType:'text/html',body:html});
    if(url.pathname.startsWith('/api/')){requests.push(url.pathname);const body=url.pathname==='/api/deductions/jobs'?{jobs,next:null}:url.pathname.includes('deductions')?{records:fixtures,next:null,actor:{role:'maker'},statementSentAt:'2026-09-21T00:00:00Z'}:{rows:[{order_id:'1',rider_name:'Test Rider',commission:350,quantity:1,created_at:'2026-09-15 12:00:00'}],truncated:false};return route.fulfill({contentType:'application/json',body:JSON.stringify(body)});}
    if(retry&&!failedLibrary&&url.pathname.endsWith('/jszip.min.js')){failedLibrary=true;return route.fulfill({status:503,body:'Temporary unavailable'});}
@@ -78,6 +79,14 @@ const record=(id,type,count)=>({id,batchId:'download-test',rider:'Test Rider',re
   await row.locator('[data-deduction-history-select]').check();
   assert.equal(await jobOnly.locator('[data-deduction-history-select]').isChecked(),false);
   const riderPdf=page.waitForEvent('download');await top.click();assert.equal((await riderPdf).suggestedFilename(),'Test Rider.pdf');
+  await page.waitForFunction(()=>document.querySelector('[data-deduction-history-export="pdf"]')?.textContent==='Export checked Rider PDF');
+  await jobOnly.locator('[data-additional-delete]').click();
+  const deletion=page.locator('#deductionDialog');assert.match(await deletion.innerText(),/Job-only Rider/);
+  if(retry){
+    await deletion.locator('input[name="pin"]').fill('1234');await deletion.locator('[type="submit"]').click();
+    await page.waitForFunction(()=>document.querySelector('[data-job-delete-done]'));
+    assert.equal(await jobOnly.count(),0);assert.equal(await row.count(),1);
+  }else await page.evaluate(()=>document.querySelector('#deductionDialog').close());
   assert.deepEqual(errors,[]);await page.close();
  }}finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

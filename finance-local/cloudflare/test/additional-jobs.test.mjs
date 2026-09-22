@@ -45,6 +45,22 @@ test('job listing paginates beyond 200 without changing any job',async()=>{
   const ids=[];let next='';do{const result=await call(env,'/jobs'+(next?'?after='+encodeURIComponent(next):''));ids.push(...result.body.jobs.map(item=>item.id));next=result.body.next;}while(next);
   assert.equal(new Set(ids).size,235);
 });
+test('job deletion requires PIN, retains audit and backup, is scoped and retry-safe',async()=>{
+  const {env,storage,backups}=setup();env.DEDUCTION_DELETE_PIN='1234';
+  for(const amount of ['30','50'])await call(env,'/save-job',{...job,amount,requestId:crypto.randomUUID()});
+  await call(env,'/save-job',{...job,rider:'Other Rider',requestId:crypto.randomUUID()});
+  const expectedJobs=(await call(env,'/jobs')).body.jobs.filter(item=>item.rider==='Rider A');
+  const input={rider:job.rider,periodStart:job.periodStart,periodEnd:job.periodEnd,expectedJobs,requestId:crypto.randomUUID()};
+  assert.equal((await call(env,'/delete-jobs',{...input,pin:'0000'})).status,403);
+  assert.equal((await call(env,'/jobs')).body.jobs.length,3);
+  assert.equal((await call(env,'/delete-jobs',{...input,pin:'1234',expectedJobs:[]})).status,400);
+  const result=await call(env,'/delete-jobs',{...input,pin:'1234'});assert.ok(result.status<300,JSON.stringify(result.body));assert.equal(result.body.deleted,2);
+  assert.deepEqual((await call(env,'/delete-jobs',{...input,pin:'1234'})).body,result.body);
+  const active=(await call(env,'/jobs')).body.jobs;assert.equal(active.length,1);assert.equal(active[0].rider,'Other Rider');
+  for(const original of expectedJobs){const removed=await storage.get('job:'+original.id);assert.equal(removed.status,'replaced');assert.equal(removed.audit.at(-1).action,'additional-jobs-deleted');assert.ok(removed.deletedAt);}
+  await validateDeductionSnapshot(backups.at(-1));const restored=new Store();await restoreDeductionSnapshot(restored,backups.at(-1));assert.equal((await restored.list({prefix:'job:'})).size,3);
+  assert.equal((await call(env,'/')).body.records.length,0);
+});
 test('shared statement includes only matching rider/period jobs, adds once, cleans labels',async()=>{
   const context=vm.createContext({document:{addEventListener(){}},deductionRiderKey:s=>String(s||'').toLowerCase(),deductionMoney:c=>'RM '+(c/100).toFixed(2)});
   vm.runInContext(readFileSync(new URL('../../additional-jobs.js',import.meta.url),'utf8'),context);
