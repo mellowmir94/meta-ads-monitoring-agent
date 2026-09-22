@@ -45,7 +45,7 @@ function additionalJobsEditor(draft) {
     const locked=Boolean(draft.payload);
     return `<div class="additional-job-row" data-job-row="${esc(row.id)}"><span>${index+1}</span><label>Job description / reference<input data-job-description maxlength="500" value="${esc(row.description)}" ${locked?'readonly':''}></label><label>Amount (RM)<span class="additional-job-money"><span aria-hidden="true">RM</span><input data-job-amount type="number" inputmode="decimal" placeholder="0.00" step="0.01" min="0.01" max="1000000" value="${esc(row.amount)}" ${locked?'readonly':''}></span></label>${locked?'<span>Retry to confirm save</span>':'<button type="button" data-job-remove aria-label="Remove job '+(index+1)+'">Remove</button>'}</div>`;
   }).join('');
-  return `<fieldset ${draft.saving?'disabled':''}><div class="additional-job-rows">${rows}</div><div class="additional-job-actions"><button type="button" data-job-add>+ Add row</button><button type="button" data-job-save>Save Additional Jobs</button></div></fieldset>`;
+  return `<fieldset ${draft.saving?'disabled':''}><div class="additional-job-rows">${rows}</div><div class="additional-job-actions"><button type="button" data-job-add>+ Add row</button><button type="button" data-job-save>Save Additional Jobs</button><button type="button" data-job-reset ${draft.payload&&!draft.payload.reset?'disabled':''}>${draft.payload?.reset?'Retry Reset':'Reset Additional Jobs'}</button></div></fieldset>`;
 }
 function additionalJobsCanProceed(id) {
   const draft=additionalJobDrafts.get(id),pending=draft?.rows||[];
@@ -170,33 +170,37 @@ document.addEventListener('change',event=>{
   deductionUpdateInline(host.closest('.deduction-workspace'));
 });
 document.addEventListener('click',async event=>{
-  const button=event.target.closest?.('[data-job-add],[data-job-remove],[data-job-save]');if(!button)return;
+  const button=event.target.closest?.('[data-job-add],[data-job-remove],[data-job-save],[data-job-reset]');if(!button)return;
   const host=button.closest('[data-additional-table]'),id=host.dataset.additionalTable,draft=additionalJobDrafts.get(id),editor=host.querySelector('[data-additional-editor]'),feedback=host.querySelector('[data-additional-feedback]');
-  if(draft.saving||draft.payload&&!button.hasAttribute('data-job-save'))return;
+  if(draft.saving||draft.payload&&!button.hasAttribute('data-job-save')&&!(draft.payload.reset&&button.hasAttribute('data-job-reset')))return;
+  if(button.hasAttribute('data-job-reset')){await additionalJobsSave(host,true);return;}
   if(button.hasAttribute('data-job-add')){draft.rows.push({id:crypto.randomUUID(),description:'Additional Job',amount:''});editor.innerHTML=additionalJobsEditor(draft);deductionUpdateInline(host.closest('.deduction-workspace'));return;}
   if(button.hasAttribute('data-job-remove')){draft.rows=draft.rows.filter(row=>row.id!==button.closest('[data-job-row]').dataset.jobRow);draft.rows.forEach(row=>row.saved=false);editor.innerHTML=additionalJobsEditor(draft);deductionUpdateInline(host.closest('.deduction-workspace'));return;}
   await additionalJobsSave(host);
 });
 
-async function additionalJobsSave(host) {
+async function additionalJobsSave(host, reset = false) {
   const id=host.dataset.additionalTable,draft=additionalJobDrafts.get(id),editor=host.querySelector('[data-additional-editor]'),feedback=host.querySelector('[data-additional-feedback]');
   if(draft.saving)return false;
+  reset=Boolean(draft.payload?.reset||reset);
+  if(!additionalJobsState.loaded||!draft.baseline){feedback.textContent='Wait for saved Additional Jobs to load first.';return false;}
   const pending=draft.rows,rider=deductionSingleRider(deductionRows(id,true)),dates=auditCapture(id)?.scope?.dates||{};
-  if(!pending.length){feedback.textContent='All entered jobs are already saved. Use + Add row for another job.';return;}
+  if(!reset&&!pending.length){feedback.textContent='All entered jobs are already saved. Use + Add row for another job.';return;}
   if(!rider.valid||draft.scope!==[rider.key,dates.start,dates.end].join('|')){feedback.textContent='Rider or period changed. Review the selection first.';return;}
-  if(!pending.length||pending.some(row=>!row.description.trim()||!/^\d+(\.\d{1,2})?$/.test(row.amount)||Number(row.amount)<=0||Number(row.amount)>1000000)){feedback.textContent='Enter a description and RM0.01–RM1,000,000 (up to 2 decimals) for every new job.';return;}
+  if(!reset&&(!pending.length||pending.some(row=>!row.description.trim()||!/^\d+(\.\d{1,2})?$/.test(row.amount)||Number(row.amount)<=0||Number(row.amount)>1000000))){feedback.textContent='Enter a description and RM0.01–RM1,000,000 (up to 2 decimals) for every new job.';return;}
   draft.saving=true;editor.innerHTML=additionalJobsEditor(draft);deductionUpdateInline(host.closest('.deduction-workspace'));let warning='';
   try {
     // One atomic replacement makes the saved total equal exactly these boxes.
     // Retain the same request on uncertain retries; previous versions stay audited.
-    draft.payload ||= {requestId:crypto.randomUUID(),rider:rider.rider,periodStart:String(dates.start).slice(0,10),periodEnd:String(dates.end).slice(0,10),expectedJobs:draft.baseline||[],rows:pending.map(row=>({description:row.description.trim(),amount:row.amount}))};
+    draft.payload ||= {requestId:crypto.randomUUID(),rider:rider.rider,periodStart:String(dates.start).slice(0,10),periodEnd:String(dates.end).slice(0,10),expectedJobs:draft.baseline||[],...(reset?{reset:true}:{}),rows:reset?[]:pending.map(row=>({description:row.description.trim(),amount:row.amount}))};
     const result=await deductionRequest('/save-jobs',draft.payload);
     warning=result.backupWarning||'';
     draft.rows=result.jobs.map(job=>({id:job.id,description:job.description,amount:(job.amountCents/100).toFixed(2),saved:true}));
     draft.baseline=result.jobs.map(job=>({id:job.id,description:job.description,amountCents:job.amountCents}));draft.payload=null;
+    if(reset)draft.rows=[{id:crypto.randomUUID(),description:'Additional Job',amount:'0.00'}];
     additionalJobsState.loaded=false;
     await additionalJobsLoad(true);deductionStatementPayloadCache.clear();additionalJobsStatementCache.clear();draft.saving=false;render();
-    const current=document.querySelector('[data-additional-table="'+id+'"] [data-additional-feedback]');if(current)current.textContent=warning||'Additional Jobs saved in History and included in rider Excel/PDF statements.';
+    const current=document.querySelector('[data-additional-table="'+id+'"] [data-additional-feedback]');if(current)current.textContent=warning||(reset?'Additional Jobs reset to RM 0.00.':'Additional Jobs saved in History and included in rider Excel/PDF statements.');
     return true;
   }catch(error){feedback.textContent=error.message+' Saved rows are preserved. Retry to continue without duplicates.';}
   finally{draft.saving=false;if(editor.isConnected){editor.innerHTML=additionalJobsEditor(draft);deductionUpdateInline(host.closest('.deduction-workspace'));}}

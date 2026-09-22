@@ -1,7 +1,7 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
 (async()=>{
-  const root=path.resolve(__dirname,'..'),html=fs.readFileSync(path.join(root,'index.html'),'utf8'),browser=await chromium.launch({headless:true});
+  const root=path.resolve(__dirname,'..'),html=fs.readFileSync(path.join(root,'index.html'),'utf8'),browser=await chromium.launch({headless:true,channel:process.env.TEST_BROWSER_CHANNEL||undefined});
   try{
     const page=await browser.newPage({viewport:{width:1100,height:850}}),errors=[];
     page.on('pageerror',error=>errors.push(error.message));
@@ -20,6 +20,15 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
     assert.match(await page.locator('.additional-jobs').innerText(),/RM 95.00/);
     await page.getByRole('button',{name:'Save Additional Jobs',exact:true}).click();
     assert.equal(await page.evaluate(()=>saved.length),2);
+    await page.getByRole('button',{name:'Reset Additional Jobs',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector('[data-additional-feedback]').textContent.includes('reset to RM 0.00'));
+    assert.equal(await page.evaluate(()=>saved.length),0);
+    assert.equal(await page.locator('[data-job-amount]').inputValue(),'0.00');
+    assert.match(await page.locator('.additional-jobs').innerText(),/RM 100.00 \+ RM 0.00 − RM 25.00 = RM 75.00/);
+    await page.locator('[data-job-amount]').fill('20.00');
+    await page.getByRole('button',{name:'Save Additional Jobs',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector('[data-additional-feedback]').textContent.includes('Additional Jobs saved in History'));
+    assert.equal(await page.evaluate(()=>saved.length),1);
     for(const width of [1100,390]){await page.setViewportSize({width,height:850});await page.evaluate(()=>document.documentElement.dataset.theme='dark');assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:path.join(root,`preview-evidence/additional-jobs-${width}.png`),fullPage:true});}
     assert.deepEqual(errors,[]);
     for(const file of ['jszip.min.js','jspdf.umd.min.js','jspdf.plugin.autotable.min.js'])await page.addScriptTag({path:path.join(root,'cloudflare/public/vendor',file)});
@@ -36,6 +45,6 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
     });
     const excelDownload=page.waitForEvent('download');await page.evaluate(()=>downloadMasterRiderExcel(window.master));await (await excelDownload).saveAs(path.join(root,'preview-evidence/rider-statement-test.xlsx'));
     const pdfDownload=page.waitForEvent('download');await page.evaluate(()=>downloadPdfTable(window.master));await (await pdfDownload).saveAs(path.join(root,'preview-evidence/rider-statement-test.pdf'));
-    console.log('PASS: manual jobs save/retry, totals, responsive layout; real Excel/PDF generated with 82 manual jobs.');
+    console.log('PASS: manual jobs save/retry/reset, totals, responsive layout; real Excel/PDF generated with multiple manual jobs.');
   }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

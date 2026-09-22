@@ -40,6 +40,22 @@ test('saving visible job rows replaces RM80 with RM50, retains audit, and retrie
   assert.equal((await call(env,'/')).body.records.length,0);
   assert.equal((await call(env,'/save-jobs',{...input,requestId:crypto.randomUUID()})).status,400);
 });
+test('reset zeroes only the selected Additional Jobs, preserves deductions and audit, and retries safely',async()=>{
+  const {env,storage,backups}=setup();
+  await storage.put('record:keep',{id:'keep',type:'epf',amountCents:2500});
+  for(const input of [job,{...job,rider:'Other Rider'},{...job,periodStart:'2026-09-21',periodEnd:'2026-09-27'}])await call(env,'/save-job',{...input,requestId:crypto.randomUUID()});
+  const expectedJobs=(await call(env,'/jobs')).body.jobs.filter(item=>item.rider===job.rider&&item.periodStart===job.periodStart);
+  const input={...job,expectedJobs,rows:[],reset:true,requestId:crypto.randomUUID()};
+  assert.equal((await call(env,'/save-jobs',{...input,expectedJobs:[]})).status,400);
+  const reset=await call(env,'/save-jobs',input);assert.equal(reset.status,201);assert.deepEqual(reset.body.jobs,[]);
+  assert.deepEqual((await call(env,'/save-jobs',input)).body,reset.body);
+  const remaining=(await call(env,'/jobs')).body.jobs;assert.equal(remaining.length,2);
+  assert.ok(remaining.every(item=>item.rider!==job.rider||item.periodStart!==job.periodStart));
+  assert.equal((await storage.get('record:keep')).amountCents,2500);
+  assert.equal((await storage.get('job:'+expectedJobs[0].id)).audit.at(-1).action,'additional-jobs-reset');
+  assert.ok(backups.length);
+});
+
 test('job listing paginates beyond 200 without changing any job',async()=>{
   const {env,storage}=setup();for(let i=0;i<235;i++)await storage.put('job:'+String(i).padStart(5,'0'),{...job,id:String(i)});
   const ids=[];let next='';do{const result=await call(env,'/jobs'+(next?'?after='+encodeURIComponent(next):''));ids.push(...result.body.jobs.map(item=>item.id));next=result.body.next;}while(next);
@@ -67,6 +83,6 @@ test('shared statement includes only matching rider/period jobs, adds once, clea
   vm.runInContext(`additionalJobsLoad=async()=>{}; additionalJobsState.jobs=[{riderKey:'rider a',periodStart:'2026-09-14',periodEnd:'2026-09-20',reference:'JOB-1',description:'Extra job',amountCents:1235},{riderKey:'rider b',periodStart:'2026-09-14',periodEnd:'2026-09-20',amountCents:9000},{riderKey:'rider a',periodStart:'2026-10-01',periodEnd:'2026-10-07',amountCents:9000}];`,context);
   vm.runInContext(readFileSync(new URL('../../rider-statement.js',import.meta.url),'utf8'),context);
   const payload={panelTitle:'Commission Rider',statementScope:{rider:'Rider A',start:'2026-09-14',end:'2026-09-20'},columns:[{key:'id',value:r=>r.id},{key:'commission',value:r=>r.commission}],rows:[{id:1,commission:100}],summary:{value:'RM 75.00'},footerRows:[['Filtered total','RM 100.00'],['EPF (applied)','- RM 25.00'],['APPLIED DEDUCTIONS','- RM 25.00'],['NET COMMISSION','RM 75.00']]};
-  const master=await context.prepareRiderStatement(payload);assert.equal(master.summary.value,'RM 87.35');assert.equal(master.rows.length,1);assert.equal(master.footerRows[3][0],'ADDITIONAL JOB 1 · JOB-1 · Extra job');assert.equal(master.footerRows[3][1],'+ RM 12.35');assert.equal(master.footerRows[2][0],'TOTAL DEDUCTIONS');assert.equal(master.footerRows.at(-1)[0],'NET COMMISSION');assert.equal(payload.rows.length,1);assert.equal(master.footerRows.filter(row=>row[0]==='NET COMMISSION').length,1);assert.ok(master.footerRows.some(row=>row[0]==='TOTAL DEDUCTIONS'));assert.ok(!JSON.stringify(master.footerRows).includes('(applied)'));
+  const master=await context.prepareRiderStatement(payload);assert.equal(master.summary.value,'RM 87.35');assert.equal(master.rows.length,1);assert.equal(master.footerRows[3][0],'ADDITIONAL JOB 1 · Extra job');assert.equal(master.footerRows[3][1],'+ RM 12.35');assert.equal(master.footerRows[2][0],'TOTAL DEDUCTIONS');assert.equal(master.footerRows.at(-1)[0],'NET COMMISSION');assert.equal(payload.rows.length,1);assert.equal(master.footerRows.filter(row=>row[0]==='NET COMMISSION').length,1);assert.ok(master.footerRows.some(row=>row[0]==='TOTAL DEDUCTIONS'));assert.ok(!JSON.stringify(master.footerRows).includes('(applied)'));
   assert.equal(await context.prepareRiderStatement(master),master);
 });

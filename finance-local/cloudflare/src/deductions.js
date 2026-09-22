@@ -158,14 +158,15 @@ export class DeductionRegister {
           const rider=required(input.rider,'Rider'),riderKey=rider.normalize('NFKC').toLowerCase().replace(/\s+/g,' ');
           const periodStart=date(input.periodStart,'Commission period start'),periodEnd=date(input.periodEnd,'Commission period end');
           if(periodEnd<periodStart)throw new Error('Invalid commission period.');
-          if(!Array.isArray(input.rows)||(!deleting&&!input.rows.length)||input.rows.length>10000)throw new Error('Enter at least one Additional Job.');
+          const resetting=!deleting&&input.reset===true;
+          if(!Array.isArray(input.rows)||(!deleting&&!resetting&&!input.rows.length)||input.rows.length>10000||(resetting&&input.rows.length))throw new Error('Enter at least one Additional Job, or reset to RM0.00.');
           const rows=input.rows.map(row=>{const description=required(row.description,'Job description',500),amount=String(row.amount??'');if(!/^\d+(\.\d{1,2})?$/.test(amount)||Number(amount)<=0||Number(amount)>1000000)throw new Error('Enter a valid positive RM amount.');return {description,amountCents:Math.round(Number(amount)*100)};});
           const existing=[];let after='';
           do {const page=[...await tx.list({prefix:'job:',limit:500,...(after?{startAfter:after}:{})})];for(const [,job] of page)if(job.status!=='replaced'&&job.riderKey===riderKey&&job.periodStart>=periodStart&&job.periodEnd<=periodEnd)existing.push(job);after=page.length===500?page.at(-1)[0]:'';}while(after);
           const fingerprint=jobs=>JSON.stringify(jobs.map(job=>[job.id,job.amountCents,job.description]).sort((a,b)=>a[0].localeCompare(b[0])));
           if(!Array.isArray(input.expectedJobs)||fingerprint(existing)!==fingerprint(input.expectedJobs))throw new Error('Saved jobs changed. Refresh and review before saving again.');
           if(deleting&&(!existing.length||existing.some(job=>job.periodStart!==periodStart||job.periodEnd!==periodEnd)))throw new Error('Additional Jobs changed. Refresh History before deleting.');
-          for(const job of existing)await tx.put('job:'+job.id,{...job,status:'replaced',replacedAt:now,replacedBy:actor.name,replacementRequestId:input.requestId,...(deleting?{deletedAt:now,deletedBy:actor.name}:{}),audit:[...(job.audit||[]),{action:deleting?'additional-jobs-deleted':'additional-jobs-overwritten',at:now,by:actor.name,amountCents:job.amountCents}]});
+          for(const job of existing)await tx.put('job:'+job.id,{...job,status:'replaced',replacedAt:now,replacedBy:actor.name,replacementRequestId:input.requestId,...(deleting?{deletedAt:now,deletedBy:actor.name}:{}),audit:[...(job.audit||[]),{action:deleting?'additional-jobs-deleted':resetting?'additional-jobs-reset':'additional-jobs-overwritten',at:now,by:actor.name,amountCents:job.amountCents}]});
           let counter=Number(await tx.get('counter:job-reference')||0);const jobs=[];
           for(let i=0;i<rows.length;i++){const job={...rows[i],id:input.requestId+'-'+i,reference:'JOB-'+String(++counter).padStart(6,'0'),rider,riderKey,periodStart,periodEnd,createdAt:now,createdBy:actor.name,status:'saved',audit:[{action:'additional-job-saved',at:now,by:actor.name,replaces:existing.map(job=>job.id)}]};await tx.put('job:'+job.id,job);jobs.push(job);}
           await tx.put('counter:job-reference',counter);result=deleting?{deleted:existing.length}: {jobs};
