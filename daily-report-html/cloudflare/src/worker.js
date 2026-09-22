@@ -1074,7 +1074,8 @@ async function queryCommissionPrimaryBundle(env, window, options = {}) {
   // Do not approximate Grafana's "$__all" as IS NOT NULL. The dashboard
   // expands it to the actual values from its variable query, which is the
   // only scope that can make this application reconcile 1:1 with Grafana.
-  const resolvedVariableOverrides = await resolveCommissionVariableOverrides(env, detail.dashboard, options.variableOverrides);
+  const scopeSql = [detail, countMetric, totalMetric].filter(Boolean).map(item => item.target.rawSql || item.target.rawSQL).join('\n');
+  const resolvedVariableOverrides = await resolveCommissionVariableOverrides(env, detail.dashboard, options.variableOverrides, scopeSql);
   const detailDatasource = detail.target.datasource || detail.panel.datasource || { type: 'grafana-bigquery-datasource', uid: '1oBzAPaNk' };
   const detailQuery = buildFinanceQuery(detail.target, detailDatasource, 'commission-main', window, detail.dashboard, { primary: true, maxDataPoints: 10000, variableOverrides: resolvedVariableOverrides });
   detailQuery.refId = 'A';
@@ -1138,15 +1139,17 @@ async function queryCommissionPrimaryBundle(env, window, options = {}) {
   return { rows, metricRows, summaryError: metricError };
 }
 
-async function queryCommissionFilterOptions(env, dashboardOverride = null) {
-  const cacheKey = `${String(env.GRAFANA_URL || '').replace(/\/$/, '')}:commission-options:v4`;
+async function queryCommissionFilterOptions(env, dashboardOverride = null, requiredNames = null) {
+  const names = ['branch_name', 'arrival_status', 'order_status', 'level', 'battery_size', 'sales_source', 'rider_category']
+    .filter(name => !requiredNames || requiredNames.includes(normalizedGrafanaKey(name)));
+  if (!names.length) return {};
+  const cacheKey = `${String(env.GRAFANA_URL || '').replace(/\/$/, '')}:commission-options:v5:${names.join(',')}`;
   const cached = financeCommissionVariableOptionsCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
   const pending = financeCommissionVariableOptionsRequests.get(cacheKey);
   if (pending) return pending;
   const request = (async () => {
   const dashboard = dashboardOverride || (await financePanelTarget(env, FINANCE_PANEL_MAP['commission-main'])).dashboard;
-  const names = ['branch_name', 'arrival_status', 'order_status', 'level', 'battery_size', 'sales_source', 'rider_category'];
   const variables = dashboard && dashboard.templating && Array.isArray(dashboard.templating.list) ? dashboard.templating.list : [];
   const queries = [];
   const refs = [];
@@ -1201,14 +1204,22 @@ async function queryCommissionFilterOptions(env, dashboardOverride = null) {
   }
 }
 
-async function resolveCommissionVariableOverrides(env, dashboard, overrides = {}) {
+async function resolveCommissionVariableOverrides(env, dashboard, overrides = {}, scopeSql = '') {
   const variables = grafanaCurrentVariables(dashboard);
   // Grafana expands an All selection from the variable query's actual option
   // values. Do the same instead of approximating All as `field IS NOT NULL`.
-  const available = await queryCommissionFilterOptions(env, dashboard).catch(() => ({}));
-  return Object.fromEntries(variables.map(({ name, values: savedValues }) => {
+  const selections = variables.map(({ name, values: savedValues }) => {
     const overrideKey = Object.keys(overrides || {}).find((key) => normalizedGrafanaKey(key) === normalizedGrafanaKey(name));
     const selected = normalizeFinanceFilterValues(overrideKey == null ? savedValues : overrides[overrideKey]);
+    return { name, selected };
+  });
+  // Option menus load separately. Only All-valued variables referenced by
+  // these exact table/KPI queries may delay the primary response.
+  const referenced = new Set(Array.from(scopeSql.matchAll(/\$\{?([A-Za-z_][A-Za-z0-9_]*)/g), match => normalizedGrafanaKey(match[1])));
+  const required = selections.filter(({ name, selected }) => selected.includes('$__all') && referenced.has(normalizedGrafanaKey(name)))
+    .map(({ name }) => normalizedGrafanaKey(name));
+  const available = await queryCommissionFilterOptions(env, dashboard, required).catch(() => ({}));
+  return Object.fromEntries(selections.map(({ name, selected }) => {
     const expanded = Array.isArray(available[name]) ? available[name] : [];
     return [name, selected.includes('$__all') && expanded.length ? expanded : selected];
   }));
