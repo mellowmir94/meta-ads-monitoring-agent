@@ -11874,7 +11874,8 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
           doc.text(payload.summary.value, pageWidth - 28, 56, { align: "right" });
         }
         doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(88, 101, 120);
-        doc.text(`${payload.title ? `${payload.title} · ` : ""}${formatNumber(payload.rows.length)} ${payload.statementPrepared ? 'statement' : 'filtered'} rows · ${payload.period}`, 28, 66, { maxWidth: pageWidth - 56 });
+        const subtitle = payload.statementPrepared ? `${payload.title}  ${payload.period}` : `${payload.title ? `${payload.title} · ` : ""}${formatNumber(payload.rows.length)} filtered rows · ${payload.period}`;
+        doc.text(subtitle, 28, 66, { maxWidth: pageWidth - 56 });
         const body = payload.rows.map((row) => {
           const values=payload.columns.map((column) => financePdfCellValue(column, row));
           const index=payload.columns.findIndex(column=>column.key==='commission');
@@ -17420,6 +17421,8 @@ async function prepareRiderStatement(payload, jobsReady = null) {
   if(payload.statementPrepared || payload.panelTitle!=='Commission Rider' || !payload.summary || !payload.columns.some(column=>column.key==='commission'))return payload;
   const scope=payload.statementScope;
   if(!scope?.rider || !scope.start || !scope.end)throw new Error('A rider and commission period are required for a complete statement.');
+  const dateLabel=value=>String(value).slice(0,10).split('-').reverse().join('/');
+  payload={...payload,period:'Payment commission period: '+dateLabel(scope.start)+' - '+dateLabel(scope.end)};
   await (jobsReady || additionalJobsLoad(true));
   const jobs=additionalJobsForScope(scope.rider,scope.start,scope.end),index=payload.columns.findIndex(column=>column.key==='commission');
   const row=(label,value)=>payload.columns.map((_,i)=>i===0?label:i===index?value:'');

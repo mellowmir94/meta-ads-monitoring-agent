@@ -3,9 +3,9 @@ const root=path.resolve(__dirname,'..'),html=fs.readFileSync(path.join(root,'ind
 const JSZip=require(process.env.JSZIP_PATH || 'jszip');
 function section(a,b){return html.slice(html.indexOf(a),html.indexOf(b,html.indexOf(a)));}
 (async()=>{
-  let blob,downloadName,pdfTable;
+  let blob,downloadName,pdfTable; const pdfText=[];
   const logo='data:image/png;base64,'+fs.readFileSync(path.join(root,'cloudflare/public/assets/bateriku-brand-icon.png')).toString('base64');
-  class PDF {constructor(){this.internal={pageSize:{getWidth:()=>800,getHeight:()=>600},getNumberOfPages:()=>1};}addImage(){}setFont(){}setFontSize(){}setTextColor(){}text(){}autoTable(options){pdfTable=options;}save(){} }
+  class PDF {constructor(){this.internal={pageSize:{getWidth:()=>800,getHeight:()=>600},getNumberOfPages:()=>1};}addImage(){}setFont(){}setFontSize(){}setTextColor(){}text(value){pdfText.push(value);}autoTable(options){pdfTable=options;}save(){} }
   const context=vm.createContext({window:{JSZip,jspdf:{jsPDF:PDF},confirm:()=>true},document:{createElement:()=>({click(){downloadName=this.download;},remove(){}}),body:{append(){}}},URL:{createObjectURL:value=>(blob=value,'test'),revokeObjectURL(){}},financePdfLogo:async()=>logo,additionalJobsLoad:async()=>{},additionalJobsForScope:()=>Array.from({length:250},(_,i)=>({reference:'JOB-'+i,description:'Extra delivery '+i,amountCents:1250})),deductionMoney:c=>'RM '+(c/100).toFixed(2),formatNumber:n=>String(n),formatGrafanaTimestamp:s=>s,console});
   vm.runInContext(section('      function excelColumnReference','      async function downloadExcelTable'),context);
   vm.runInContext(fs.readFileSync(path.join(root,'rider-statement.js'),'utf8'),context);
@@ -15,6 +15,9 @@ function section(a,b){return html.slice(html.indexOf(a),html.indexOf(b,html.inde
   const zip=await JSZip.loadAsync(await blob.arrayBuffer()),xml=await zip.file('xl/worksheets/sheet1.xml').async('string');
   assert.ok(zip.file('xl/media/logo.png'));assert.ok(zip.file('xl/drawings/drawing1.xml'));assert.equal(pdfTable.body.length,256);assert.equal(master.rows.length,1);assert.equal(pdfTable.foot,undefined);
   assert.match(xml,/JOB-249/);assert.doesNotMatch(xml,/\(applied\)|APPLIED DEDUCTIONS/);
+  assert.equal(master.period,'Payment commission period: 14/09/2026 - 20/09/2026');
+  assert.ok(pdfText.includes('Test Rider  Payment commission period: 14/09/2026 - 20/09/2026'));
+  assert.doesNotMatch(pdfText.join(' '),/statement rows|Deduction date:|refreshed from Grafana/);
   for(const row of master.footerRows)for(const value of row.filter(Boolean))assert.ok(xml.includes(context.exportXmlText(value)),value+' exists in Excel master');
   assert.equal(master.summary.value,'RM 3200.00');assert.equal(master.footerRows.at(-1)[2],'RM 3200.00');assert.equal(downloadName,'Test Rider.xlsx');
   assert.match(xml,/colSpan|mergeCell/);
