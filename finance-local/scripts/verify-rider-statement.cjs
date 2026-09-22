@@ -40,7 +40,7 @@ function section(a,b){return html.slice(html.indexOf(a),html.indexOf(b,html.inde
   assert.match(xml,/<row r="6" customHeight="1" ht="(?:3[2-9]|[4-9]\d|\d{3})"/);
   for(const [label,color] of [['ADDITIONAL JOB 1',[18,117,75]],['NET COMMISSION',[255,235,59]]]){
     const cell={styles:{}};pdfTable.didParseCell({section:'body',row:{index:1,raw:[label]},column:{index:0},cell});assert.deepEqual(Array.from(cell.styles.fillColor),color);assert.equal(cell.styles.halign,'left');
-    const amount={styles:{}};pdfTable.didParseCell({section:'body',row:{index:1,raw:[label]},column:{index:2},cell:amount});assert.equal(amount.styles.halign,'right');
+    const amount={styles:{}};pdfTable.didParseCell({section:'body',row:{index:1,raw:[label]},column:{index:2},cell:amount});assert.equal(amount.styles.halign,'center');
   }
   console.log('PASS: 250 additional jobs in both exports; identical footer values/labels; Excel embeds logo/drawing; net RM3200; source unchanged.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

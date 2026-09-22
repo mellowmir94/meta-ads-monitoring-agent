@@ -11929,7 +11929,7 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
             const isSummary = data.section === "foot" || payload.statementPrepared && data.section === "body" && data.row.index >= payload.rows.length;
             const rawLabel = data.row?.raw?.[0];
             const label = isSummary ? String(rawLabel?.content ?? rawLabel ?? "").trim().toUpperCase() : "";
-            if (isSummary) { data.cell.styles.fillColor = [23, 76, 59]; data.cell.styles.textColor = [239, 252, 246]; data.cell.styles.fontStyle = "bold"; data.cell.styles.halign = data.column?.index === 0 ? 'left' : 'right'; data.cell.styles.lineWidth = 0; }
+            if (isSummary) { data.cell.styles.fillColor = [23, 76, 59]; data.cell.styles.textColor = [239, 252, 246]; data.cell.styles.fontStyle = "bold"; data.cell.styles.halign = data.column?.index === 0 ? 'left' : 'center'; data.cell.styles.lineWidth = 0; }
             if (label === "TOTAL DEDUCTIONS" || label === "APPLIED DEDUCTIONS" || label === "TOTAL DEDUCTED") {
               data.cell.styles.fillColor = [217, 149, 47];
               data.cell.styles.textColor = [30, 41, 30];
