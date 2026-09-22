@@ -703,6 +703,20 @@ function deductionPaymentStatementCacheKey(record, index, commissionRange = null
   const item = deductionHistoryProgress(record).items[index] || {};
   return [record.id, index, item.dueDate, item.settlementPeriodStart, item.settlementPeriodEnd, commissionRange?.start || '', commissionRange?.end || '', record.amountCents, record.installmentCount, record.pricingMode, record.updatedAt].join('|');
 }
+async function deductionLoadStatementRows(panel, start, end) {
+  const params = new URLSearchParams({ panel: 'commission-main', scope: 'selection', part: 'primary', from: start + ' 00:00:00', to: end + ' 23:59:59', filters: '{}', revision: 'commission-kpi-v9', refresh: '1' });
+  const { response, payload } = await requestFinancePayload(FINANCE_API_ENDPOINT + '?' + params, 'statement-rows:' + start + ':' + end, true);
+  if (!response.ok) throw new Error(payload?.error || 'Commission data could not be loaded. Please retry the download.');
+  if (payload?.truncated) {
+    const first = Date.parse(start + 'T00:00:00Z'), last = Date.parse(end + 'T00:00:00Z'), day = 86400000;
+    if (!Number.isFinite(first) || !Number.isFinite(last) || last <= first) throw new Error('Commission data is incomplete for ' + start + '. Please retry the download.');
+    const middle = first + Math.floor((last - first) / day / 2) * day;
+    const left = await deductionLoadStatementRows(panel, start, new Date(middle).toISOString().slice(0, 10));
+    const right = await deductionLoadStatementRows(panel, new Date(middle + day).toISOString().slice(0, 10), end);
+    return [...left, ...right];
+  }
+  return canonicalizeFinancePayloadRows(panel, payload);
+}
 async function deductionFreshPaymentStatementPayload(record, index, commissionRange = null) {
   const progress = deductionHistoryProgress(record), item = progress.items[index];
   if (!item) throw new Error('This payment is no longer available. Refresh History and try again.');
@@ -712,12 +726,7 @@ async function deductionFreshPaymentStatementPayload(record, index, commissionRa
   if (!period?.start || !period?.end) throw new Error('This payment does not have a Commission Rider period. Edit the payment details first.');
   const panel = panels?.find(panel => panel.id === 'commission-main');
   if (!panel || typeof requestFinancePayload !== 'function' || typeof canonicalizeFinancePayloadRows !== 'function' || typeof visibleTableColumns !== 'function') throw new Error('Commission Rider export is not ready. Return to Commission Rider and try again.');
-  const params = new URLSearchParams({ panel: 'commission-main', scope: 'selection', part: 'primary', from: period.start + ' 00:00:00', to: period.end + ' 23:59:59', filters: typeof financeGrafanaFilterParam === 'function' ? financeGrafanaFilterParam('commission-main') : '{}', revision: 'commission-kpi-v9', refresh: '1' });
-  const { response, payload } = await requestFinancePayload(FINANCE_API_ENDPOINT + '?' + params.toString(), 'deduction-payment:' + record.id + ':' + index, true);
-  if (!response.ok) throw new Error(payload?.error || 'Grafana could not return Commission Rider data for this payment.');
-  if (payload?.truncated) throw new Error('The Commission Rider result is incomplete. Narrow dashboard filters before exporting this payment.');
-  const allRows = await canonicalizeFinancePayloadRows(panel, payload), riderKey = record.riderKey || deductionRiderKey(record.rider), rows = allRows.filter(row => deductionRiderKey(row.rider_name) === riderKey);
-  if (!rows.length) throw new Error('Grafana returned no Commission Rider rows for this rider and payment period.');
+  const allRows = await deductionLoadStatementRows(panel, period.start, period.end), riderKey = deductionRiderKey(record.rider), rows = allRows.filter(row => deductionRiderKey(row.rider_name) === riderKey);
   const columns = visibleTableColumns(panel).map(column => ({ key: column.key, label: column.label, value: row => row[column.key] }));
   const commissionColumn = columns.find(column => String(column.key || '').trim().toLowerCase().replace(/[\s-]+/g, '_') === 'commission');
   if (!commissionColumn) throw new Error('The Commission Rider table has no commission column.');

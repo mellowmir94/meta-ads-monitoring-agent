@@ -125,10 +125,7 @@ async function additionalJobsStatementPayload(rider, start, end) {
 }
 async function additionalJobsFetchStatementPayload(rider, start, end) {
   const panel=panels.find(panel=>panel.id==='commission-main');
-  const params=new URLSearchParams({panel:'commission-main',scope:'selection',part:'primary',from:start+' 00:00:00',to:end+' 23:59:59',filters:'{}',revision:'commission-kpi-v9',refresh:'1'});
-  const {response,payload}=await requestFinancePayload(FINANCE_API_ENDPOINT+'?'+params,'additional-statement:'+rider+':'+start+':'+end,true);
-  if(!response.ok||payload?.truncated)throw new Error('Complete Commission Rider data could not be loaded. Please retry.');
-  const rows=(await canonicalizeFinancePayloadRows(panel,payload)).filter(row=>deductionRiderKey(row.rider_name)===deductionRiderKey(rider));
+  const rows=(await deductionLoadStatementRows(panel,start,end)).filter(row=>deductionRiderKey(row.rider_name)===deductionRiderKey(rider));
   const columns=visibleTableColumns(panel).map(column=>({key:column.key,label:column.label,value:row=>row[column.key]}));
   const index=columns.findIndex(column=>column.key==='commission');
   if(index<0)throw new Error('The Commission Rider table has no commission column.');
