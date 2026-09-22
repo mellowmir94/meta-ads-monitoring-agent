@@ -241,8 +241,6 @@ function deductionUpdateInline(summary) {
       card.querySelector('.deduction-card-applied b').textContent = deductionMoney(selectedPreview.amounts[type]);
     });
     summary.querySelector('.deduction-inline-total').textContent = 'Total Deducted: ' + deductionMoney(selectedPreview.approvedCents);
-    const statement = summary.querySelector('.additional-jobs > strong');
-    if (statement) statement.textContent = 'Selection preview: ' + deductionMoney(selectedPreview.grossCents) + ' + ' + deductionMoney(selectedPreview.additionalCents) + ' − ' + deductionMoney(selectedPreview.approvedCents) + ' = ' + deductionMoney(selectedPreview.netCents);
   }
   const button = summary.querySelector('[data-deduction-inline-create]'); if (button) button.disabled = !(valid && deductionState.loaded || jobsOnly);
   const preview = summary.querySelector('[data-deduction-inline-preview]'); if (preview) preview.textContent = 'Deduction preview: ' + deductionMoney(selectedPreview.approvedCents);
