@@ -20,7 +20,7 @@ async function prepareRiderStatement(payload, jobsReady = null) {
   if(!Number.isSafeInteger(baseNet+extras))throw new Error('Statement total is outside the supported currency range.');
   const totalIndex=footerRows.findIndex(row=>/^total deductions$/i.test(String(row[0])));
   if(totalIndex<0)footerRows.push(row('TOTAL DEDUCTIONS',deductionMoney(0)));
-  footerRows.push(...jobs.map((job,i)=>row('ADDITIONAL JOB '+(i+1)+' · '+job.reference+' · '+job.description,'+ '+deductionMoney(job.amountCents))));
+  footerRows.push(...jobs.map((job,i)=>row('ADDITIONAL JOB '+(i+1)+' · '+job.description,'+ '+deductionMoney(job.amountCents))));
   if(jobs.length)footerRows.push(row('TOTAL ADDITIONAL JOBS','+ '+deductionMoney(extras)));
   footerRows.push(row('NET COMMISSION',deductionMoney(baseNet+extras)));
   return {...payload,title:scope.rider,statementPrepared:true,sourceRowCount:payload.rows.length,rows:[...payload.rows],footerRows,exportSummaryRows:[],summary:{label:'Net Commission',value:deductionMoney(baseNet+extras)}};
@@ -83,6 +83,6 @@ async function downloadMasterRiderExcel(payload) {
   zip.file('xl/drawings/_rels/drawing1.xml.rels',`<Relationships xmlns="${rel}"><Relationship Id="rId1" Type="${docrel}/image" Target="../media/logo.png"/></Relationships>`);
   zip.file('xl/media/logo.png',logo.split(',')[1],{base64:true});
   zip.file('xl/drawings/drawing1.xml',`<xdr:wsDr xmlns:xdr="${ns}drawingml/2006/spreadsheetDrawing" xmlns:a="${ns}drawingml/2006/main"><xdr:oneCellAnchor><xdr:from><xdr:col>0</xdr:col><xdr:colOff>40000</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>40000</xdr:rowOff></xdr:from><xdr:ext cx="2324100" cy="358140"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="1" name="Bateriku logo"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip xmlns:r="${docrel}" r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor></xdr:wsDr>`);
-  const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',compression:'DEFLATE',compressionOptions:{level:1}});
+  const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',compression:'STORE'});
   return financeDeliverDownload(blob,(payload.pdfFilename?.replace(/\.pdf$/i,'')||payload.filename)+'.xlsx');
 }

@@ -14,7 +14,7 @@ function section(a,b){return html.slice(html.indexOf(a),html.indexOf(b,html.inde
   const master=await context.prepareRiderStatement(payload);await context.downloadMasterRiderExcel(master);await context.downloadPdfTable(master);
   const zip=await JSZip.loadAsync(await blob.arrayBuffer()),xml=await zip.file('xl/worksheets/sheet1.xml').async('string');
   assert.ok(zip.file('xl/media/logo.png'));assert.ok(zip.file('xl/drawings/drawing1.xml'));assert.equal(pdfTable.body.length,256);assert.equal(master.rows.length,1);assert.equal(pdfTable.foot,undefined);
-  assert.match(xml,/JOB-249/);assert.doesNotMatch(xml,/\(applied\)|APPLIED DEDUCTIONS/);
+  assert.match(xml,/Extra delivery 249/);assert.doesNotMatch(xml,/JOB-\d+|\(applied\)|APPLIED DEDUCTIONS/);
   assert.equal(master.period,'Payment commission period: 14/09/2026 - 20/09/2026');
   assert.ok(pdfText.includes('Test Rider  Payment commission period: 14/09/2026 - 20/09/2026'));
   assert.doesNotMatch(pdfText.join(' '),/statement rows|Deduction date:|refreshed from Grafana/);
@@ -22,7 +22,7 @@ function section(a,b){return html.slice(html.indexOf(a),html.indexOf(b,html.inde
   assert.equal(master.summary.value,'RM 3200.00');assert.equal(master.footerRows.at(-1)[2],'RM 3200.00');assert.equal(downloadName,'Test Rider.xlsx');
   assert.match(xml,/colSpan|mergeCell/);
   assert.ok(xml.indexOf('TOTAL DEDUCTIONS')<xml.indexOf('ADDITIONAL JOB 1'));
-  assert.ok(xml.indexOf('JOB-249')<xml.indexOf('NET COMMISSION'));
+  assert.ok(xml.indexOf('Extra delivery 249')<xml.indexOf('NET COMMISSION'));
   const styles=await zip.file('xl/styles.xml').async('string');assert.match(styles,/FFFFEB3B/);assert.match(styles,/FF12754B/);
   assert.match(styles,/horizontal="center" vertical="center" wrapText="1"/);
   assert.doesNotMatch(xml,/<pane\b/,'No freeze-pane divider in the statement');

@@ -9,7 +9,7 @@ const record=(id,type,count)=>({id,batchId:'download-test',rider:'Test Rider',re
  let html=fs.readFileSync(path.join(root,'index.html'),'utf8');
  html=html.replace('function additionalJobsHistoryRender(view) {',`window.__setHistoryJobs=jobs=>{additionalJobsState.jobs=jobs;additionalJobsState.loaded=true;deductionHistoryRender();};\nfunction additionalJobsHistoryRender(view) {`);
  html=html.replace('async function additionalJobsStatementPayload(rider, start, end) {',`window.__jobStatement=async(...args)=>prepareRiderStatement(await additionalJobsStatementPayload(...args));\nasync function additionalJobsStatementPayload(rider, start, end) {`);
- html=html.replace('function deductionHistoryRender() {',`window.__downloadFixture=records=>{deductionState.records=records;deductionState.loaded=true;deductionState.actor={role:'maker'};state.api.loaded['commission-main']=true;const view=deductionHistoryEnsure();view.hidden=false;document.getElementById('tab-commission').hidden=false;document.getElementById('tab-commission').classList.add('deduction-history-active');view.querySelector('[data-deduction-history-period-start]').value='2026-09-14';view.querySelector('[data-deduction-history-period-end]').value='2026-09-20';deductionHistoryRender();};\nfunction deductionHistoryRender() {`);
+ html=html.replace('function deductionHistoryRender() {',`window.__downloadFixture=records=>{deductionState.records=records;deductionState.loaded=true;deductionState.actor={role:'maker'};state.api.loaded['commission-main']=true;const view=deductionHistoryEnsure();view.hidden=false;document.getElementById('tab-commission').hidden=false;document.getElementById('tab-commission').classList.add('deduction-history-active');view.querySelector('[data-deduction-history-period-start]').value='2026-09-14';view.querySelector('[data-deduction-history-period-end]').value='2026-09-20';deductionHistoryRender();};window.__historyStatementFooter=async()=>{const group=deductionHistoryGroups(deductionState.records).find(item=>item.id==='download-test');const options=deductionHistoryDownloadOptions(group,{},deductionToday(),'2026-09-14','2026-09-20');const payload=await deductionCombinedPaymentStatementPayload(options,{start:'2026-09-14',end:'2026-09-20'});return payload.footerRows.map(row=>row.filter(Boolean).join(' | '));};\nfunction deductionHistoryRender() {`);
  const browser=await chromium.launch({headless:true,channel:process.env.TEST_BROWSER_CHANNEL||undefined});
  try{for(const {formats,retry} of [{formats:['pdf','excel']},{formats:['pdf']},{formats:['excel']},{formats:['pdf','excel'],retry:true}]){
   let failedLibrary=false;
@@ -42,6 +42,9 @@ const record=(id,type,count)=>({id,batchId:'download-test',rider:'Test Rider',re
   assert.deepEqual(await numbers(),['1','2']);
   await row.locator('[data-deduction-history-type-payment-select][data-deduction-history-payment-type="epf"]').selectOption('epf|1');
   assert.match(await row.locator('.deduction-history-download-item').innerText(),/EPF payment 2.*Special Case payment 1/s);
+  const footerLabels=await page.evaluate(()=>window.__historyStatementFooter());
+  assert.deepEqual(footerLabels.map(row=>row.split(' | ')[0]),['Filtered total','TOTAL DEDUCTIONS','NET COMMISSION']);
+  assert.equal(footerLabels.some(row=>/payment \d+ of \d+|\d{2}\/\d{2}\/\d{4}/i.test(row)),false,'Statement footer must not show payment labels or payment dates');
   // Mixed weeks with no History date filter previously blocked this exact click.
   await page.evaluate(()=>{for(const key of ['start','end'])document.querySelector('[data-deduction-history-period-'+key+']').value='';});
   for(const format of ['pdf','excel'])await row.locator('[data-statement-file-format="'+format+'"]').setChecked(formats.includes(format));
@@ -71,7 +74,8 @@ const record=(id,type,count)=>({id,batchId:'download-test',rider:'Test Rider',re
   const statement=await page.evaluate(()=>window.__jobStatement('Job-only Rider','2026-09-14','2026-09-20'));
   assert.equal(statement.rows.length,0,'Another rider commission must never enter this statement');
   assert.equal(statement.summary.value,'RM 1.00');
-  assert.match(JSON.stringify(statement.footerRows),/JOB-ONLY/);
+  assert.match(JSON.stringify(statement.footerRows),/ADDITIONAL JOB 1 · Additional Job/);
+  assert.doesNotMatch(JSON.stringify(statement.footerRows),/JOB-ONLY/,'Internal Additional Job references must not appear in statements');
   const top=page.locator('[data-deduction-history-export="pdf"]');
   await jobOnly.locator('[data-deduction-history-select]').check();assert.equal(await top.isEnabled(),true);
   const jobPdf=page.waitForEvent('download');await top.click();assert.equal((await jobPdf).suggestedFilename(),'Job-only Rider.pdf');
