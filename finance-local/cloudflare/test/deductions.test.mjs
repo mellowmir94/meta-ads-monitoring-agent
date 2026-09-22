@@ -207,8 +207,9 @@ test('only applied installments reduce rider commission; scheduled installments 
   assert.match(active, /<h3>Rider A<\/h3>/);
   assert.match(active, /data-deduction-inline-type/);
   assert.match(active, /data-deduction-history-open>History<\/button>/);
-  assert.match(active, /Total deductions<\/span><strong>RM 35\.00/);
-  assert.match(active, /Net commission<\/span><strong>RM 315\.00/);
+  // Saved ledger totals stay intact above; an unchecked new draft previews zero.
+  assert.match(active, /Total deductions<\/span><strong data-deduction-preview-total>RM 0\.00/);
+  assert.match(active, /Net commission<\/span><strong data-deduction-preview-net>RM 350\.00/);
   assert.doesNotMatch(active, /data-deduction-inline-type disabled/);
   const inactive = context.deductionSummaryMarkup([...rows, { rider_name: 'Rider B', created_at: '2026-09-10 11:00:00', commission: 20 }], 'main');
   assert.equal(inactive, '');

@@ -16321,23 +16321,35 @@ function deductionDraftFor(id, rider, dates) {
   if (deductionDrafts.get(id)?.scope !== key) deductionDrafts.set(id, { scope: key, selected: [], amounts: {}, batteryPlan: 'fixed-2', batteryCount: 3, manualCount: 1 });
   return deductionDrafts.get(id);
 }
+function deductionSelectedPreview(draft, summary) {
+  const amounts = { epf: 0, insurance: 0, 'battery-tester': 0, manual: 0 };
+  for (const type of draft.selected) {
+    const entered = type === 'epf' ? 25 : type === 'battery-tester' && draft.batteryPlan !== 'manual'
+      ? draft.batteryPlan === 'fixed-7' ? 40 : 50 : Number(draft.amounts[type]);
+    const count = type === 'manual' ? Number(draft.manualCount) : 1;
+    if (Number.isFinite(entered) && entered > 0 && entered <= 1000000 && Number.isInteger(count) && count > 0) amounts[type] = Math.round(entered * 100 / count);
+  }
+  const approvedCents = Object.values(amounts).reduce((sum, cents) => sum + cents, 0);
+  return { ...summary, amounts, statementAmounts: amounts, approvedCents, netCents: summary.grossCents + summary.additionalCents - approvedCents };
+}
 function deductionSummaryMarkup(dataRows, tableId) {
   const dates = auditCapture(tableId)?.scope?.dates || {}, rider = deductionSingleRider(dataRows);
   // The deduction workspace is relevant only after Finance has narrowed the table to one rider.
   // It must never compete with the normal multi-rider table workflow.
   if (!rider.valid) return '';
-  const summary = deductionSummaryForRows(dataRows, dates);
-  const enabled = rider.valid && summary.loaded, draft = deductionDraftFor(tableId, rider, dates), disabled = enabled ? '' : ' disabled';
+  const savedSummary = deductionSummaryForRows(dataRows, dates), draft = deductionDraftFor(tableId, rider, dates);
+  const summary = deductionSelectedPreview(draft, savedSummary);
+  const enabled = rider.valid && summary.loaded, disabled = enabled ? '' : ' disabled';
   const selected = type => draft.selected.includes(type);
   const choice = type => '<label class="deduction-inline-choice"><input type="checkbox" value="' + type + '" data-deduction-inline-type' + (selected(type) ? ' checked' : '') + disabled + '><strong>' + esc(deductionTypes[type]) + '</strong></label>';
   const field = (type, value, readonly = false, total = false) => '<label class="deduction-amount-field"><span>RM</span><input aria-label="' + esc(deductionTypes[type]) + (total ? ' total amount' : ' amount per payment') + '" type="number" min="0.01" max="1000000" step="0.01" inputmode="decimal" data-deduction-inline-amount="' + type + '" value="' + esc(value || '') + '" placeholder="0.00"' + (readonly ? ' readonly' : '') + disabled + '></label>';
-  const card = (type, controls, help) => '<article class="deduction-choice-card' + (selected(type) ? ' is-selected' : '') + '">' + choice(type) + controls + '<small>' + help + '</small><span class="deduction-card-applied">Applied <b>' + esc(enabled ? deductionMoney(summary.amounts[type]) : '—') + '</b></span></article>';
+  const card = (type, controls, help) => '<article class="deduction-choice-card' + (selected(type) ? ' is-selected' : '') + '">' + choice(type) + controls + '<small>' + help + '</small><span class="deduction-card-applied">Selected payment <b>' + esc(enabled ? deductionMoney(summary.amounts[type]) : '—') + '</b></span></article>';
   const error = summary.error || (!rider.valid ? rider.message : '');
   return '<section class="commission-deduction-summary deduction-workspace" data-deduction-table="' + esc(tableId) + '" aria-label="Commission deduction calculation"><header class="deduction-workspace-head"><div><span class="deduction-eyebrow">Commission deduction formula</span><h3>' + esc(rider.valid ? rider.rider : 'Select one rider to prepare deductions') + '</h3><p>' + esc(String(dates.start || '').slice(0, 10) + ' — ' + String(dates.end || '').slice(0, 10)) + ' <span>· ' + formatNumber(dataRows.length) + ' filtered rows</span></p></div></header>' +
     (error ? '<div class="deduction-feedback is-error" role="alert">' + esc(error) + (summary.error ? ' <button type="button" data-deduction-retry>Retry register</button>' : '') + '</div>' : !summary.loaded ? '<div class="deduction-feedback" role="status">Loading deduction register…</div>' : '') +
     '<div class="deduction-choice-grid">' + card('epf', field('epf', '25.00', true), 'RM25 × first 4 weeks · RM100 monthly<br>Thursday; Friday when Wednesday is a holiday') + card('insurance', field('insurance', draft.amounts.insurance), 'Amount per payment · 2 weekly payments') +
     card('battery-tester', '<select aria-label="Battery Tester payment plan" data-deduction-inline-battery-plan' + disabled + '><option value="fixed-2"' + (draft.batteryPlan === 'fixed-2' ? ' selected' : '') + '>2 × RM50 · RM100 total</option><option value="fixed-7"' + (draft.batteryPlan === 'fixed-7' ? ' selected' : '') + '>7 × RM40 · RM280 total</option><option value="manual"' + (draft.batteryPlan === 'manual' ? ' selected' : '') + '>Manual · set amount and payments</option></select>' + field('battery-tester', draft.batteryPlan === 'manual' ? draft.amounts['battery-tester'] : draft.batteryPlan === 'fixed-7' ? '40.00' : '50.00', draft.batteryPlan !== 'manual') + '<label class="deduction-payment-count"><span>Payments</span><input aria-label="Battery Tester number of payments" type="number" min="1" max="52" step="1" inputmode="numeric" data-deduction-inline-battery-count value="' + esc(draft.batteryPlan === 'fixed-7' ? '7' : draft.batteryPlan === 'fixed-2' ? '2' : String(draft.batteryCount || 3)) + '"' + (draft.batteryPlan !== 'manual' ? ' readonly' : '') + disabled + '></label>', 'Fixed weekly schedule or Finance-set weekly payments') + card('manual', field('manual', draft.amounts.manual, false, true) + '<label class="deduction-payment-count"><span>Payments</span><input aria-label="Special Case number of payments" type="number" min="1" max="52" step="1" inputmode="numeric" data-deduction-inline-manual-count value="' + esc(String(draft.manualCount || 1)) + '"' + disabled + '></label><strong class="deduction-payment-breakdown" data-deduction-inline-breakdown="manual"></strong>', 'Enter the total deduction, then split it into weekly payments') + '</div>' +
-    '<div class="deduction-settlement-strip"><div><span>Gross commission</span><strong>' + esc(deductionMoney(summary.grossCents)) + '</strong></div><span class="deduction-equation-sign" aria-hidden="true">+</span><div><span>Additional Jobs</span><strong>' + esc(deductionMoney(summary.additionalCents)) + '</strong></div><span class="deduction-equation-sign" aria-hidden="true">−</span><div><span>Total deductions</span><strong>' + esc(enabled ? deductionMoney(summary.approvedCents) : '—') + '</strong><small>' + esc(enabled ? 'Saved deductions are applied immediately' : 'Requires one rider and a complete register') + '</small></div><span class="deduction-equation-sign" aria-hidden="true">=</span><div class="commission-net-total' + (summary.netCents < 0 ? ' is-negative' : '') + '"><span>Net commission</span><strong>' + esc(enabled ? deductionMoney(summary.netCents) : '—') + '</strong></div></div>' +
+    '<div class="deduction-settlement-strip" data-preview-gross="' + summary.grossCents + '" data-preview-additional="' + summary.additionalCents + '"><div><span>Gross commission</span><strong>' + esc(deductionMoney(summary.grossCents)) + '</strong></div><span class="deduction-equation-sign" aria-hidden="true">+</span><div><span>Additional Jobs</span><strong>' + esc(deductionMoney(summary.additionalCents)) + '</strong></div><span class="deduction-equation-sign" aria-hidden="true">−</span><div><span>Total deductions</span><strong data-deduction-preview-total>' + esc(enabled ? deductionMoney(summary.approvedCents) : '—') + '</strong><small>' + esc(enabled ? 'Preview follows checked payments. Saved History is unchanged.' : 'Requires one rider and a complete register') + '</small></div><span class="deduction-equation-sign" aria-hidden="true">=</span><div class="commission-net-total' + (summary.netCents < 0 ? ' is-negative' : '') + '"><span>Net commission</span><strong data-deduction-preview-net>' + esc(enabled ? deductionMoney(summary.netCents) : '—') + '</strong></div></div>' +
     additionalJobsMarkup(tableId, rider, dates, summary) +
     (summary.legacyCount ? '<p class="deduction-legacy-note">' + summary.legacyCount + ' legacy applied payment(s) use their original due date for this report.</p>' : '') +
     '<footer class="deduction-inline-actions"><button type="button" data-deduction-history-open>History</button><div><strong data-deduction-inline-preview>Deduction preview: —</strong><span data-deduction-inline-message>' + esc(enabled ? 'Choose one or more types, then Proceed. Dates and remarks can be edited in History.' : error || 'Waiting for the deduction register.') + '</span></div><strong class="deduction-inline-total">Total Deducted: ' + esc(enabled ? deductionMoney(summary.approvedCents) : '—') + '</strong><button type="button" data-deduction-inline-create' + (enabled && draft.selected.length || !draft.selected.length && additionalJobsCanProceed(tableId) ? '' : ' disabled') + '>Proceed</button></footer></section>';
@@ -16367,9 +16379,23 @@ function deductionUpdateInline(summary) {
     } else total += cents * count;
   }
   const jobsOnly = !choices.length && typeof additionalJobsCanProceed === 'function' && additionalJobsCanProceed(summary.dataset.deductionTable);
+  const strip = summary.querySelector('.deduction-settlement-strip');
+  const selectedPreview = deductionSelectedPreview(draft, { grossCents: Number(strip?.dataset.previewGross || 0), additionalCents: Number(strip?.dataset.previewAdditional || 0) });
+  if (deductionState.loaded && strip) {
+    strip.querySelector('[data-deduction-preview-total]').textContent = deductionMoney(selectedPreview.approvedCents);
+    strip.querySelector('[data-deduction-preview-net]').textContent = deductionMoney(selectedPreview.netCents);
+    strip.querySelector('.commission-net-total').classList.toggle('is-negative', selectedPreview.netCents < 0);
+    summary.querySelectorAll('.deduction-choice-card').forEach(card => {
+      const type = card.querySelector('[data-deduction-inline-type]').value;
+      card.querySelector('.deduction-card-applied b').textContent = deductionMoney(selectedPreview.amounts[type]);
+    });
+    summary.querySelector('.deduction-inline-total').textContent = 'Total Deducted: ' + deductionMoney(selectedPreview.approvedCents);
+    const statement = summary.querySelector('.additional-jobs > strong');
+    if (statement) statement.textContent = 'Selection preview: ' + deductionMoney(selectedPreview.grossCents) + ' + ' + deductionMoney(selectedPreview.additionalCents) + ' − ' + deductionMoney(selectedPreview.approvedCents) + ' = ' + deductionMoney(selectedPreview.netCents);
+  }
   const button = summary.querySelector('[data-deduction-inline-create]'); if (button) button.disabled = !(valid && deductionState.loaded || jobsOnly);
-  const preview = summary.querySelector('[data-deduction-inline-preview]'); if (preview) preview.textContent = 'Deduction preview: ' + (choices.length ? deductionMoney(total) + ' applied in full' : '—');
-  const message = summary.querySelector('[data-deduction-inline-message]'); if (message && choices.length) message.textContent = valid ? 'Ready. Proceed applies the deduction and opens History.' : 'Enter a valid amount for every selected deduction.';
+  const preview = summary.querySelector('[data-deduction-inline-preview]'); if (preview) preview.textContent = 'Deduction preview: ' + deductionMoney(selectedPreview.approvedCents);
+  const message = summary.querySelector('[data-deduction-inline-message]'); if (message && choices.length) message.textContent = valid ? 'Selected payment preview. Proceed saves the full plan (' + deductionMoney(total) + ') and opens History.' : 'Enter a valid amount for every selected deduction.';
   if(message&&!choices.length)message.textContent=jobsOnly?'Ready. Proceed saves Additional Jobs only. No deduction will be created.':'Select a deduction or add a valid Additional Job to proceed.';
 }
 function deductionDialog(title) {
