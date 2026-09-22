@@ -6117,14 +6117,14 @@
 .deduction-choice-card > small { color: var(--text-soft); font-size: .64rem; line-height: 1.5; }
 .deduction-card-applied { margin-top: auto; padding-top: 8px; display: flex; justify-content: space-between; gap: 8px; color: var(--text-soft); border-top: 1px solid var(--line); font-size: .65rem; }
 .deduction-card-applied b { color: var(--text); font-variant-numeric: tabular-nums; }
-.deduction-settlement-strip { display: grid; grid-template-columns: 1fr 16px 1fr 16px 1.25fr 16px 1fr; gap: 10px; align-items: center; margin: 18px 0; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.deduction-settlement-strip > div { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
-.deduction-settlement-strip > div > span { font-size: .68rem; color: var(--text-soft); }
-.deduction-settlement-strip strong { color: var(--text); font-size: 1.02rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.deduction-settlement-strip small { font-size: .6rem; color: var(--text-soft); line-height: 1.4; }
-.deduction-equation-sign { color: var(--text-soft); font-size: 1.25rem; text-align: center; }
-.deduction-workspace .commission-net-total { padding: 12px 16px; border: 1px solid var(--deduction-border); border-radius: 5px; background: color-mix(in srgb, var(--success) 14%, var(--surface)); }
-.deduction-workspace .commission-net-total strong { color: var(--success); font-size: 1.18rem; }
+.deduction-settlement-strip { position: relative; display: grid; grid-template-columns: minmax(0,1fr) 16px minmax(0,1fr) 16px minmax(0,1fr) 16px minmax(0,1fr); gap: 8px; align-items: stretch; margin: 18px 0; padding: 16px 16px 44px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.deduction-settlement-strip > div { display: flex; min-width: 0; flex-direction: column; justify-content: center; gap: 8px; padding: 12px 10px; border: 1px solid transparent; }
+.deduction-settlement-strip > div > span { font-size: .68rem; line-height: 1.4; color: var(--text-soft); }
+.deduction-settlement-strip strong { color: var(--text); font-size: 1.02rem; line-height: 1.35; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.deduction-settlement-strip small { position: absolute; left: 27px; right: 27px; bottom: 14px; font-size: .6rem; color: var(--text-soft); line-height: 1.4; }
+.deduction-equation-sign { align-self: center; color: var(--text-soft); font-size: 1.1rem; line-height: 1; text-align: center; }
+.deduction-workspace .commission-net-total { padding: 12px 10px; border: 1px solid var(--deduction-border); border-radius: 7px; background: color-mix(in srgb, var(--success) 14%, var(--surface)); }
+.deduction-workspace .commission-net-total strong { color: var(--success); font-size: 1.02rem; }
 .deduction-workspace .commission-net-total.is-negative strong { color: var(--danger); }
 .deduction-workspace .deduction-inline-actions { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--deduction-border); }
 .deduction-inline-actions > div { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
@@ -6315,9 +6315,9 @@
   .deduction-workspace-head button { padding: 7px 9px; white-space: nowrap; }
   .deduction-choice-grid { grid-template-columns: 1fr; gap: 8px; }
   .deduction-choice-card { padding: 12px; }
-  .deduction-settlement-strip { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .deduction-settlement-strip { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 14px; }
   .deduction-settlement-strip > div { flex-direction: row; flex-wrap: wrap; align-items: baseline; justify-content: space-between; }
-  .deduction-settlement-strip small { flex-basis: 100%; }
+  .deduction-settlement-strip small { position: static; flex-basis: 100%; }
   .deduction-equation-sign { display: none; }
   .deduction-workspace .deduction-inline-actions { flex-direction: column; align-items: stretch; gap: 12px; }
   .audit-template-dialog.deduction-workflow-dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); border-radius: 8px; }
