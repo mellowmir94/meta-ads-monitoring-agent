@@ -818,6 +818,20 @@ async function deductionHistoryDownloadBatch(groupId, button, selectedFormats = 
     throw error;
   } finally { if (button.isConnected) { button.disabled = false; button.textContent = originalLabel; button.removeAttribute('aria-busy'); } }
 }
+function deductionHistoryPrefetchRow(row) {
+  if (!row || !deductionState.loaded) return;
+  const staticTools = [ensureFinanceExportBundle('pdf'), ensureFinanceExportBundle('excel'), financePdfLogo()];
+  if (row.hasAttribute('data-additional-only-row')) {
+    void Promise.allSettled([...staticTools, additionalJobsLoad(), additionalJobsStatementPayload(row.dataset.jobRider, row.dataset.jobStart, row.dataset.jobEnd)]);
+    return;
+  }
+  const group = deductionHistoryGroups(deductionState.records).find(item => item.id === row.dataset.deductionBatchId);
+  if (!group) return;
+  const view = deductionHistoryEnsure(), filters = deductionHistoryFilters(view);
+  const options = deductionHistoryDownloadOptions(group, {}, deductionToday(), filters.periodStart, filters.periodEnd);
+  if (!options.length) return;
+  void Promise.allSettled([...staticTools, additionalJobsLoad(), deductionCombinedPaymentStatementPayload(options, { start: filters.periodStart, end: filters.periodEnd })]);
+}
 async function deductionHistoryExport(format) {
   if (format === 'pdf') {
     const view = deductionHistoryEnsure(), checked = view.querySelector('[data-deduction-history-select]:checked');
@@ -1133,6 +1147,17 @@ document.addEventListener('change', event => {
   const row = checkbox.closest('tr'), id = row?.dataset.deductionBatchId || row?.dataset.jobSelectionId; if (!id) return;
   deductionHistorySelected.clear();
   document.querySelectorAll('[data-deduction-history-select]').forEach(input => { if (input !== checkbox) input.checked = false; });
-  if (checkbox.checked) deductionHistorySelected.add(id);
+  if (checkbox.checked) {
+    deductionHistorySelected.add(id);
+    // Start preparing the selected rider immediately. The header button then
+    // reuses these in-flight/cached requests instead of beginning from zero.
+    deductionHistoryPrefetchRow(row);
+  }
   const button = deductionHistoryEnsure()?.querySelector('[data-deduction-history-export="pdf"]'); if (button) button.disabled = deductionHistorySelected.size !== 1 || !deductionState.loaded;
 });
+function deductionHistoryWarmDownloadFromIntent(event) {
+  const control = event.target.closest?.('[data-deduction-history-batch-download],[data-additional-download]');
+  if (control) deductionHistoryPrefetchRow(control.closest('tr'));
+}
+document.addEventListener('pointerover', deductionHistoryWarmDownloadFromIntent);
+document.addEventListener('focusin', deductionHistoryWarmDownloadFromIntent);

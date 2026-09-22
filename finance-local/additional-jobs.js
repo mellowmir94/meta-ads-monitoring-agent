@@ -1,9 +1,12 @@
 // Additional earnings are separate from deduction records and source order rows.
-const additionalJobsState = { jobs: [], loaded: false, loading: null, error: '' };
+const additionalJobsState = { jobs: [], loaded: false, loadedAt: 0, loading: null, error: '' };
 const additionalJobDrafts = new Map();
+const additionalJobsStatementCache = new Map();
 async function additionalJobsLoad(force = false) {
   if (additionalJobsState.loading) return additionalJobsState.loading;
-  if (additionalJobsState.loaded && !force) return additionalJobsState.jobs;
+  // Downloads may call this immediately after History has already loaded the
+  // same register. Reuse that fresh result instead of adding another request.
+  if (additionalJobsState.loaded && (!force || Date.now() - additionalJobsState.loadedAt < 30000)) return additionalJobsState.jobs;
   additionalJobsState.loading = (async () => {
     const jobs = [], seen = new Set(); let next = '';
     do {
@@ -13,7 +16,7 @@ async function additionalJobsLoad(force = false) {
       if (next && seen.has(next)) throw new Error('Additional Jobs register is incomplete.');
       seen.add(next);
     } while (next);
-    Object.assign(additionalJobsState, {jobs,loaded:true,error:''}); return jobs;
+    Object.assign(additionalJobsState, {jobs,loaded:true,loadedAt:Date.now(),error:''}); return jobs;
   })().catch(error => { additionalJobsState.loaded=false; additionalJobsState.error=error.message; throw error; }).finally(() => { additionalJobsState.loading=null; });
   return additionalJobsState.loading;
 }
@@ -104,7 +107,8 @@ document.addEventListener('click',event=>{
     try{
       const result=await deductionRequest('/delete-jobs',{rider,periodStart,periodEnd,expectedJobs,requestId,pin:form.elements.pin.value});
       for(const [id,draft] of additionalJobDrafts)if(draft.scope===[deductionRiderKey(rider),periodStart,periodEnd].join('|'))additionalJobDrafts.delete(id);
-      deductionStatementPayloadCache.clear();deductionHistorySelected.delete(row.dataset.jobSelectionId);
+      deductionStatementPayloadCache.clear();additionalJobsStatementCache.clear();deductionHistorySelected.delete(row.dataset.jobSelectionId);
+      additionalJobsState.loaded=false;
       await additionalJobsLoad(true);render();deductionHistoryRender();
       body.innerHTML='<p role="status">'+Number(result.deleted)+' Additional Jobs removed. Audit history retained.</p><button type="button" data-job-delete-done>Done</button>';
       body.querySelector('[data-job-delete-done]').onclick=()=>dialog.close();
@@ -113,6 +117,13 @@ document.addEventListener('click',event=>{
 });
 async function additionalJobsStatementPayload(rider, start, end) {
   if(!rider||!start||!end)throw new Error('A rider and commission period are required.');
+  const cacheKey=[deductionRiderKey(rider),start,end].join('|'),cached=additionalJobsStatementCache.get(cacheKey);
+  if(cached&&Date.now()-cached.createdAt<30000)return cached.promise;
+  const promise=additionalJobsFetchStatementPayload(rider,start,end).catch(error=>{additionalJobsStatementCache.delete(cacheKey);throw error;});
+  additionalJobsStatementCache.set(cacheKey,{createdAt:Date.now(),promise});
+  return promise;
+}
+async function additionalJobsFetchStatementPayload(rider, start, end) {
   const panel=panels.find(panel=>panel.id==='commission-main');
   const params=new URLSearchParams({panel:'commission-main',scope:'selection',part:'primary',from:start+' 00:00:00',to:end+' 23:59:59',filters:'{}',revision:'commission-kpi-v9',refresh:'1'});
   const {response,payload}=await requestFinancePayload(FINANCE_API_ENDPOINT+'?'+params,'additional-statement:'+rider+':'+start+':'+end,true);
@@ -186,7 +197,8 @@ async function additionalJobsSave(host) {
     warning=result.backupWarning||'';
     draft.rows=result.jobs.map(job=>({id:job.id,description:job.description,amount:(job.amountCents/100).toFixed(2),saved:true}));
     draft.baseline=result.jobs.map(job=>({id:job.id,description:job.description,amountCents:job.amountCents}));draft.payload=null;
-    await additionalJobsLoad(true);deductionStatementPayloadCache.clear();draft.saving=false;render();
+    additionalJobsState.loaded=false;
+    await additionalJobsLoad(true);deductionStatementPayloadCache.clear();additionalJobsStatementCache.clear();draft.saving=false;render();
     const current=document.querySelector('[data-additional-table="'+id+'"] [data-additional-feedback]');if(current)current.textContent=warning||'Additional Jobs saved in History and included in rider Excel/PDF statements.';
     return true;
   }catch(error){feedback.textContent=error.message+' Saved rows are preserved. Retry to continue without duplicates.';}

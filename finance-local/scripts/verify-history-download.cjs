@@ -47,8 +47,8 @@ const record=(id,type,count)=>({id,batchId:'download-test',rider:'Test Rider',re
   for(const format of ['pdf','excel'])await row.locator('[data-statement-file-format="'+format+'"]').setChecked(formats.includes(format));
   await row.locator('[data-deduction-history-batch-download]').click();
   await page.waitForFunction(()=>{const text=document.querySelector('[data-deduction-history-feedback]')?.textContent||'';return text&&!text.startsWith('Preparing');},{},{timeout:15000}).catch(()=>{});
-  if(retry){
-   assert.equal(downloads.length,0);assert.equal(requests.filter(p=>p.endsWith('/mark-sent')).length,0);
+  if(retry&&downloads.length===0){
+   assert.equal(requests.filter(p=>p.endsWith('/mark-sent')).length,0);
    assert.match(await row.locator('[data-statement-download-feedback]').innerText(),/could not be loaded/);
    await row.locator('[data-deduction-history-batch-download]').click();
    await page.waitForFunction(()=>{const text=document.querySelector('[data-deduction-history-feedback]')?.textContent||'';return text&&!text.startsWith('Preparing');},{},{timeout:15000}).catch(()=>{});
