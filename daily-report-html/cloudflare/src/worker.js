@@ -1063,21 +1063,18 @@ async function queryCommissionPrimaryBundle(env, window, options = {}) {
   // Commission parity requests intentionally bypass the dashboard-definition
   // cache. A saved Grafana query/variable change must be reflected in Finance
   // on the next request, not after the former 10-minute cache expires.
-  const detail = await financePanelTarget(env, FINANCE_PANEL_MAP['commission-main'], { forceFresh: true });
+  // Start definitions together so the shared dashboard request is reused.
+  const detailPending = financePanelTarget(env, FINANCE_PANEL_MAP['commission-main'], { forceFresh: true });
+  let metricDefinitionError = '';
+  const metricsPending = options.detailOnly ? Promise.resolve([null, null]) : Promise.all([
+    financePanelTarget(env, FINANCE_PANEL_MAP['commission-order-source'], { forceFresh: true }),
+    financePanelTarget(env, FINANCE_PANEL_MAP['commission-total-source'], { forceFresh: true })
+  ]).catch(reason => { metricDefinitionError = reason && reason.message || 'Commission KPI query definition was not found.'; return [null, null]; });
+  const [detail, [countMetric, totalMetric]] = await Promise.all([detailPending, metricsPending]);
   // Do not approximate Grafana's "$__all" as IS NOT NULL. The dashboard
   // expands it to the actual values from its variable query, which is the
   // only scope that can make this application reconcile 1:1 with Grafana.
   const resolvedVariableOverrides = await resolveCommissionVariableOverrides(env, detail.dashboard, options.variableOverrides);
-  let countMetric = null;
-  let totalMetric = null;
-  let metricDefinitionError = '';
-  try {
-    [countMetric, totalMetric] = await Promise.all([
-      financePanelTarget(env, FINANCE_PANEL_MAP['commission-order-source'], { forceFresh: true }),
-      financePanelTarget(env, FINANCE_PANEL_MAP['commission-total-source'], { forceFresh: true })
-    ]);
-  }
-  catch (reason) { metricDefinitionError = reason && reason.message || 'Commission KPI query definition was not found.'; }
   const detailDatasource = detail.target.datasource || detail.panel.datasource || { type: 'grafana-bigquery-datasource', uid: '1oBzAPaNk' };
   const detailQuery = buildFinanceQuery(detail.target, detailDatasource, 'commission-main', window, detail.dashboard, { primary: true, maxDataPoints: 10000, variableOverrides: resolvedVariableOverrides });
   detailQuery.refId = 'A';
@@ -1123,6 +1120,7 @@ async function queryCommissionPrimaryBundle(env, window, options = {}) {
   const totalResult = totalPayload && totalPayload.results && totalPayload.results.A;
   if (!detailResult || detailResult.error) throw new Error(`Grafana rejected Commission Rider detail: ${String(detailResult && detailResult.error || 'no result').slice(0, 240)}`);
   const rows = frameRows({ results: { A: detailResult } }).map((row) => normalizeFinanceRow('commission-main', row, window));
+  if (options.detailOnly) return { rows, metricRows: null, summaryError: '' };
   const metricTransportError = !countResponse || !totalResponse
     ? 'Network request failed'
     : !countResponse.ok ? `Count HTTP ${countResponse.status}`
@@ -1370,6 +1368,7 @@ async function financeLiveResponse(request, env) {
   const requestedPart = String(url.searchParams.get('part') || 'all').toLowerCase();
   try {
     const scopeEligible = panelKey === 'commission-main' || Boolean(FINANCE_GRAFANA_TABLES[panelKey]);
+    const statementOnly = panelKey === 'commission-main' && requestedPart === 'statement';
     const variableOverrides = parseFinanceFilterOverrides(url, panelKey);
     const hasExplicitWindow = url.searchParams.has('from') || url.searchParams.has('to');
     const useSavedGrafanaVariables = scopeEligible
@@ -1388,7 +1387,7 @@ async function financeLiveResponse(request, env) {
     // even when this request carries a table-local/browser override. The
     // request scope is already represented by variableOverrides below; mixing
     // it into filterState makes the UI lose Grafana's canonical option set.
-    const filterStatePromise = FINANCE_FILTER_VARIABLES[panelKey]
+    const filterStatePromise = !statementOnly && FINANCE_FILTER_VARIABLES[panelKey]
       ? financeCurrentFilterState(env, panelKey).catch(() => null)
       : Promise.resolve(null);
     let rows;
@@ -1399,8 +1398,8 @@ async function financeLiveResponse(request, env) {
     let sourceTables = null;
     if (panelKey === 'commission-main') {
       const [primaryResult, optionsResult] = await Promise.allSettled([
-        requestedPart === 'options' ? Promise.resolve({ rows: [], metricRows: null, summaryError: '' }) : queryCommissionPrimaryBundle(env, window, { variableOverrides }),
-        requestedPart === 'primary' ? Promise.resolve({}) : queryCommissionFilterOptions(env)
+        requestedPart === 'options' ? Promise.resolve({ rows: [], metricRows: null, summaryError: '' }) : queryCommissionPrimaryBundle(env, window, { variableOverrides, detailOnly: statementOnly }),
+        requestedPart === 'primary' || statementOnly ? Promise.resolve({}) : queryCommissionFilterOptions(env)
       ]);
       if (primaryResult.status === 'rejected') throw primaryResult.reason;
       rows = primaryResult.value.rows;

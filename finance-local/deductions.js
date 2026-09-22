@@ -724,7 +724,7 @@ function deductionLoadStatementRows(panel, start, end) {
   return pending;
 }
 async function deductionFetchStatementRows(panel, start, end) {
-  const params = new URLSearchParams({ panel: 'commission-main', scope: 'selection', part: 'primary', from: start + ' 00:00:00', to: end + ' 23:59:59', filters: '{}', revision: 'commission-kpi-v9', refresh: '1' });
+  const params = new URLSearchParams({ panel: 'commission-main', scope: 'selection', part: 'statement', from: start + ' 00:00:00', to: end + ' 23:59:59', filters: '{}', revision: 'commission-statement-v1', refresh: '1' });
   const { response, payload } = await requestFinancePayload(FINANCE_API_ENDPOINT + '?' + params, 'statement-rows:' + start + ':' + end, true);
   if (!response.ok || payload?.ok === false || payload?.error) throw new Error(payload?.error || 'Commission data could not be loaded. Please retry the download.');
   if (payload?.truncated) {

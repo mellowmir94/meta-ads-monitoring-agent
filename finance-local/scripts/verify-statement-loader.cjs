@@ -29,6 +29,7 @@ test('simultaneous rider exports and previews share one request without aborting
   assert.equal(h.requests.length, 1);
   assert.ok(rows.every(result => result.length === 2));
   assert.equal(h.requests[0].searchParams.get('filters'), '{}');
+  assert.equal(h.requests[0].searchParams.get('part'), 'statement');
   await h.load(); assert.equal(h.requests.length, 1, 'The next rider reuses the just-loaded period');
   h.advance(30001);
   await h.load(); assert.equal(h.requests.length, 2, 'Expired data is refreshed');
