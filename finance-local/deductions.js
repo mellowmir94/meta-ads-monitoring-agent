@@ -703,10 +703,22 @@ function deductionPaymentStatementCacheKey(record, index, commissionRange = null
   const item = deductionHistoryProgress(record).items[index] || {};
   return [record.id, index, item.dueDate, item.settlementPeriodStart, item.settlementPeriodEnd, commissionRange?.start || '', commissionRange?.end || '', record.amountCents, record.installmentCount, record.pricingMode, record.updatedAt].join('|');
 }
-async function deductionLoadStatementRows(panel, start, end) {
+const deductionStatementRowLoads = new Map();
+function deductionLoadStatementRows(panel, start, end) {
+  const key = [panel.id, start, end].join('|');
+  if (deductionStatementRowLoads.has(key)) return deductionStatementRowLoads.get(key);
+  // Exports and hover previews for different riders can share the same period.
+  // Share only pending work: each later load still fetches current source data.
+  const pending = deductionFetchStatementRows(panel, start, end).finally(() => {
+    if (deductionStatementRowLoads.get(key) === pending) deductionStatementRowLoads.delete(key);
+  });
+  deductionStatementRowLoads.set(key, pending);
+  return pending;
+}
+async function deductionFetchStatementRows(panel, start, end) {
   const params = new URLSearchParams({ panel: 'commission-main', scope: 'selection', part: 'primary', from: start + ' 00:00:00', to: end + ' 23:59:59', filters: '{}', revision: 'commission-kpi-v9', refresh: '1' });
   const { response, payload } = await requestFinancePayload(FINANCE_API_ENDPOINT + '?' + params, 'statement-rows:' + start + ':' + end, true);
-  if (!response.ok) throw new Error(payload?.error || 'Commission data could not be loaded. Please retry the download.');
+  if (!response.ok || payload?.ok === false || payload?.error) throw new Error(payload?.error || 'Commission data could not be loaded. Please retry the download.');
   if (payload?.truncated) {
     const first = Date.parse(start + 'T00:00:00Z'), last = Date.parse(end + 'T00:00:00Z'), day = 86400000;
     if (!Number.isFinite(first) || !Number.isFinite(last) || last <= first) throw new Error('Commission data is incomplete for ' + start + '. Please retry the download.');
@@ -715,7 +727,16 @@ async function deductionLoadStatementRows(panel, start, end) {
     const right = await deductionLoadStatementRows(panel, new Date(middle + day).toISOString().slice(0, 10), end);
     return [...left, ...right];
   }
-  return canonicalizeFinancePayloadRows(panel, payload);
+  const packed = payload?.packedRows;
+  if (packed) {
+    if (packed.version !== 1 || !Number.isSafeInteger(packed.rowCount) || packed.rowCount < 0 || !Array.isArray(packed.columns) || !packed.columns.length || packed.columns.some(column => typeof column?.key !== 'string' || !Array.isArray(column.values) || column.values.length !== packed.rowCount)) throw new Error('Commission data is incomplete. Please retry the download.');
+  } else if (!Array.isArray(payload?.rows)) {
+    throw new Error('Commission data is invalid. Please retry the download.');
+  }
+  const rows = await canonicalizeFinancePayloadRows(panel, payload);
+  const expected = payload.rowCount ?? packed?.rowCount ?? payload.rows.length;
+  if (!Number.isSafeInteger(expected) || expected < 0 || !Array.isArray(rows) || rows.length !== expected) throw new Error('Commission data is incomplete. Please retry the download.');
+  return rows;
 }
 async function deductionFreshPaymentStatementPayload(record, index, commissionRange = null) {
   const progress = deductionHistoryProgress(record), item = progress.items[index];
