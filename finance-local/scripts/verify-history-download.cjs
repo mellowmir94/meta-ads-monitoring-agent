@@ -10,7 +10,7 @@ const record=(id,type,count)=>({id,batchId:'download-test',rider:'Test Rider',re
  html=html.replace('function additionalJobsHistoryRender(view) {',`window.__setHistoryJobs=jobs=>{additionalJobsState.jobs=jobs;additionalJobsState.loaded=true;deductionHistoryRender();};\nfunction additionalJobsHistoryRender(view) {`);
  html=html.replace('async function additionalJobsStatementPayload(rider, start, end) {',`window.__jobStatement=async(...args)=>prepareRiderStatement(await additionalJobsStatementPayload(...args));\nasync function additionalJobsStatementPayload(rider, start, end) {`);
  html=html.replace('function deductionHistoryRender() {',`window.__downloadFixture=records=>{deductionState.records=records;deductionState.loaded=true;deductionState.actor={role:'maker'};state.api.loaded['commission-main']=true;const view=deductionHistoryEnsure();view.hidden=false;document.getElementById('tab-commission').hidden=false;document.getElementById('tab-commission').classList.add('deduction-history-active');view.querySelector('[data-deduction-history-period-start]').value='2026-09-14';view.querySelector('[data-deduction-history-period-end]').value='2026-09-20';deductionHistoryRender();};\nfunction deductionHistoryRender() {`);
- const browser=await chromium.launch({headless:true});
+ const browser=await chromium.launch({headless:true,channel:process.env.TEST_BROWSER_CHANNEL||undefined});
  try{for(const {formats,retry} of [{formats:['pdf','excel']},{formats:['pdf']},{formats:['excel']},{formats:['pdf','excel'],retry:true}]){
   let failedLibrary=false;
   const page=await browser.newPage({viewport:{width:1500,height:1000},acceptDownloads:true}),downloads=[],errors=[],requests=[];

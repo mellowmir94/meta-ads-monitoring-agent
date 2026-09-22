@@ -11542,7 +11542,7 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
         const csv = [headers.join(","), ...enrichedRows.map((row) => headers.map((key) => csvEscape(row[key])).join(","))].join("\r\n");
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8" }); const link = document.createElement("a");
         const generated = new Date().toISOString().slice(0, 10); const range = dates.start && dates.end ? `${dates.start}-to-${dates.end}`.replace(/[^0-9A-Za-z-]+/g, "_") : "active-period";
-        link.href = URL.createObjectURL(blob); link.download = `${panel.id}-${range}-${generated}.csv`; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(link.href);
+        financeDeliverDownload(blob, `${panel.id}-${range}-${generated}.csv`);
         setStatus("Filtered data exported", `${exportRows.length} filtered rows were exported from ${panel.title}.`);
       }
 
@@ -11559,9 +11559,7 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
         const link = document.createElement("a");
         const safeTitle = String(table.title || table.key).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-        link.href = URL.createObjectURL(blob);
-        link.download = `${panelId}-${safeTitle}-${new Date().toISOString().slice(0, 10)}.csv`;
-        document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(link.href);
+        financeDeliverDownload(blob, `${panelId}-${safeTitle}-${new Date().toISOString().slice(0, 10)}.csv`);
         setStatus("Grafana table exported", `${formatNumber(sourceRows.length)} rows from ${table.title} were exported in the exact Grafana column order.`);
       }
 
@@ -11569,9 +11567,28 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
         return String(value || "finance-table").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 90) || "finance-table";
       }
 
+      function financeDeliverDownload(blob, filename) {
+        let tray=document.getElementById('financeReadyDownloads');
+        if(!tray){
+          tray=document.createElement('section');tray.id='financeReadyDownloads';tray.setAttribute('aria-label','Prepared downloads');
+          tray.style.cssText='position:fixed;bottom:20px;right:20px;z-index:2147483647;max-width:min(420px,calc(100vw - 40px));max-height:40vh;overflow:auto;padding:16px;border:1px solid var(--line,#435036);border-radius:12px;background:var(--surface-strong,#172014);color:var(--text,#fff);box-shadow:0 8px 30px #0005';
+          const title=document.createElement('strong');title.textContent='Files ready';title.setAttribute('role','status');tray.append(title);
+          const help=document.createElement('p');help.textContent='If the download did not start, click Save below. No need to prepare it again.';help.style.cssText='font-size:12px;margin:8px 0';tray.append(help);
+          const clear=document.createElement('button');clear.type='button';clear.dataset.financeDownloadClear='';clear.textContent='Clear files';clear.onclick=()=>{tray.querySelectorAll('[data-finance-file-link]').forEach(link=>URL.revokeObjectURL(link.href));tray.remove();};tray.append(clear);
+          document.body.append(tray);
+        }
+        const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=filename;link.dataset.financeFileLink='';link.textContent='Save '+filename;
+        link.style.cssText='display:block;margin-top:10px;color:var(--accent,#b1f43f);overflow-wrap:anywhere;text-decoration:underline';tray.append(link);
+        // Keep the URL alive for Edge and retain a genuine user-click fallback.
+        const links=[...tray.querySelectorAll('[data-finance-file-link]')];
+        if(links.length>6){URL.revokeObjectURL(links[0].href);links[0].remove();}
+        try{link.click();}catch(error){console.warn('Automatic save unavailable; use the prepared file link.');}
+        return true;
+      }
       const financeOptionalScriptLoads = new Map();
       const FINANCE_PDF_LOGO_ASSET = "assets/bateriku-finance-logo.png";
       let financePdfLogoDataUrl = null;
+      let financePdfLogoLoading = null;
       function loadFinanceOptionalScript(src) {
         if (financeOptionalScriptLoads.has(src)) return financeOptionalScriptLoads.get(src);
         const promise = new Promise((resolve, reject) => {
@@ -11610,6 +11627,11 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
       }
 
       async function financePdfLogo() {
+        if(financePdfLogoDataUrl)return financePdfLogoDataUrl;
+        if(!financePdfLogoLoading)financePdfLogoLoading=loadFinancePdfLogo().finally(()=>{financePdfLogoLoading=null;});
+        return financePdfLogoLoading;
+      }
+      async function loadFinancePdfLogo() {
         if (financePdfLogoDataUrl) return financePdfLogoDataUrl;
         const response = await fetch(versionedFinanceAsset(FINANCE_PDF_LOGO_ASSET), { credentials: "same-origin" });
         if (!response.ok) throw new Error("The Bateriku logo could not be loaded for this PDF.");
@@ -11638,6 +11660,14 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
       function financeExportPanelTitle(panel) {
         return panel?.id === "commission-main" ? "Commission Rider" : panel?.title || "Finance Table";
       }
+      // Prepare static tools on intent, not financial data: safe to reuse across exports.
+      function warmFinanceDownloadTools(event) {
+        const target=event.target.closest?.('.export-menu,[data-finance-export-format],[data-deduction-history-export],[data-deduction-history-batch-download],[data-additional-download],[data-booking-export],[data-deduction-history-select]');
+        if(!target)return;
+        void Promise.allSettled([ensureFinanceExportBundle('pdf'),ensureFinanceExportBundle('excel'),financePdfLogo()]);
+      }
+      document.addEventListener('pointerover',warmFinanceDownloadTools);
+      document.addEventListener('focusin',warmFinanceDownloadTools);
 
       function financeCommissionExportMeta(panel, columns, exportRows, tableId = "") {
         if (panel?.id !== "commission-main") return { summary: null, footer: null };
@@ -11788,11 +11818,9 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
         zip.folder("xl").folder("_rels").file("workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`);
         zip.folder("xl").folder("worksheets").file("sheet1.xml", worksheet);
         zip.folder("xl").file("styles.xml", styles);
-        const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", compression: "DEFLATE", compressionOptions: { level: 6 } });
+        const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", compression: "DEFLATE", compressionOptions: { level: 1 } });
         const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `${payload.filename}-${new Date().toISOString().slice(0, 10)}.xlsx`;
-        document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(link.href);
+        financeDeliverDownload(blob, `${payload.filename}-${new Date().toISOString().slice(0, 10)}.xlsx`);
       }
 
       function renderWithColumnMenuOpen(columnToggle) {
@@ -11924,7 +11952,7 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
             doc.text(`Page ${pageNumber}`, doc.internal.pageSize.getWidth() - 20, doc.internal.pageSize.getHeight() - 12, { align: "right" });
           }
         });
-        doc.save(payload.pdfFilename || `${payload.filename}-${new Date().toISOString().slice(0, 10)}.pdf`);
+        financeDeliverDownload(doc.output('blob'), payload.pdfFilename || `${payload.filename}-${new Date().toISOString().slice(0, 10)}.pdf`);
         return true;
       }
 
@@ -14247,12 +14275,7 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
         const csv = [headers.join(","), ...sampleRows.map((row) => headers.map((header) => csvEscape(row[header])).join(","))].join("\r\n");
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
         const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `${panel.id}-sample.csv`;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(link.href);
+        financeDeliverDownload(blob, `${panel.id}-sample.csv`);
       }
 
       function downloadRejectedPreview(panelId) {
@@ -14267,7 +14290,7 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
         const csv = [headers.join(","), ...preview.map((row) => headers.map((key) => csvEscape(row[key])).join(","))].join("\r\n");
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
         const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob); link.download = `${panel.id}-rejected-preview.csv`; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(link.href);
+        financeDeliverDownload(blob, `${panel.id}-rejected-preview.csv`);
         setStatus("Rejected preview exported", `${preview.length} rejected rows were exported for ${panel.title}.`);
       }
 
@@ -17520,8 +17543,8 @@ async function downloadMasterRiderExcel(payload) {
   zip.file('xl/drawings/_rels/drawing1.xml.rels',`<Relationships xmlns="${rel}"><Relationship Id="rId1" Type="${docrel}/image" Target="../media/logo.png"/></Relationships>`);
   zip.file('xl/media/logo.png',logo.split(',')[1],{base64:true});
   zip.file('xl/drawings/drawing1.xml',`<xdr:wsDr xmlns:xdr="${ns}drawingml/2006/spreadsheetDrawing" xmlns:a="${ns}drawingml/2006/main"><xdr:oneCellAnchor><xdr:from><xdr:col>0</xdr:col><xdr:colOff>40000</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>40000</xdr:rowOff></xdr:from><xdr:ext cx="2324100" cy="358140"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="1" name="Bateriku logo"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip xmlns:r="${docrel}" r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor></xdr:wsDr>`);
-  const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',compression:'DEFLATE'});
-  const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=(payload.pdfFilename?.replace(/\.pdf$/i,'')||payload.filename)+'.xlsx';document.body.append(link);link.click();link.remove();URL.revokeObjectURL(link.href);return true;
+  const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',compression:'DEFLATE',compressionOptions:{level:1}});
+  return financeDeliverDownload(blob,(payload.pdfFilename?.replace(/\.pdf$/i,'')||payload.filename)+'.xlsx');
 }
 // Uploaded booking records have their own reporting weeks and do not feed commission totals.
 const bookingState={records:[],loaded:false,loading:false,busy:false,error:'',latest:null,week:'',search:'',branch:'',status:'active',view:'week',page:0};
