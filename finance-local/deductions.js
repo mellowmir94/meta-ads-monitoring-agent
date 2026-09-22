@@ -705,6 +705,18 @@ function deductionPaymentStatementCacheKey(record, index, commissionRange = null
 }
 const deductionStatementRowLoads = new Map();
 const deductionStatementRowsCache = new Map();
+function deductionRememberLiveStatementRows(panel, payload, rows, filters) {
+  // Only a complete, explicitly unfiltered daily scope is safe for every rider.
+  if (panel.id !== 'commission-main' || payload.truncated || !filters || !Object.keys(filters).length) return false;
+  if (Object.values(filters).some(values => !Array.isArray(values) || values.length !== 1 || values[0] !== '$__all')) return false;
+  const start = /^(\d{4}-\d{2}-\d{2})(?:[ T]00:00:00)?$/.exec(payload.from || '')?.[1];
+  const end = /^(\d{4}-\d{2}-\d{2})(?:[ T]23:59:59)?$/.exec(payload.to || '')?.[1];
+  const count = payload.rowCount ?? payload.packedRows?.rowCount ?? payload.rows?.length;
+  if (!start || !end || end < start || !Array.isArray(rows) || count !== rows.length) return false;
+  deductionStatementRowsCache.set([panel.id, start, end].join('|'), { rows, loadedAt: Date.now() });
+  while (deductionStatementRowsCache.size > 3) deductionStatementRowsCache.delete(deductionStatementRowsCache.keys().next().value);
+  return true;
+}
 function deductionLoadStatementRows(panel, start, end) {
   const key = [panel.id, start, end].join('|');
   const cached = deductionStatementRowsCache.get(key);

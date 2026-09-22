@@ -6,7 +6,7 @@ const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 function harness(respond) {
   const requests = [];
   let now = Date.now();
-  const context = { URLSearchParams, AbortController, performance, Date: class extends Date { static now() { return now; } }, panels: [{ id: 'commission-main' }],
+  const context = { URLSearchParams, AbortController, performance, setTimeout, clearTimeout, Date: class extends Date { static now() { return now; } }, panels: [{ id: 'commission-main' }],
     FINANCE_API_ENDPOINT: '/api/finance', financeInflightRequests: new Map(), financePanelControllers: new Map(), activePanel: () => null,
     fetch: async (url, options) => {
       const parsedUrl = new URL(url, 'https://test'); requests.push(parsedUrl);
@@ -37,6 +37,37 @@ test('simultaneous rider exports and previews share one request without aborting
 test('a malformed successful response cannot become zero commission', async () => {
   const h = harness(() => ({}));
   await assert.rejects(h.load, /incomplete|invalid/i);
+});
+test('exports reuse a complete live table for the exact period, but refresh after expiry', async () => {
+  const h = harness(() => ({ rows: [], rowCount: 0 }));
+  const rows = [{ rider_name: 'Rider A', commission: 20 }];
+  const payload = { from: '2026-09-14 00:00:00', to: '2026-09-20 23:59:59', rowCount: 1 };
+  assert.equal(h.context.deductionRememberLiveStatementRows(h.context.panels[0], payload, rows, { rider: ['$__all'] }), true);
+  assert.equal((await h.load())[0].commission, 20);
+  assert.equal(h.requests.length, 0);
+  h.advance(30001);
+  await h.load();
+  assert.equal(h.requests.length, 1);
+});
+test('filtered, incomplete or partial-day table data cannot seed exports', async () => {
+  for (const variant of [
+    { filters: { rider: ['Rider A'] } },
+    { payload: { truncated: true } },
+    { payload: { rowCount: 2 } },
+    { payload: { to: '2026-09-20 12:00:00' } },
+    { filters: {} }
+  ]) {
+    const h = harness(() => ({ rows: [], rowCount: 0 }));
+    assert.equal(h.context.deductionRememberLiveStatementRows(h.context.panels[0], { from: '2026-09-14', to: '2026-09-20', rowCount: 1, ...variant.payload }, [{ commission: 20 }], variant.filters || { rider: ['$__all'] }), false);
+    await h.load(); assert.equal(h.requests.length, 1);
+  }
+});
+test('a stalled request times out clearly and can be retried', async () => {
+  const h = harness(() => ({ rows: [], rowCount: 0 }));
+  h.context.setTimeout = callback => setTimeout(callback, 1);
+  await assert.rejects(h.load, /Data not refreshed.*too long/);
+  h.context.setTimeout = setTimeout;
+  await h.load(); assert.equal(h.requests.length, 2);
 });
 test('declared row counts must match the loaded rows', async () => {
   const h = harness(() => ({ rows: [], rowCount: 12 }));

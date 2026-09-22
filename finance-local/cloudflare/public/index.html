@@ -7984,6 +7984,8 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
         const controller = new AbortController();
         financePanelControllers.set(panelId, { controller, url: requestUrl });
         const startedAt = performance.now();
+        let timedOut = false;
+        const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 45000);
         const request = (async () => {
           const response = await fetch(requestUrl, {
             credentials: "same-origin",
@@ -7992,12 +7994,17 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
             cache: force ? "no-store" : "default",
             priority: panelId === activePanel()?.id ? "high" : "low"
           });
-          const payload = await response.json().catch(() => ({}));
+          const payload = await response.json();
           return { response, payload, elapsedMs: Math.round(performance.now() - startedAt) };
         })();
         financeInflightRequests.set(requestUrl, request);
         try { return await request; }
+        catch (error) {
+          if (timedOut) throw new Error('Data not refreshed: Grafana took too long. Please retry Refresh or Download.');
+          throw error;
+        }
         finally {
+          clearTimeout(timeout);
           if (financeInflightRequests.get(requestUrl) === request) financeInflightRequests.delete(requestUrl);
           if (financePanelControllers.get(panelId)?.controller === controller) financePanelControllers.delete(panelId);
         }
@@ -8190,6 +8197,9 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
           // finished in the meantime; commit only the latest complete scope.
           if (financePanelLoadTokens.get(panelId) !== loadToken) return;
           state.data[panelId] = liveRows;
+          if (panelId === 'commission-main') {
+            deductionRememberLiveStatementRows(panel, payload, liveRows, explicitSelectionScope ? JSON.parse(params.get('filters')) : payload.filterState);
+          }
           if (Array.isArray(payload.sourceTables)) {
             state.grafanaTables[panelId] = payload.sourceTables.map((table) => ({
               ...table,
@@ -16836,6 +16846,18 @@ function deductionPaymentStatementCacheKey(record, index, commissionRange = null
 }
 const deductionStatementRowLoads = new Map();
 const deductionStatementRowsCache = new Map();
+function deductionRememberLiveStatementRows(panel, payload, rows, filters) {
+  // Only a complete, explicitly unfiltered daily scope is safe for every rider.
+  if (panel.id !== 'commission-main' || payload.truncated || !filters || !Object.keys(filters).length) return false;
+  if (Object.values(filters).some(values => !Array.isArray(values) || values.length !== 1 || values[0] !== '$__all')) return false;
+  const start = /^(\d{4}-\d{2}-\d{2})(?:[ T]00:00:00)?$/.exec(payload.from || '')?.[1];
+  const end = /^(\d{4}-\d{2}-\d{2})(?:[ T]23:59:59)?$/.exec(payload.to || '')?.[1];
+  const count = payload.rowCount ?? payload.packedRows?.rowCount ?? payload.rows?.length;
+  if (!start || !end || end < start || !Array.isArray(rows) || count !== rows.length) return false;
+  deductionStatementRowsCache.set([panel.id, start, end].join('|'), { rows, loadedAt: Date.now() });
+  while (deductionStatementRowsCache.size > 3) deductionStatementRowsCache.delete(deductionStatementRowsCache.keys().next().value);
+  return true;
+}
 function deductionLoadStatementRows(panel, start, end) {
   const key = [panel.id, start, end].join('|');
   const cached = deductionStatementRowsCache.get(key);
