@@ -8091,6 +8091,11 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
       }
 
       function loadGrafanaData(panelId, force = false, options = {}) {
+        if (force && panelId === 'commission-main') {
+          deductionStatementRowsCache.clear();
+          deductionStatementPayloadCache.clear();
+          additionalJobsStatementCache.clear();
+        }
         const scopeKey = financeLoadScopeKey(panelId);
         const current = financePanelLoadPromises.get(panelId);
         if (!force && current?.scopeKey === scopeKey) return current.promise;
@@ -16139,7 +16144,7 @@ const deductionHistoryPdfExclusions = new Set();
 const deductionHistoryRangePicker = { open: false, anchor: '', month: '', draftStart: '', draftEnd: '', recent: [] };
 const deductionHolidayCache = new Map();
 const deductionStatementPayloadCache = new Map();
-const DEDUCTION_STATEMENT_PREFETCH_TTL_MS = 120000;
+const DEDUCTION_STATEMENT_PREFETCH_TTL_MS = 30000;
 
 async function deductionRequest(path = '', body) {
   const response = await fetch('/api/deductions' + path, { method: body ? 'POST' : 'GET', credentials: 'same-origin', headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
@@ -16830,12 +16835,20 @@ function deductionPaymentStatementCacheKey(record, index, commissionRange = null
   return [record.id, index, item.dueDate, item.settlementPeriodStart, item.settlementPeriodEnd, commissionRange?.start || '', commissionRange?.end || '', record.amountCents, record.installmentCount, record.pricingMode, record.updatedAt].join('|');
 }
 const deductionStatementRowLoads = new Map();
+const deductionStatementRowsCache = new Map();
 function deductionLoadStatementRows(panel, start, end) {
   const key = [panel.id, start, end].join('|');
+  const cached = deductionStatementRowsCache.get(key);
+  if (cached && Date.now() - cached.loadedAt < 30000) return Promise.resolve(cached.rows);
+  deductionStatementRowsCache.delete(key);
   if (deductionStatementRowLoads.has(key)) return deductionStatementRowLoads.get(key);
   // Exports and hover previews for different riders can share the same period.
-  // Share only pending work: each later load still fetches current source data.
-  const pending = deductionFetchStatementRows(panel, start, end).finally(() => {
+  // Cache only complete results briefly; bound memory to three reporting ranges.
+  const pending = deductionFetchStatementRows(panel, start, end).then(rows => {
+    deductionStatementRowsCache.set(key, { rows, loadedAt: Date.now() });
+    while (deductionStatementRowsCache.size > 3) deductionStatementRowsCache.delete(deductionStatementRowsCache.keys().next().value);
+    return rows;
+  }).finally(() => {
     if (deductionStatementRowLoads.get(key) === pending) deductionStatementRowLoads.delete(key);
   });
   deductionStatementRowLoads.set(key, pending);
@@ -16954,6 +16967,8 @@ async function deductionHistoryDownloadBatch(groupId, button, selectedFormats = 
     if (!formats.includes('pdf')) { if (feedback) feedback.textContent = 'Rider Excel statement downloaded.'; return; }
     const downloaded = await downloadPdfTable(payload);
     if (!downloaded) { if (feedback) feedback.textContent = 'PDF download was cancelled.'; return; }
+    button.textContent = 'Downloaded';
+    feedback.textContent = 'PDF downloaded. Updating History…';
     const eligible = options.filter(option => option.state !== 'upcoming' && option.state !== 'sent' && !option.item.statementSentAt);
     await Promise.all(eligible.map(async option => {
       const saved = await deductionRequest('/mark-sent', { recordId: option.record.id, installmentIndex: option.index, requestId: crypto.randomUUID(), reason: 'PDF downloaded through the History workflow; rider delivery is not verified' });

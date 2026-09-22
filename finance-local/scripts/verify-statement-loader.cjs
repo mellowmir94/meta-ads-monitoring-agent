@@ -5,7 +5,8 @@ const source = fs.readFileSync(path.join(root, 'deductions.js'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 function harness(respond) {
   const requests = [];
-  const context = { URLSearchParams, AbortController, performance, panels: [{ id: 'commission-main' }],
+  let now = Date.now();
+  const context = { URLSearchParams, AbortController, performance, Date: class extends Date { static now() { return now; } }, panels: [{ id: 'commission-main' }],
     FINANCE_API_ENDPOINT: '/api/finance', financeInflightRequests: new Map(), financePanelControllers: new Map(), activePanel: () => null,
     fetch: async (url, options) => {
       const parsedUrl = new URL(url, 'https://test'); requests.push(parsedUrl);
@@ -20,7 +21,7 @@ function harness(respond) {
   vm.runInContext(html.slice(html.indexOf('      async function requestFinancePayload('), html.indexOf('      function yieldFinanceFrame(')), context);
   const start = source.indexOf('const deductionStatementRowLoads') >= 0 ? source.indexOf('const deductionStatementRowLoads') : source.indexOf('async function deductionLoadStatementRows(');
   vm.runInContext(source.slice(start, source.indexOf('async function deductionFreshPaymentStatementPayload(')), context);
-  return { context, requests, load: () => context.deductionLoadStatementRows(context.panels[0], '2026-09-14', '2026-09-20') };
+  return { context, requests, advance: milliseconds => { now += milliseconds; }, load: () => context.deductionLoadStatementRows(context.panels[0], '2026-09-14', '2026-09-20') };
 }
 test('simultaneous rider exports and previews share one request without aborting', async () => {
   const h = harness(() => ({ rows: [{ rider_name: 'Rider A', commission: 10 }, { rider_name: 'Rider B', commission: 20 }], rowCount: 2 }));
@@ -28,7 +29,9 @@ test('simultaneous rider exports and previews share one request without aborting
   assert.equal(h.requests.length, 1);
   assert.ok(rows.every(result => result.length === 2));
   assert.equal(h.requests[0].searchParams.get('filters'), '{}');
-  await h.load(); assert.equal(h.requests.length, 2, 'Later downloads fetch fresh data');
+  await h.load(); assert.equal(h.requests.length, 1, 'The next rider reuses the just-loaded period');
+  h.advance(30001);
+  await h.load(); assert.equal(h.requests.length, 2, 'Expired data is refreshed');
 });
 test('a malformed successful response cannot become zero commission', async () => {
   const h = harness(() => ({}));

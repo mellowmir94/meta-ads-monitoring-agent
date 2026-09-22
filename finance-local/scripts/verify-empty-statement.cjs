@@ -16,5 +16,5 @@ for(const [rider,expected] of [['PHG BH UDDIN MUZZANI','RM 75.00'],['HQ BH NAZRU
  assert.equal(statement.summary.value,expected);assert.equal(statement.statementScope.start,'2026-09-14');assert.equal(statement.rows.length,rider==='Other Rider'?0:1);
 }
 context.requestFinancePayload=async()=>({response:{ok:false},payload:{error:'Upstream unavailable'}});
-await assert.rejects(()=>context.deductionLoadStatementRows(context.panels[0],'2026-10-01','2026-10-04'),/Upstream unavailable/);
+await assert.rejects(()=>context.deductionLoadStatementRows(context.panels[0],'2026-11-01','2026-11-04'),/Upstream unavailable/);
 console.log('PASS: empty period export; unrelated filters excluded; complete non-overlapping range loading; upstream failure is never converted into zero commission');})().catch(e=>{console.error(e);process.exitCode=1;});
