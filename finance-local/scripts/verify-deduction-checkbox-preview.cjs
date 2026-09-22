@@ -23,6 +23,7 @@ const {chromium}=require('playwright');
    render();
   });
   const total=page.locator('.deduction-settlement-strip > div').nth(2).locator('strong');
+  assert.ok(await page.evaluate(()=>Boolean(document.querySelector('.additional-jobs').compareDocumentPosition(document.querySelector('.deduction-settlement-strip')) & Node.DOCUMENT_POSITION_FOLLOWING)),'Totals must follow Additional Jobs');
   const net=page.locator('.commission-net-total strong');
   const check=async(amount)=>{
    assert.equal(await total.innerText(),'RM '+amount.toFixed(2));
