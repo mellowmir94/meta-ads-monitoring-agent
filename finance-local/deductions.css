@@ -305,6 +305,8 @@
 .additional-job-money input { border:0; border-radius:0; background:transparent; }
 .additional-job-money:focus-within { outline:2px solid var(--success); outline-offset:1px; }
 .additional-job-actions { display:flex; flex-wrap:wrap; gap:10px; }
+.additional-job-actions [data-job-save] { margin-inline-start:auto; }
+@media(max-width:600px){.additional-job-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.additional-job-actions [data-job-add]{grid-column:1 / -1;justify-self:start}.additional-job-actions [data-job-save]{margin-inline-start:0}}
 .additional-jobs button { padding:9px 12px; border:1px solid var(--line); border-radius:8px; background:var(--surface-muted); color:var(--text); }
 .additional-job-history-table { overflow-x:auto; }
 @media(max-width:600px){.additional-job-row{grid-template-columns:24px minmax(0,1fr)}.additional-job-row label:nth-of-type(2){grid-column:2}.additional-job-row button{grid-column:2}}
