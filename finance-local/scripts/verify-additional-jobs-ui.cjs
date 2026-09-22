@@ -20,7 +20,7 @@ const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
     assert.match(await page.locator('.additional-jobs').innerText(),/RM 95.00/);
     await page.getByRole('button',{name:'Save Additional Jobs',exact:true}).click();
     assert.equal(await page.evaluate(()=>saved.length),2);
-    await page.getByRole('button',{name:'Reset Additional Jobs',exact:true}).click();
+    await page.getByRole('button',{name:'Clear Additional Jobs',exact:true}).click();
     await page.waitForFunction(()=>document.querySelector('[data-additional-feedback]').textContent.includes('reset to RM 0.00'));
     assert.equal(await page.evaluate(()=>saved.length),0);
     assert.equal(await page.locator('[data-job-amount]').inputValue(),'0.00');
