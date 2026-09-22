@@ -5513,6 +5513,10 @@
       font-weight: 750;
       white-space: nowrap;
     }
+    .table-controls.commission-totals-navigation {
+      background: #174f3e;
+      padding-block: 5px;
+    }
     .table-controls > .table-jump-totals:hover,
     .table-controls > .table-jump-totals:focus-visible {
       border-color: var(--accent);
@@ -12789,10 +12793,11 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
                 <tfoot><tr>${totals}</tr></tfoot>
               </table>
             </div>
+            ${panel.id === "commission-main" ? `<div class="table-controls commission-totals-navigation"><button class="table-jump-totals" type="button" data-table-jump-totals="${esc(panel.id)}" data-table-jump-position="top" aria-label="Show filtered total for ${esc(ledgerTitle)}">Show filtered total ↓</button></div>` : ""}
             ${panel.id === "commission-main" && typeof deductionSummaryMarkup === "function" ? deductionSummaryMarkup(dataRows, tableFilterId(panel.id)) : ""}
             <div class="table-controls">
               <span class="row-count" data-row-count="${esc(panel.id)}">Showing ${dataRows.length ? 1 : 0} to ${formatNumber(renderedCount)} of ${formatNumber(dataRows.length)} results</span>
-              <button class="table-jump-totals" type="button" data-table-jump-totals="${esc(panel.id)}" data-table-jump-position="top" aria-label="Show filtered total for ${esc(ledgerTitle)}">Show filtered total ↓</button>
+              ${panel.id !== "commission-main" ? `<button class="table-jump-totals" type="button" data-table-jump-totals="${esc(panel.id)}" data-table-jump-position="top" aria-label="Show filtered total for ${esc(ledgerTitle)}">Show filtered total ↓</button>` : ""}
               <span class="scroll-table-status" id="${esc(panel.id)}-scroll-status" data-scroll-progress="${esc(panel.id)}">${renderedCount < dataRows.length ? `Keep scrolling · ${formatNumber(dataRows.length - renderedCount)} remaining` : `All ${formatNumber(dataRows.length)} filtered records loaded`}</span>
             </div>
             </div>
