@@ -8181,7 +8181,9 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
         const syncGrafanaScope = useGrafanaVariables && !state.grafanaScopeHydrated[panelId];
         const explicitSelectionScope = scopeEligible && !useGrafanaVariables;
         const stagedInitialLoad = syncGrafanaScope && ["commission-main", "daily-sales-branch-overview", "daily-sales-hq-dealer-overview"].includes(panelId);
-        if (stagedInitialLoad) params.set("part", "primary");
+        // Keep dropdown discovery off the critical path on every Commission
+        // refresh, including date/filter changes and the Refresh button.
+        if (panelId === "commission-main" || stagedInitialLoad) params.set("part", "primary");
         if (useGrafanaVariables) {
           params.set("scope", "grafana");
           // An explicit date may be combined with Grafana's saved variables.
@@ -8249,7 +8251,8 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
              exactSummary: payload.summary && typeof payload.summary === "object" ? payload.summary : null,
              summaryError: payload.summaryError || "",
              metricRowsScope: payload.metricRowsScope || "",
-             filterOptions: payload.filterOptions && typeof payload.filterOptions === "object" ? payload.filterOptions : null
+             filterOptions: payload.filterOptions && Object.keys(payload.filterOptions).length
+               ? payload.filterOptions : state.imports[panelId]?.filterOptions || null
           };
           if (scopeEligible && useGrafanaVariables && payload.filterState && typeof payload.filterState === "object") {
             if (!state.filters[panelId]) state.filters[panelId] = {};
@@ -8268,6 +8271,16 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
           state.api.loaded[panelId] = true;
           delete state.api.errors[panelId];
           state.api.loading[panelId] = false;
+          if (panelId === "commission-main") {
+            const completedScope = financeLoadScopeKey(panelId);
+            const completedVersion = financePanelScopeVersions.get(panelId);
+            scheduleFinanceIdle(() => {
+              if (!state.api.loading[panelId] && financeLoadScopeKey(panelId) === completedScope
+                  && financePanelScopeVersions.get(panelId) === completedVersion) {
+                void loadGrafanaSupplemental(panel);
+              }
+            }, 1200);
+          }
           setPanelStatus(payload.syncedAt ? "Synced data" : "Grafana data loaded", `${payload.syncedAt ? 'Last updated ' + formatFinanceDateTime(payload.syncedAt) + '. KPI cards show saved full-week totals. ' : ''}${formatNumber(liveRows.length)} rows loaded for ${panel.title} in ${(elapsedMs / 1000).toFixed(1)}s (${formatFinanceDate(payload.from)} - ${formatFinanceDate(payload.to)}).${payload.truncated ? ` Dealer results reached the ${formatNumber(payload.limit)}-record operational safety cap.` : ""}`);
         } catch (error) {
           if (error?.name === "AbortError" || financePanelLoadTokens.get(panelId) !== loadToken) return;
@@ -8390,7 +8403,7 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
         const loadPanel = async (panel) => {
           await loadGrafanaData(panel.id, force, { renderStart: false, renderEnd: false });
           if (activeTabPanels().some((item) => item.id === panel.id)) render();
-          if (!force && state.api.loaded[panel.id]) {
+          if (panel.id !== "commission-main" && !force && state.api.loaded[panel.id]) {
             scheduleFinanceIdle(() => { void loadGrafanaSupplemental(panel); }, 1200);
           }
         };
