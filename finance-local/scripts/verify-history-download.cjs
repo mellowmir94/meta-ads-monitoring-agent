@@ -43,7 +43,9 @@ const record=(id,type,count)=>({id,batchId:'download-test',rider:'Test Rider',re
   await row.locator('[data-deduction-history-type-payment-select][data-deduction-history-payment-type="epf"]').selectOption('epf|1');
   assert.match(await row.locator('.deduction-history-download-item').innerText(),/EPF payment 2.*Special Case payment 1/s);
   const footerLabels=await page.evaluate(()=>window.__historyStatementFooter());
-  assert.deepEqual(footerLabels.map(row=>row.split(' | ')[0]),['Filtered total','TOTAL DEDUCTIONS','NET COMMISSION']);
+  assert.deepEqual(footerLabels.map(row=>row.split(' | ')[0]),['Filtered total','EPF','SPECIAL CASE','TOTAL DEDUCTIONS','NET COMMISSION']);
+  assert.match(footerLabels[1], /- RM 25\.00$/);
+  assert.match(footerLabels[2], /- RM 25\.00$/);
   assert.equal(footerLabels.some(row=>/payment \d+ of \d+|\d{2}\/\d{2}\/\d{4}/i.test(row)),false,'Statement footer must not show payment labels or payment dates');
   // Mixed weeks with no History date filter previously blocked this exact click.
   await page.evaluate(()=>{for(const key of ['start','end'])document.querySelector('[data-deduction-history-period-'+key+']').value='';});
