@@ -1,5 +1,9 @@
 // Canonical statement model: Excel is the master table; PDF consumes the same rows.
 async function prepareRiderStatement(payload, jobsReady = null) {
+  if(payload.panelTitle==='Commission Rider'&&payload.statementScope?.rider){
+    const name=payload.statementScope.rider.trim().replace(/[<>:"/\\|?*\u0000-\u001f]/g,'_').replace(/[. ]+$/,'').slice(0,160)||'Rider';
+    if(payload.filename!==name||payload.pdfFilename!==name+'.pdf')payload={...payload,filename:name,pdfFilename:name+'.pdf'};
+  }
   if(payload.statementPrepared || payload.panelTitle!=='Commission Rider' || !payload.summary || !payload.columns.some(column=>column.key==='commission'))return payload;
   const scope=payload.statementScope;
   if(!scope?.rider || !scope.start || !scope.end)throw new Error('A rider and commission period are required for a complete statement.');

@@ -80,6 +80,8 @@ function additionalJobsHistoryRender(view) {
     const job=jobs[0],row=document.createElement('tr');row.setAttribute('data-additional-only-row','');
     row.dataset.jobRider=job.rider;row.dataset.jobStart=job.periodStart;row.dataset.jobEnd=job.periodEnd;
     row.innerHTML='<td>'+(++number)+'</td><td>—</td><td><strong>'+esc(job.rider)+'</strong><small>Additional Jobs only</small></td>'+ '<td>—</td>'.repeat(4)+'<td>'+additionalJobsHistoryCell(jobs)+'</td><td class="deduction-history-download-cell"><div class="deduction-history-download-item"><strong>'+jobs.length+' Additional Job'+(jobs.length===1?'':'s')+'</strong><small>Ready to download</small><div><label><input type="checkbox" data-statement-file-format="pdf" checked> PDF</label> <label><input type="checkbox" data-statement-file-format="excel"> Excel</label></div><button type="button" data-additional-download>Download</button></div></td><td>'+esc(job.periodStart+' - '+job.periodEnd)+'</td><td>'+esc(deductionMoney(0))+'</td><td>—</td><td><span class="deduction-history-status applied">Applied</span></td><td>'+esc(job.createdBy||'')+'</td>';
+    row.dataset.jobSelectionId='jobs:'+JSON.stringify([job.riderKey,job.periodStart,job.periodEnd]);
+    row.cells[1].innerHTML='<input type="checkbox" data-deduction-history-select aria-label="Select '+esc(job.rider)+' request for Rider PDF"'+(deductionHistorySelected.has(row.dataset.jobSelectionId)?' checked':'')+'>';
     body.append(row);
   }
   if(grouped.size){view.querySelector('[data-deduction-history-empty]').hidden=true;view.querySelector('[data-deduction-history-feedback]').textContent+=' '+grouped.size+' Additional Job-only rider period'+(grouped.size===1?'':'s')+' shown separately; deduction counts are unchanged.';}
@@ -104,6 +106,11 @@ async function additionalJobsStatementPayload(rider, start, end) {
 document.addEventListener('click',async event=>{
   const button=event.target.closest?.('[data-additional-download]');if(!button||button.disabled)return;
   const row=button.closest('[data-additional-only-row]'),formats=[...row.querySelectorAll('[data-statement-file-format]:checked')].map(input=>input.dataset.statementFileFormat);
+  await additionalJobsDownload(row,button,formats);
+});
+async function additionalJobsDownload(row,button,formats) {
+  if(button.disabled)return;
+  const originalLabel=button.textContent;
   if(!formats.length){deductionDownloadFeedback(button,'Select PDF, Excel, or both before downloading.');return;}
   button.disabled=true;button.textContent='Preparing…';button.setAttribute('aria-busy','true');
   try{
@@ -115,8 +122,8 @@ document.addEventListener('click',async event=>{
     if(formats.includes('pdf')&&!await downloadPdfTable(payload)){deductionDownloadFeedback(button,'PDF download was cancelled.');return;}
     deductionDownloadFeedback(button,formats.map(format=>format==='pdf'?'PDF':'Excel').join(' and ')+' downloaded.');
   }catch(error){deductionDownloadFeedback(button,error.message||'Statement could not be downloaded. Please retry.');}
-  finally{button.disabled=false;button.textContent='Download';button.removeAttribute('aria-busy');}
-});
+  finally{button.disabled=false;button.textContent=originalLabel;button.removeAttribute('aria-busy');}
+}
 document.addEventListener('input', event => {
   const row=event.target.closest?.('[data-job-row]'), host=row?.closest('[data-additional-table]'); if(!host)return;
   const draft=additionalJobDrafts.get(host.dataset.additionalTable), item=draft?.rows.find(item=>item.id===row.dataset.jobRow);

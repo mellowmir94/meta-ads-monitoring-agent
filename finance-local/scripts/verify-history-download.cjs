@@ -31,6 +31,7 @@ const record=(id,type,count)=>({id,batchId:'download-test',rider:'Test Rider',re
   assert.match(await row.locator('[data-additional-history-cell]').innerText(),/additional jobs/);
   const jobOnly=page.locator('[data-additional-only-row]');assert.equal(await jobOnly.count(),1);assert.equal(await jobOnly.locator('td').count(),14);assert.match(await jobOnly.innerText(),/RM 1.00/);
   assert.equal(await jobOnly.locator('[data-additional-download]').count(),1,'Additional Job-only rows need a working Download button');
+  assert.equal(await jobOnly.locator('[data-deduction-history-select]').count(),1,'Job-only rows must be selectable for the checked PDF export');
   const numbers=()=>page.locator('[data-deduction-history-body] > tr > td:first-child').allTextContents();
   assert.deepEqual(await numbers(),['1','2']);
   await page.locator('[data-deduction-number-sort]').click();
@@ -53,7 +54,7 @@ const record=(id,type,count)=>({id,batchId:'download-test',rider:'Test Rider',re
   }
   const feedback=await page.locator('[data-deduction-history-feedback]').textContent();
   console.log({formats,retry:!!retry,feedback,downloads:downloads.map(d=>d.suggestedFilename()),errors});
-  assert.equal(downloads.length,formats.length,feedback);for(const d of downloads)assert.equal(await d.failure(),null);
+  assert.equal(downloads.length,formats.length,feedback);for(const d of downloads){assert.equal(await d.failure(),null);assert.match(d.suggestedFilename(),/^Test Rider\.(pdf|xlsx)$/);}
   if(process.env.STATEMENT_QA&&!retry&&formats.length===2)for(const d of downloads)await d.saveAs(path.resolve(root,'../../preview-evidence/additional-job-layout'+path.extname(d.suggestedFilename())));
   assert.equal(requests.filter(p=>p.endsWith('/mark-sent')).length,formats.includes('pdf')?1:0,'Upcoming EPF payment must not be marked sent');
   assert.equal(await jobOnly.locator('.deduction-history-status').innerText(),'Applied');
@@ -64,12 +65,19 @@ const record=(id,type,count)=>({id,batchId:'download-test',rider:'Test Rider',re
   await page.waitForFunction(()=>document.querySelector('[data-additional-download]')?.textContent==='Download');
   for(let attempt=0;attempt<30&&downloads.length<before+formats.length;attempt++)await new Promise(resolve=>setTimeout(resolve,100));
   assert.equal(downloads.length,before+formats.length,await jobOnly.innerText());
-  for(const d of downloads.slice(before)){assert.equal(await d.failure(),null);assert.match(d.suggestedFilename(),/Job-only/);}
+  for(const d of downloads.slice(before)){assert.equal(await d.failure(),null);assert.match(d.suggestedFilename(),/^Job-only Rider\.(pdf|xlsx)$/);}
   assert.equal(requests.filter(p=>p.endsWith('/mark-sent')).length,marks,'Job-only exports must not modify deductions');
   const statement=await page.evaluate(()=>window.__jobStatement('Job-only Rider','2026-09-14','2026-09-20'));
   assert.equal(statement.rows.length,0,'Another rider commission must never enter this statement');
   assert.equal(statement.summary.value,'RM 1.00');
   assert.match(JSON.stringify(statement.footerRows),/JOB-ONLY/);
+  const top=page.locator('[data-deduction-history-export="pdf"]');
+  await jobOnly.locator('[data-deduction-history-select]').check();assert.equal(await top.isEnabled(),true);
+  const jobPdf=page.waitForEvent('download');await top.click();assert.equal((await jobPdf).suggestedFilename(),'Job-only Rider.pdf');
+  await page.waitForFunction(()=>document.querySelector('[data-deduction-history-export="pdf"]')?.textContent==='Export checked Rider PDF');
+  await row.locator('[data-deduction-history-select]').check();
+  assert.equal(await jobOnly.locator('[data-deduction-history-select]').isChecked(),false);
+  const riderPdf=page.waitForEvent('download');await top.click();assert.equal((await riderPdf).suggestedFilename(),'Test Rider.pdf');
   assert.deepEqual(errors,[]);await page.close();
  }}finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

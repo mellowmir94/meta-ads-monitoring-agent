@@ -16,7 +16,7 @@ function section(a,b){return html.slice(html.indexOf(a),html.indexOf(b,html.inde
   assert.ok(zip.file('xl/media/logo.png'));assert.ok(zip.file('xl/drawings/drawing1.xml'));assert.equal(pdfTable.body.length,256);assert.equal(master.rows.length,1);assert.equal(pdfTable.foot,undefined);
   assert.match(xml,/JOB-249/);assert.doesNotMatch(xml,/\(applied\)|APPLIED DEDUCTIONS/);
   for(const row of master.footerRows)for(const value of row.filter(Boolean))assert.ok(xml.includes(context.exportXmlText(value)),value+' exists in Excel master');
-  assert.equal(master.summary.value,'RM 3200.00');assert.equal(master.footerRows.at(-1)[2],'RM 3200.00');assert.equal(downloadName,'test-statement.xlsx');
+  assert.equal(master.summary.value,'RM 3200.00');assert.equal(master.footerRows.at(-1)[2],'RM 3200.00');assert.equal(downloadName,'Test Rider.xlsx');
   assert.match(xml,/colSpan|mergeCell/);
   assert.ok(xml.indexOf('TOTAL DEDUCTIONS')<xml.indexOf('ADDITIONAL JOB 1'));
   assert.ok(xml.indexOf('JOB-249')<xml.indexOf('NET COMMISSION'));

@@ -624,6 +624,10 @@ function deductionHistoryEnsure() {
 let deductionHistoryNumberDescending = false;
 function deductionHistorySortNumbers(view) {
   if (!view) return;
+  const visibleJobs=new Set([...view.querySelectorAll('[data-job-selection-id]')].map(row=>row.dataset.jobSelectionId));
+  for(const id of deductionHistorySelected)if(id.startsWith('jobs:')&&!visibleJobs.has(id))deductionHistorySelected.delete(id);
+  const exportButton=view.querySelector('[data-deduction-history-export="pdf"]');
+  if(exportButton)exportButton.disabled=!deductionState.loaded||deductionHistorySelected.size!==1;
   const header = view.querySelector('thead th:first-child');
   if (header) {
     header.setAttribute('aria-sort', deductionHistoryNumberDescending ? 'descending' : 'ascending');
@@ -646,7 +650,7 @@ function deductionHistoryRender() {
   const view = deductionHistoryEnsure(); if (!view) return;
   const filters = deductionHistoryFilters(view), groups = deductionWorkflowGroups(filters), shown = groups.flatMap(group => group.records), totals = deductionHistoryTotals(shown), checker = ['checker', 'admin'].includes(deductionState.actor?.role);
   deductionWorkflowControls(view, filters);
-  const visibleIds = new Set(groups.map(group => group.id)); [...deductionHistorySelected].forEach(id => { if (!visibleIds.has(id)) deductionHistorySelected.delete(id); });
+  const visibleIds = new Set(groups.map(group => group.id)); [...deductionHistorySelected].forEach(id => { if (!id.startsWith('jobs:') && !visibleIds.has(id)) deductionHistorySelected.delete(id); });
   view.querySelectorAll('[data-deduction-history-export]').forEach(button => { button.disabled = !deductionState.loaded || button.dataset.deductionHistoryExport === 'pdf' && deductionHistorySelected.size !== 1; });
   view.querySelector('[data-deduction-history-feedback]').textContent = deductionState.loaded ? groups.length + ' request' + (groups.length === 1 ? '' : 's') + ' shown, containing ' + shown.length + ' deduction record' + (shown.length === 1 ? '' : 's') + '. Totals include all deduction types in the matching batches. Completion is tracked separately from amounts applied.' : deductionState.error || 'Loading the complete deduction register…';
   view.querySelector('[data-deduction-history-kpis]').innerHTML = [['Total deducted', deductionMoney(totals.appliedCents)], ['Applied installments', formatNumber(totals.appliedInstallments)], ['Deduction records', formatNumber(totals.recordCount)], ['Remaining', deductionMoney(totals.remainingCents)], ['Reversed payments', deductionMoney(totals.reversedCents)]].map(([label, value]) => '<article><span>' + esc(label) + '</span><strong>' + esc(deductionState.loaded ? value : '—') + '</strong></article>').join('');
@@ -774,12 +778,12 @@ function deductionDownloadFeedback(button, message) {
   }
   if (local) local.textContent = message;
 }
-async function deductionHistoryDownloadBatch(groupId, button) {
+async function deductionHistoryDownloadBatch(groupId, button, selectedFormats = null) {
   if (button.disabled) return;
   const originalLabel = button.textContent;
   const feedback = { set textContent(message) { deductionDownloadFeedback(button, message); } };
   try {
-  const formats = [...button.closest('.deduction-history-download-item').querySelectorAll('[data-statement-file-format]:checked')].map(input => input.dataset.statementFileFormat);
+  const formats = selectedFormats || [...button.closest('.deduction-history-download-item').querySelectorAll('[data-statement-file-format]:checked')].map(input => input.dataset.statementFileFormat);
   if (!formats.length) { if (feedback) feedback.textContent = 'Select PDF, Excel, or both before downloading.'; return; }
   const group = deductionHistoryGroups(deductionState.records).find(item => item.id === groupId);
   if (!group) throw new Error('This deduction request is no longer available. Refresh History and try again.');
@@ -815,17 +819,18 @@ async function deductionHistoryDownloadBatch(groupId, button) {
   } finally { if (button.isConnected) { button.disabled = false; button.textContent = originalLabel; button.removeAttribute('aria-busy'); } }
 }
 async function deductionHistoryExport(format) {
+  if (format === 'pdf') {
+    const view = deductionHistoryEnsure(), checked = view.querySelector('[data-deduction-history-select]:checked');
+    if (!checked) throw new Error('Tick a rider row in the PDF column first.');
+    const button = view.querySelector('[data-deduction-history-export="pdf"]'), row = checked.closest('tr');
+    if (row.hasAttribute('data-additional-only-row')) return additionalJobsDownload(row, button, ['pdf']);
+    return deductionHistoryDownloadBatch(row.dataset.deductionBatchId, button, ['pdf']);
+  }
   await deductionLoad();
   if (!deductionState.loaded) throw new Error('Load the complete deduction register before exporting.');
   await ensureFinanceExportBundle(format);
   deductionHistoryRender();
   const records = deductionWorkflowGroups(deductionHistoryFilters(deductionHistoryEnsure())).flatMap(group => group.records);
-  if (format === 'pdf') {
-    if (deductionHistorySelected.size !== 1) throw new Error('Tick one request row before exporting the Rider PDF.');
-    const selectedId = [...deductionHistorySelected][0], selected = deductionHistoryGroups(records).find(group => group.id === selectedId);
-    if (!selected) throw new Error('The checked request is no longer visible. Tick one request row again.');
-    await downloadPdfTable(deductionHistoryStatementPayload(selected.records)); return;
-  }
   const columns = [['rider', 'Rider'], ['references', 'References'], ['epf', 'EPF'], ['insurance', 'Insurance'], ['battery', 'OBD / Battery Tester'], ['manual', 'Special Case'], ['period', 'Commission period'], ['progress', 'Payments applied'], ['applied', 'Applied'], ['remaining', 'Remaining'], ['status', 'Status'], ['createdBy', 'Created by'], ['schedule', 'Payment breakdown']].map(([key, label]) => ({ key, label, value: row => row[key] }));
   const typeValue = (group, type) => { const record = group.records.find(item => item.type === type); if (!record) return ''; const progress = deductionHistoryProgress(record), total = progress.items.reduce((sum, item) => sum + deductionInstallmentAmount(record, item), 0); return deductionMoney(total) + ' | ' + deductionPlanLabel(record) + ' | ' + deductionDisplayStatus(record) + (record.reason ? ' | ' + record.reason : ''); };
   const rows = deductionHistoryGroups(records).map(group => ({ rider: group.rider, references: group.references.join(' | '), epf: typeValue(group, 'epf'), insurance: typeValue(group, 'insurance'), battery: typeValue(group, 'battery-tester'), manual: typeValue(group, 'manual'), period: (group.periodStart || '') + ' - ' + (group.periodEnd || ''), progress: group.progress.paidCount + '/' + group.progress.count, applied: deductionMoney(group.progress.appliedCents), remaining: deductionMoney(group.progress.remainingCents), status: deductionDisplayStatus(group.status), createdBy: group.createdBy + ' | ' + formatGrafanaTimestamp(group.createdAt), schedule: group.records.map(record => (deductionTypes[record.type] || record.type) + ': ' + deductionHistoryProgress(record).items.map(item => item.dueDate + ' ' + item.status + (item.paymentDate ? ' paid ' + item.paymentDate : '') + (item.settlementPeriodStart ? ' commission ' + item.settlementPeriodStart + '-' + item.settlementPeriodEnd : '')).join(', ')).join(' | ') }));
@@ -1125,7 +1130,7 @@ document.addEventListener('input', event => {
 });
 document.addEventListener('change', event => {
   const checkbox = event.target.closest?.('[data-deduction-history-select]'); if (!checkbox) return;
-  const id = checkbox.closest('[data-deduction-batch-id]')?.dataset.deductionBatchId; if (!id) return;
+  const row = checkbox.closest('tr'), id = row?.dataset.deductionBatchId || row?.dataset.jobSelectionId; if (!id) return;
   deductionHistorySelected.clear();
   document.querySelectorAll('[data-deduction-history-select]').forEach(input => { if (input !== checkbox) input.checked = false; });
   if (checkbox.checked) deductionHistorySelected.add(id);
