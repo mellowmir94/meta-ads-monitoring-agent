@@ -109,7 +109,7 @@
     .nav-button.active, .nav-button[aria-selected="true"] { background: var(--accent); color: #fff; }
     [data-theme="dark"] .nav-button.active, [data-theme="dark"] .nav-button[aria-selected="true"] { color: var(--accent-on-fill); }
     .nav-icon { display: grid; width: 22px; height: 22px; place-items: center; border: 1px solid currentColor; border-radius: 7px; font-size: 0.7rem; font-weight: 800; }
-    .nav-icon.finsight-nav-avatar { overflow: hidden; border: 0; border-radius: 50%; }
+    .nav-icon.finsight-nav-avatar { overflow: hidden; border: 0; border-radius: 14px; }
     .finsight-nav-avatar img { display: block; width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
     .main { min-width: 0; padding: 26px clamp(18px, 3vw, 42px) 48px; }
     .shell { max-width: 1360px; margin: 0 auto; }
@@ -6925,10 +6925,13 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
 #tab-finsight .finsight-ledger-connection small { display:block; margin-top:6px; line-height:1.5; }
 #tab-finsight .finsight-ledger-main { display:grid; grid-template-columns:minmax(0,1fr) 240px; gap:24px; margin-top:24px; }
 #tab-finsight .finsight-ledger-chat { display:flex; flex-direction:column; padding:0; min-height:570px; max-height:calc(100vh - 180px); overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; scrollbar-gutter:stable; }
-#tab-finsight .finsight-ledger-agent { position:relative; padding-left:64px; }
-#tab-finsight .finsight-ledger-agent::before { content:''; position:absolute; left:0; top:7px; width:34px; height:34px; background:url('/assets/finsight-mascot.png') center/cover; border-radius:10px; }
-#tab-finsight .finsight-ledger-chat-head { padding:0 0 12px; border:0; min-height:44px; }
-#tab-finsight .finsight-ledger-chat-head span { text-transform:none; letter-spacing:0; font-size:14px; font-weight:700; }
+#financeSidebar .nav-button[data-tab="finsight"] { min-height:102px; justify-content:flex-start; gap:22px; padding:16px 22px; text-align:left; font-size:20px; line-height:1.05; white-space:normal; }
+#financeSidebar .nav-button[data-tab="finsight"] .finsight-nav-avatar { flex:0 0 48px; width:48px; height:48px; border-radius:14px; }
+#financeSidebar .nav-button[data-tab="finsight"] .finsight-nav-label { display:flex; flex-direction:column; gap:4px; }
+#tab-finsight .finsight-ledger-agent { position:relative; padding-left:72px; }
+#tab-finsight .finsight-ledger-agent::before { content:''; position:absolute; left:0; top:0; width:48px; height:48px; background:url('/assets/finsight-agent-avatar.jpg?v=1') center/cover; border:1px solid color-mix(in srgb, var(--accent) 55%, var(--line)); border-radius:14px; box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
+#tab-finsight .finsight-ledger-chat-head { padding:0 0 12px; border:0; min-height:54px; }
+#tab-finsight .finsight-ledger-chat-head span { text-transform:none; letter-spacing:0; font-size:22px; font-weight:700; }
 #tab-finsight .finsight-ledger-chat-head strong { display:none; }
 #tab-finsight #finsightClear { font-size:11px; min-height:30px; padding:6px 10px; background:transparent; }
 #tab-finsight .finsight-snapshot { margin:0 0 0 64px; width:calc(100% - 64px); max-width:680px; border:1px solid var(--line); border-radius:16px; overflow:hidden; background:var(--surface-muted); }
@@ -7000,7 +7003,7 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
       <div class="brand" aria-label="Bateriku Ledger Finance Workspace"><span class="brand-mark" aria-label="Bateriku Ledger"><img src="/assets/bateriku-brand-icon.png?v=1" alt="Bateriku" width="36" height="36"></span><div><strong>FINANCE WORKSPACE</strong><small>Developed by Muhamad Amir Khalil</small></div></div>
       <nav class="nav" aria-label="Finance dashboards" role="tablist">
         <!-- BEGIN LEDGER FINSIGHT: SIDEBAR -->
-        <button class="nav-button" type="button" role="tab" data-tab="finsight"><span class="nav-icon finsight-nav-avatar" aria-hidden="true"><img src="/assets/finsight-agent-avatar.jpg?v=1" alt=""></span>FinSight Agent</button>
+        <button class="nav-button" type="button" role="tab" data-tab="finsight"><span class="nav-icon finsight-nav-avatar" aria-hidden="true"><img src="/assets/finsight-agent-avatar.jpg?v=1" alt=""></span><span class="finsight-nav-label"><span>FinSight</span><span>Agent</span></span></button>
         <!-- END LEDGER FINSIGHT -->
         <button class="nav-button" type="button" role="tab" data-tab="commission"><span class="nav-icon" aria-hidden="true"><svg><use href="#icon-commission"></use></svg></span>Commission Rider</button>
         <button class="nav-button" type="button" data-deduction-history-open><span class="nav-icon" aria-hidden="true">↶</span>Deduction History</button>
