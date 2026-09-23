@@ -306,6 +306,11 @@
     font-weight: 650;
     box-shadow: none;
   }
+  .app:not(.sidebar-collapsed) #financeSidebar .nav-button {
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
   #financeSidebar .nav-button:hover {
     background: #26301c;
     color: var(--reference-text);
