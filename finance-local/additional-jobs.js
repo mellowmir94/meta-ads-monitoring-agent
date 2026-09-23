@@ -1,13 +1,21 @@
 // Additional earnings are separate from deduction records and source order rows.
-const additionalJobsState = { jobs: [], loaded: false, loadedAt: 0, loading: null, error: '' };
+const additionalJobsState = { jobs: [], loaded: false, loadedAt: 0, loadedRevision: 0, revision: 0, loading: null, error: '' };
 const additionalJobDrafts = new Map();
 const additionalJobsStatementCache = new Map();
 async function additionalJobsLoad(force = false) {
-  if (additionalJobsState.loading) return additionalJobsState.loading;
+  if (additionalJobsState.loading) {
+    const pending=additionalJobsState.loading;
+    if(!force)return pending;
+    await pending.catch(()=>{});
+    if(additionalJobsState.loading===pending)additionalJobsState.loading=null;
+    if(additionalJobsState.loading)return additionalJobsState.loading;
+    if(additionalJobsState.loaded&&additionalJobsState.loadedRevision===additionalJobsState.revision)return additionalJobsState.jobs;
+  }
   // Downloads may call this immediately after History has already loaded the
   // same register. Reuse that fresh result instead of adding another request.
-  if (additionalJobsState.loaded && (!force || Date.now() - additionalJobsState.loadedAt < 30000)) return additionalJobsState.jobs;
-  additionalJobsState.loading = (async () => {
+  if (additionalJobsState.loaded && additionalJobsState.loadedRevision===additionalJobsState.revision && (!force || Date.now() - additionalJobsState.loadedAt < 30000)) return additionalJobsState.jobs;
+  const revision=additionalJobsState.revision;
+  const pending=(async () => {
     const jobs = [], seen = new Set(); let next = '';
     do {
       const response = await deductionRequest('/jobs' + (next ? '?after=' + encodeURIComponent(next) : ''));
@@ -16,13 +24,29 @@ async function additionalJobsLoad(force = false) {
       if (next && seen.has(next)) throw new Error('Additional Jobs register is incomplete.');
       seen.add(next);
     } while (next);
-    Object.assign(additionalJobsState, {jobs,loaded:true,loadedAt:Date.now(),error:''}); return jobs;
-  })().catch(error => { additionalJobsState.loaded=false; additionalJobsState.error=error.message; throw error; }).finally(() => { additionalJobsState.loading=null; });
-  return additionalJobsState.loading;
+    return jobs;
+  })();
+  additionalJobsState.loading=pending;
+  try {
+    const jobs=await pending;
+    if(revision!==additionalJobsState.revision){if(additionalJobsState.loading===pending)additionalJobsState.loading=null;return additionalJobsLoad(true);}
+    Object.assign(additionalJobsState,{jobs,loaded:true,loadedAt:Date.now(),loadedRevision:revision,error:''});
+    return jobs;
+  } catch(error) {
+    if(revision===additionalJobsState.revision){additionalJobsState.loaded=false;additionalJobsState.error=error.message;}
+    throw error;
+  } finally {if(additionalJobsState.loading===pending)additionalJobsState.loading=null;}
+}
+function additionalJobsInvalidate() {
+  additionalJobsState.revision++;additionalJobsState.loaded=false;additionalJobsState.loadedAt=0;
+  deductionStatementPayloadCache.clear();additionalJobsStatementCache.clear();
 }
 function additionalJobsForScope(rider, start, end) {
   const key = deductionRiderKey(rider);
   return additionalJobsState.jobs.filter(job => job.riderKey === key && job.periodStart >= start && job.periodEnd <= end);
+}
+function additionalJobsForStatementScope(rider,start,end) {
+  return additionalJobsForScope(rider,start,end).filter(job=>job.includeInStatement!==false);
 }
 function additionalJobDraft(id, rider, dates) {
   const scope = [rider.key,dates.start,dates.end].join('|');
@@ -31,14 +55,15 @@ function additionalJobDraft(id, rider, dates) {
   if(additionalJobsState.loaded&&!draft.baseline){
     const saved=additionalJobsForScope(rider.rider,String(dates.start||'').slice(0,10),String(dates.end||'').slice(0,10));
     draft.baseline=saved.map(job=>({id:job.id,amountCents:job.amountCents,description:job.description}));
-    if(!draft.rows.length)draft.rows=saved.map(job=>({id:job.id,description:job.description,amount:(job.amountCents/100).toFixed(2),saved:true}));
+    if(!draft.rows.length){draft.rows=saved.map(job=>({id:job.id,description:job.description,amount:(job.amountCents/100).toFixed(2),saved:true}));draft.enabled=saved.some(job=>job.includeInStatement!==false);}
   }
   return draft;
 }
 function additionalJobsMarkup(id, rider, dates, summary) {
   const draft = additionalJobDraft(id,rider,dates), start=String(dates.start||'').slice(0,10), end=String(dates.end||'').slice(0,10);
-  const saved = additionalJobsForScope(rider.rider,start,end), cents=saved.reduce((sum,job)=>sum+job.amountCents,0);
-  return `<section class="additional-jobs" data-additional-table="${esc(id)}"><label class="deduction-inline-choice"><input type="checkbox" data-additional-toggle ${draft.enabled?'checked':''} ${rider.valid?'':'disabled'}><strong>Additional Job</strong></label><p>Extra jobs outside Line Item Audit. Add a description/reference and RM amount for each job. Save overwrites the saved jobs for this rider and period with exactly the rows shown. Use + Add row for a separate job.</p><div data-additional-editor ${draft.enabled?'':'hidden'}>${additionalJobsEditor(draft)}</div><p data-additional-feedback role="status">${esc(additionalJobsState.error || (!additionalJobsState.loaded?'Loading saved additional jobs…':`${saved.length} saved jobs · ${deductionMoney(cents)} additional commission`))}</p></section>`;
+  const saved = additionalJobsForScope(rider.rider,start,end), included=additionalJobsForStatementScope(rider.rider,start,end), cents=included.reduce((sum,job)=>sum+job.amountCents,0);
+  const feedback=additionalJobsState.error||(!additionalJobsState.loaded?'Loading saved additional jobs…':`${saved.length} saved jobs · ${included.length} included in statements · ${deductionMoney(cents)}`);
+  return `<section class="additional-jobs" data-additional-table="${esc(id)}"><label class="deduction-inline-choice"><input type="checkbox" data-additional-toggle ${draft.enabled?'checked':''} ${rider.valid&&additionalJobsState.loaded?'':'disabled'}><strong>Additional Job</strong></label><p>Extra jobs outside Line Item Audit. Tick to include saved jobs in statements; untick to exclude them without deleting their History or audit records. Save overwrites the saved jobs for this rider and period with exactly the rows shown. Use + Add row for a separate job.</p><div data-additional-editor ${draft.enabled?'':'hidden'}>${additionalJobsEditor(draft)}</div><p data-additional-feedback role="status">${esc(feedback)}</p></section>`;
 }
 function additionalJobsEditor(draft) {
   const rows=draft.rows.map((row,index)=>{
@@ -49,7 +74,11 @@ function additionalJobsEditor(draft) {
 }
 function additionalJobsCanProceed(id) {
   const draft=additionalJobDrafts.get(id),pending=draft?.rows||[];
-  return Boolean(draft?.enabled&&!draft.saving&&pending.length&&pending.every(row=>row.description.trim()&&/^\d+(\.\d{1,2})?$/.test(row.amount)&&Number(row.amount)>0&&Number(row.amount)<=1000000));
+  if(!draft?.enabled||draft.saving)return false;
+  // Ticking Additional Job by itself is a valid no-deduction workflow. The
+  // default empty starter row is only a convenience and must not block Proceed.
+  if(!pending.length||pending.every(row=>row.description.trim()==='Additional Job'&&!String(row.amount||'').trim()))return true;
+  return pending.every(row=>row.description.trim()&&/^\d+(\.\d{1,2})?$/.test(row.amount)&&Number(row.amount)>0&&Number(row.amount)<=1000000);
 }
 function additionalJobsHistoryCell(jobs) {
   if(!jobs.length)return '—';
@@ -99,7 +128,7 @@ document.addEventListener('click',event=>{
   const jobs=additionalJobsForScope(rider,periodStart,periodEnd);
   const expectedJobs=jobs.map(job=>({id:job.id,description:job.description,amountCents:job.amountCents}));
   const dialog=deductionDialog('Delete Additional Jobs'),body=dialog.querySelector('[data-deduction-body]');
-  body.innerHTML='<form class="deduction-form deduction-delete-form"><strong>'+esc(rider)+'</strong><p>'+jobs.length+' Additional Jobs · '+esc(periodStart+' - '+periodEnd)+' · '+esc(deductionMoney(jobs.reduce((sum,job)=>sum+job.amountCents,0)))+'</p><p>Remove these jobs from active History and future statements? The audit history is retained. Existing downloaded files are unchanged.</p><label>4-digit deletion PIN<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="off"></label><p role="alert" data-deduction-error></p><button type="submit" class="deduction-danger-button">Delete Additional Jobs</button></form>';
+  body.innerHTML='<form class="deduction-form deduction-delete-form"><strong>'+esc(rider)+'</strong><p>'+jobs.length+' Additional Jobs · '+esc(periodStart+' - '+periodEnd)+' · '+esc(deductionMoney(jobs.reduce((sum,job)=>sum+job.amountCents,0)))+'</p><p>Remove these Additional Jobs from active Deduction History, Commission Formula totals, and future statements? Re-entering them later starts a fresh draft from current Commission Rider rows. Other deduction requests (EPF, Insurance, OBD, and Special Case) are not deleted. A protected audit record is retained; downloaded files are unchanged.</p><label>4-digit deletion PIN<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="off"></label><p role="alert" data-deduction-error></p><button type="submit" class="deduction-danger-button">Delete Additional Jobs</button></form>';
   const form=body.querySelector('form'),submit=form.querySelector('[type="submit"]'),requestId=crypto.randomUUID();let busy=false;
   form.onsubmit=async event=>{
     event.preventDefault();if(busy||!form.reportValidity())return;busy=true;submit.disabled=true;
@@ -107,10 +136,9 @@ document.addEventListener('click',event=>{
     try{
       const result=await deductionRequest('/delete-jobs',{rider,periodStart,periodEnd,expectedJobs,requestId,pin:form.elements.pin.value});
       for(const [id,draft] of additionalJobDrafts)if(draft.scope===[deductionRiderKey(rider),periodStart,periodEnd].join('|'))additionalJobDrafts.delete(id);
-      deductionStatementPayloadCache.clear();additionalJobsStatementCache.clear();deductionHistorySelected.delete(row.dataset.jobSelectionId);
-      additionalJobsState.loaded=false;
+      additionalJobsInvalidate();deductionHistorySelected.delete(row.dataset.jobSelectionId);
       await additionalJobsLoad(true);render();deductionHistoryRender();
-      body.innerHTML='<p role="status">'+Number(result.deleted)+' Additional Jobs removed. Audit history retained.</p><button type="button" data-job-delete-done>Done</button>';
+      body.innerHTML='<p role="status">'+Number(result.deleted)+' Additional Jobs removed from active History and formula totals. You can add fresh entries later; the protected audit record is retained.</p><button type="button" data-job-delete-done>Done</button>';
       body.querySelector('[data-job-delete-done]').onclick=()=>dialog.close();
     }catch(error){feedback.textContent=error.message;busy=false;submit.disabled=false;}
   };
@@ -161,13 +189,25 @@ document.addEventListener('input', event => {
   if(item&&!draft.payload&&!draft.saving){item.description=row.querySelector('[data-job-description]').value;item.amount=row.querySelector('[data-job-amount]').value;item.saved=false;}
   deductionUpdateInline(host.closest('.deduction-workspace'));
 });
-document.addEventListener('change',event=>{
+document.addEventListener('change',async event=>{
   if(!event.target.matches?.('[data-additional-toggle]'))return;
   const host=event.target.closest('[data-additional-table]'),draft=additionalJobDrafts.get(host.dataset.additionalTable);
-  draft.enabled=event.target.checked;
+  const included=event.target.checked;draft.enabled=included;
   if(draft.enabled&&!draft.rows.length)draft.rows.push({id:crypto.randomUUID(),description:'Additional Job',amount:''});
   const editor=host.querySelector('[data-additional-editor]');editor.hidden=!draft.enabled;editor.innerHTML=additionalJobsEditor(draft);
   deductionUpdateInline(host.closest('.deduction-workspace'));
+  if(!draft.baseline?.length)return;
+  event.target.disabled=true;
+  try {
+    const identity=deductionSingleRider(deductionRows(host.dataset.additionalTable,true)),dates=auditCapture(host.dataset.additionalTable)?.scope?.dates||{};
+    const result=await deductionRequest('/set-jobs-included',{requestId:crypto.randomUUID(),rider:identity.rider,periodStart:String(dates.start).slice(0,10),periodEnd:String(dates.end).slice(0,10),includeInStatement:included,expectedJobs:draft.baseline});
+    draft.baseline=result.jobs.map(job=>({id:job.id,description:job.description,amountCents:job.amountCents}));
+    additionalJobsInvalidate();await additionalJobsLoad(true);render();
+    const refreshedHost=[...document.querySelectorAll('[data-additional-table]')].find(item=>item.dataset.additionalTable===host.dataset.additionalTable);
+    const feedback=refreshedHost?.querySelector('[data-additional-feedback]');
+    if(feedback)feedback.textContent=included?'Additional Jobs will be included in rider statements.':'Saved jobs remain in History but will be excluded from rider statements.';
+  }catch(error){draft.enabled=!included;event.target.checked=!included;editor.hidden=!draft.enabled;editor.innerHTML=additionalJobsEditor(draft);const feedback=host.querySelector('[data-additional-feedback]');if(feedback)feedback.textContent=error.message||'Could not update whether Additional Jobs appear in statements.';deductionUpdateInline(host.closest('.deduction-workspace'));}
+  finally{event.target.disabled=false;}
 });
 document.addEventListener('click',async event=>{
   const button=event.target.closest?.('[data-job-add],[data-job-remove],[data-job-save],[data-job-reset]');if(!button)return;
@@ -198,8 +238,7 @@ async function additionalJobsSave(host, reset = false) {
     draft.rows=result.jobs.map(job=>({id:job.id,description:job.description,amount:(job.amountCents/100).toFixed(2),saved:true}));
     draft.baseline=result.jobs.map(job=>({id:job.id,description:job.description,amountCents:job.amountCents}));draft.payload=null;
     if(reset)draft.rows=[{id:crypto.randomUUID(),description:'Additional Job',amount:'0.00'}];
-    additionalJobsState.loaded=false;
-    await additionalJobsLoad(true);deductionStatementPayloadCache.clear();additionalJobsStatementCache.clear();draft.saving=false;render();
+    additionalJobsInvalidate();await additionalJobsLoad(true);draft.saving=false;render();
     const current=document.querySelector('[data-additional-table="'+id+'"] [data-additional-feedback]');if(current)current.textContent=warning||(reset?'Additional Jobs reset to RM 0.00.':'Additional Jobs saved in History and included in rider Excel/PDF statements.');
     return true;
   }catch(error){feedback.textContent=error.message+' Saved rows are preserved. Retry to continue without duplicates.';}

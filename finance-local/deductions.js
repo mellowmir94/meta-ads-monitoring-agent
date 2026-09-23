@@ -164,7 +164,7 @@ function deductionSummaryForRows(dataRows, dates) {
     statementAmounts[record.type] = (statementAmounts[record.type] || 0) + deductionStatementAmountForRecord(record, includedApplied);
   });
   const approvedCents = Object.values(amounts).reduce((sum, value) => sum + value, 0);
-  const additionalCents = typeof additionalJobsForScope === 'function' ? additionalJobsForScope(rider.rider, scopeStart, scopeEnd).reduce((sum,job)=>sum+job.amountCents,0) : 0;
+  const additionalCents = typeof additionalJobsForStatementScope === 'function' ? additionalJobsForStatementScope(rider.rider, scopeStart, scopeEnd).reduce((sum,job)=>sum+job.amountCents,0) : 0;
   return { loaded: deductionState.loaded, error: deductionState.error, riderValid: rider.valid, grossCents, additionalCents, amounts, statementAmounts, approvedCents, appliedCents: approvedCents, pendingCents, netCents: grossCents + additionalCents - approvedCents, legacyCount };
 }
 function deductionDraftFor(id, rider, dates) {
@@ -1211,7 +1211,9 @@ document.addEventListener('click', async event => {
   deductionUpdateInline(summary); if (button.disabled) return;
   if (!deductionDrafts.get(id)?.selected.length && additionalJobsCanProceed(id)) {
     const jobsDraft = additionalJobDrafts.get(id);
-    const saved = jobsDraft.rows.every(row => row.saved) && !jobsDraft.payload || await additionalJobsSave(summary.querySelector('[data-additional-table]'));
+    const emptyStarterOnly = jobsDraft.rows.length && jobsDraft.rows.every(row => row.description.trim() === 'Additional Job' && !String(row.amount || '').trim());
+    const emptyWithoutSavedJobs = !jobsDraft.rows.length && !jobsDraft.baseline?.length;
+    const saved = emptyStarterOnly || emptyWithoutSavedJobs || jobsDraft.rows.every(row => row.saved) && !jobsDraft.payload || await additionalJobsSave(summary.querySelector('[data-additional-table]'));
     if (saved) await deductionHistoryOpen();
     return;
   }

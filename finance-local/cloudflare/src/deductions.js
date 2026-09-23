@@ -144,7 +144,7 @@ export class DeductionRegister {
         return reply({ found: true, result: prior.result });
       }
       if (!/^[a-z0-9-]{16,80}$/i.test(input.requestId || '')) return reply({ error: 'A valid request ID is required.' }, 400);
-      if (!['/save-job', '/save-jobs', '/delete-jobs', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/mark-sent', '/complete-installment', '/reopen-installment', '/delete-batch'].includes(url.pathname)) return reply({ error: 'Deduction action not found.' }, 404);
+      if (!['/save-job', '/save-jobs', '/delete-jobs', '/set-jobs-included', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/mark-sent', '/complete-installment', '/reopen-installment', '/delete-batch'].includes(url.pathname)) return reply({ error: 'Deduction action not found.' }, 404);
       const signature = requestSignature(url.pathname, input);
       const result = await this.storage.transaction(async tx => {
         const prior = await tx.get('request:' + input.requestId);
@@ -153,25 +153,30 @@ export class DeductionRegister {
           return prior.result;
         }
         const now = this.now().toISOString(); let result;
-        if (url.pathname === '/save-jobs' || url.pathname === '/delete-jobs') {
+        if (url.pathname === '/save-jobs' || url.pathname === '/delete-jobs' || url.pathname === '/set-jobs-included') {
           const deleting=url.pathname==='/delete-jobs';
+          const updatingInclusion=url.pathname==='/set-jobs-included';
           if(deleting&&request.headers.get('x-deduction-delete-authorized')!=='1')throw new Error('Delete PIN authorization is required.');
-          if(deleting)input.rows=[];
+          if(deleting||updatingInclusion)input.rows=[];
           const rider=required(input.rider,'Rider'),riderKey=rider.normalize('NFKC').toLowerCase().replace(/\s+/g,' ');
           const periodStart=date(input.periodStart,'Commission period start'),periodEnd=date(input.periodEnd,'Commission period end');
           if(periodEnd<periodStart)throw new Error('Invalid commission period.');
-          const resetting=!deleting&&input.reset===true;
-          if(!Array.isArray(input.rows)||(!deleting&&!resetting&&!input.rows.length)||input.rows.length>10000||(resetting&&input.rows.length))throw new Error('Enter at least one Additional Job, or reset to RM0.00.');
-          const rows=input.rows.map(row=>{const description=required(row.description,'Job description',500),amount=String(row.amount??'');if(!/^\d+(\.\d{1,2})?$/.test(amount)||Number(amount)<=0||Number(amount)>1000000)throw new Error('Enter a valid positive RM amount.');return {description,amountCents:Math.round(Number(amount)*100)};});
+          const resetting=!deleting&&!updatingInclusion&&input.reset===true;
+          if(updatingInclusion&&typeof input.includeInStatement!=='boolean')throw new Error('Choose whether Additional Jobs should appear in statements.');
+          if(!Array.isArray(input.rows)||(!deleting&&!resetting&&!updatingInclusion&&!input.rows.length)||input.rows.length>10000||(resetting&&input.rows.length))throw new Error('Enter at least one Additional Job, or reset to RM0.00.');
+          const rows=updatingInclusion?[]:input.rows.map(row=>{const description=required(row.description,'Job description',500),amount=String(row.amount??'');if(!/^\d+(\.\d{1,2})?$/.test(amount)||Number(amount)<=0||Number(amount)>1000000)throw new Error('Enter a valid positive RM amount.');return {description,amountCents:Math.round(Number(amount)*100)};});
           const existing=[];let after='';
           do {const page=[...await tx.list({prefix:'job:',limit:500,...(after?{startAfter:after}:{})})];for(const [,job] of page)if(job.status!=='replaced'&&job.riderKey===riderKey&&job.periodStart>=periodStart&&job.periodEnd<=periodEnd)existing.push(job);after=page.length===500?page.at(-1)[0]:'';}while(after);
           const fingerprint=jobs=>JSON.stringify(jobs.map(job=>[job.id,job.amountCents,job.description]).sort((a,b)=>a[0].localeCompare(b[0])));
           if(!Array.isArray(input.expectedJobs)||fingerprint(existing)!==fingerprint(input.expectedJobs))throw new Error('Saved jobs changed. Refresh and review before saving again.');
-          if(deleting&&(!existing.length||existing.some(job=>job.periodStart!==periodStart||job.periodEnd!==periodEnd)))throw new Error('Additional Jobs changed. Refresh History before deleting.');
-          for(const job of existing)await tx.put('job:'+job.id,{...job,status:'replaced',replacedAt:now,replacedBy:actor.name,replacementRequestId:input.requestId,...(deleting?{deletedAt:now,deletedBy:actor.name}:{}),audit:[...(job.audit||[]),{action:deleting?'additional-jobs-deleted':resetting?'additional-jobs-reset':'additional-jobs-overwritten',at:now,by:actor.name,amountCents:job.amountCents}]});
+          if((deleting||updatingInclusion)&&(!existing.length||existing.some(job=>job.periodStart!==periodStart||job.periodEnd!==periodEnd)))throw new Error('Additional Jobs changed. Refresh before updating them.');
+          if(updatingInclusion){
+            for(const job of existing)await tx.put('job:'+job.id,{...job,includeInStatement:input.includeInStatement,updatedAt:now,updatedBy:actor.name,audit:[...(job.audit||[]),{action:input.includeInStatement?'additional-jobs-included-in-statements':'additional-jobs-excluded-from-statements',at:now,by:actor.name}]});
+            result={jobs:existing.map(job=>({...job,includeInStatement:input.includeInStatement,updatedAt:now,updatedBy:actor.name}))};
+          }else for(const job of existing)await tx.put('job:'+job.id,{...job,status:'replaced',replacedAt:now,replacedBy:actor.name,replacementRequestId:input.requestId,...(deleting?{deletedAt:now,deletedBy:actor.name}:{}),audit:[...(job.audit||[]),{action:deleting?'additional-jobs-deleted':resetting?'additional-jobs-reset':'additional-jobs-overwritten',at:now,by:actor.name,amountCents:job.amountCents}]});
           let counter=Number(await tx.get('counter:job-reference')||0);const jobs=[];
-          for(let i=0;i<rows.length;i++){const job={...rows[i],id:input.requestId+'-'+i,reference:'JOB-'+String(++counter).padStart(6,'0'),rider,riderKey,periodStart,periodEnd,createdAt:now,createdBy:actor.name,status:'saved',audit:[{action:'additional-job-saved',at:now,by:actor.name,replaces:existing.map(job=>job.id)}]};await tx.put('job:'+job.id,job);jobs.push(job);}
-          await tx.put('counter:job-reference',counter);result=deleting?{deleted:existing.length}: {jobs};
+          for(let i=0;i<rows.length;i++){const job={...rows[i],id:input.requestId+'-'+i,reference:'JOB-'+String(++counter).padStart(6,'0'),rider,riderKey,periodStart,periodEnd,createdAt:now,createdBy:actor.name,status:'saved',includeInStatement:true,audit:[{action:'additional-job-saved',at:now,by:actor.name,replaces:existing.map(job=>job.id)}]};await tx.put('job:'+job.id,job);jobs.push(job);}
+          await tx.put('counter:job-reference',counter);if(!updatingInclusion)result=deleting?{deleted:existing.length}: {jobs};
         } else if (url.pathname === '/save-job') {
           const rider = required(input.rider, 'Rider'), description = required(input.description, 'Job description / reference', 500);
           const periodStart = date(input.periodStart, 'Commission period start'), periodEnd = date(input.periodEnd, 'Commission period end');
@@ -181,7 +186,7 @@ export class DeductionRegister {
           const amountCents = Math.round(Number(amount) * 100);
           if (!Number.isSafeInteger(amountCents) || amountCents <= 0 || amountCents > 100000000) throw new Error('Additional Job amount must be RM0.01 to RM1,000,000.');
           const counter = Number(await tx.get('counter:job-reference') || 0) + 1;
-          const job = { id: input.requestId, reference: 'JOB-' + String(counter).padStart(6,'0'), rider, riderKey: rider.normalize('NFKC').toLowerCase().replace(/\s+/g,' '), periodStart, periodEnd, description, amountCents, createdAt: now, createdBy: actor.name, status: 'saved', audit: [{action:'additional-job-saved',at:now,by:actor.name,amountCents}] };
+          const job = { id: input.requestId, reference: 'JOB-' + String(counter).padStart(6,'0'), rider, riderKey: rider.normalize('NFKC').toLowerCase().replace(/\s+/g,' '), periodStart, periodEnd, description, amountCents, createdAt: now, createdBy: actor.name, status: 'saved', includeInStatement:true, audit: [{action:'additional-job-saved',at:now,by:actor.name,amountCents}] };
           await tx.put('job:' + job.id, job);
           await tx.put('counter:job-reference',counter);
           result = { job };
@@ -387,7 +392,7 @@ export async function deductionsApi(request, env, actor, context) {
     if (request.headers.get('origin') !== url.origin || !request.headers.get('content-type')?.startsWith('application/json')) return reply({ error: 'Same-origin JSON request required.' }, 403);
   }
   const path = url.pathname.slice('/api/deductions'.length) || '/';
-  if (!['/', '/jobs', '/save-job', '/save-jobs', '/delete-jobs', '/eligibility', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/mark-sent', '/complete-installment', '/reopen-installment', '/delete-batch'].includes(path)) return reply({ error: 'Deduction action not found.' }, 404);
+  if (!['/', '/jobs', '/save-job', '/save-jobs', '/delete-jobs', '/set-jobs-included', '/eligibility', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/mark-sent', '/complete-installment', '/reopen-installment', '/delete-batch'].includes(path)) return reply({ error: 'Deduction action not found.' }, 404);
   const readOnly = path === '/' || path === '/eligibility' || path === '/jobs';
   if ((readOnly && request.method !== 'GET') || (!readOnly && request.method !== 'POST')) return reply({ error: 'Method not allowed.' }, 405);
   try {

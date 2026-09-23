@@ -77,12 +77,40 @@ test('job deletion requires PIN, retains audit and backup, is scoped and retry-s
   await validateDeductionSnapshot(backups.at(-1));const restored=new Store();await restoreDeductionSnapshot(restored,backups.at(-1));assert.equal((await restored.list({prefix:'job:'})).size,3);
   assert.equal((await call(env,'/')).body.records.length,0);
 });
+test('statement inclusion checkbox persists per rider period; deleting and recreating a same-name job leaves one active row',async()=>{
+  const {env,storage}=setup();env.DEDUCTION_DELETE_PIN='1234';
+  const saved=await call(env,'/save-jobs',{...job,requestId:crypto.randomUUID(),expectedJobs:[],rows:[{description:'Additional Job',amount:'12.35'}]});
+  const original=saved.body.jobs[0],expected=[{id:original.id,description:original.description,amountCents:original.amountCents}];
+  const toggled=await call(env,'/set-jobs-included',{...job,requestId:crypto.randomUUID(),expectedJobs:expected,includeInStatement:false});
+  assert.equal(toggled.status,201);assert.equal(toggled.body.jobs[0].includeInStatement,false);
+  const active=(await call(env,'/jobs')).body.jobs;assert.equal(active.length,1);assert.equal(active[0].description,'Additional Job');assert.equal(active[0].includeInStatement,false);
+  const deleted=await call(env,'/delete-jobs',{...job,requestId:crypto.randomUUID(),expectedJobs:expected,pin:'1234'});assert.equal(deleted.body.deleted,1);
+  const recreated=await call(env,'/save-jobs',{...job,requestId:crypto.randomUUID(),expectedJobs:[],rows:[{description:'Additional Job',amount:'12.35'}]});
+  const current=(await call(env,'/jobs')).body.jobs;assert.equal(current.length,1);assert.equal(current[0].id,recreated.body.jobs[0].id);assert.notEqual(current[0].id,original.id);assert.equal(current[0].includeInStatement,true);
+  assert.equal((await storage.get('job:'+original.id)).status,'replaced');
+});
+test('forced jobs refresh waits out and discards an in-flight pre-delete snapshot',async()=>{
+  const context=vm.createContext({document:{addEventListener(){}},deductionRiderKey:s=>String(s||'').toLowerCase(),deductionStatementPayloadCache:new Map()});
+  vm.runInContext(readFileSync(new URL('../../additional-jobs.js',import.meta.url),'utf8'),context);
+  let requests=0,releaseFirst;
+  context.deductionRequest=()=>{requests++;return requests===1?new Promise(resolve=>{releaseFirst=()=>resolve({jobs:[{id:'deleted-old-copy'}],next:null});}):Promise.resolve({jobs:[],next:null});};
+  const staleCaller=context.additionalJobsLoad();await new Promise(resolve=>setImmediate(resolve));
+  context.additionalJobsInvalidate();const afterDelete=context.additionalJobsLoad(true);releaseFirst();
+  const [staleResult,freshResult]=await Promise.all([staleCaller,afterDelete]);
+  assert.equal(requests,2,'the invalidated snapshot is followed by exactly one fresh read');
+  assert.deepEqual(Array.from(staleResult),[]);assert.deepEqual(Array.from(freshResult),[]);
+  const state=vm.runInContext(`({jobs:additionalJobsState.jobs,loadedRevision:additionalJobsState.loadedRevision,revision:additionalJobsState.revision})`,context);
+  assert.equal(state.jobs.length,0);assert.equal(state.loadedRevision,state.revision);
+});
 test('shared statement includes only matching rider/period jobs, adds once, cleans labels',async()=>{
   const context=vm.createContext({document:{addEventListener(){}},deductionRiderKey:s=>String(s||'').toLowerCase(),deductionMoney:c=>'RM '+(c/100).toFixed(2)});
   vm.runInContext(readFileSync(new URL('../../additional-jobs.js',import.meta.url),'utf8'),context);
-  vm.runInContext(`additionalJobsLoad=async()=>{}; additionalJobsState.jobs=[{riderKey:'rider a',periodStart:'2026-09-14',periodEnd:'2026-09-20',reference:'JOB-1',description:'Extra job',amountCents:1235},{riderKey:'rider b',periodStart:'2026-09-14',periodEnd:'2026-09-20',amountCents:9000},{riderKey:'rider a',periodStart:'2026-10-01',periodEnd:'2026-10-07',amountCents:9000}];`,context);
+  vm.runInContext(`additionalJobsLoad=async()=>{}; additionalJobsState.jobs=[{riderKey:'rider a',periodStart:'2026-09-14',periodEnd:'2026-09-20',reference:'JOB-1',description:'Extra job',amountCents:1235},{riderKey:'rider b',periodStart:'2026-09-14',periodEnd:'2026-09-20',amountCents:9000},{riderKey:'rider a',periodStart:'2026-10-01',periodEnd:'2026-10-07',amountCents:9000}];additionalJobsForScope=(rider,start,end)=>additionalJobsState.jobs.filter(job=>job.riderKey===deductionRiderKey(rider)&&job.periodStart===start&&job.periodEnd===end);additionalJobsForStatementScope=(rider,start,end)=>additionalJobsForScope(rider,start,end).filter(job=>job.includeInStatement!==false);`,context);
   vm.runInContext(readFileSync(new URL('../../rider-statement.js',import.meta.url),'utf8'),context);
   const payload={panelTitle:'Commission Rider',statementScope:{rider:'Rider A',start:'2026-09-14',end:'2026-09-20'},columns:[{key:'id',value:r=>r.id},{key:'commission',value:r=>r.commission}],rows:[{id:1,commission:100}],summary:{value:'RM 75.00'},footerRows:[['Filtered total','RM 100.00'],['EPF (applied)','- RM 25.00'],['APPLIED DEDUCTIONS','- RM 25.00'],['NET COMMISSION','RM 75.00']]};
   const master=await context.prepareRiderStatement(payload);assert.equal(master.summary.value,'RM 87.35');assert.equal(master.rows.length,1);assert.equal(master.footerRows[3][0],'ADDITIONAL JOB 1 · Extra job');assert.equal(master.footerRows[3][1],'+ RM 12.35');assert.equal(master.footerRows[2][0],'TOTAL DEDUCTIONS');assert.equal(master.footerRows.at(-1)[0],'NET COMMISSION');assert.equal(payload.rows.length,1);assert.equal(master.footerRows.filter(row=>row[0]==='NET COMMISSION').length,1);assert.ok(master.footerRows.some(row=>row[0]==='TOTAL DEDUCTIONS'));assert.ok(!JSON.stringify(master.footerRows).includes('(applied)'));
   assert.equal(await context.prepareRiderStatement(master),master);
+  vm.runInContext(`additionalJobsState.jobs[0].includeInStatement=false`,context);
+  const excluded=await context.prepareRiderStatement({...payload,rows:[{id:1,commission:100}],footerRows:[['Filtered total','RM 100.00'],['TOTAL DEDUCTIONS','RM 0.00']],summary:{value:'RM 100.00'}});
+  assert.equal(excluded.summary.value,'RM 100.00');assert.equal(excluded.footerRows.some(row=>String(row[0]).startsWith('ADDITIONAL JOB ')),false);
 });
