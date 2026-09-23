@@ -1,11 +1,33 @@
 // One source decision is shared by dashboard, saved templates and all exports.
-const financeSource = { ready: null, live: true, weeks: [], rows: new Map(), busy: false, message: '', selected: '', epoch: 0 };
+const financeSource = { ready: null, live: true, weeks: [], rows: new Map(), busy: false, message: '', selected: '', calendarMonth: '', calendarOpen: false, epoch: 0 };
 function financePreviousWeek() {
   const today = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kuala_Lumpur' }) + 'T00:00:00Z');
   today.setUTCDate(today.getUTCDate() - ((today.getUTCDay() + 6) % 7) - 7);
   return today.toISOString().slice(0,10);
 }
 function financeWeekEnd(start) { return new Date(Date.parse(start + 'T00:00:00Z') + 6 * 86400000).toISOString().slice(0,10); }
+function financeWeekStart(dateValue) {
+  const date = new Date(dateValue + 'T00:00:00Z');
+  date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
+  return date.toISOString().slice(0,10);
+}
+function financeSourceCalendarMarkup() {
+  const selected = financeSource.selected || financePreviousWeek();
+  const month = financeSource.calendarMonth || selected.slice(0,7);
+  const [year, monthNumber] = month.split('-').map(Number);
+  const first = new Date(Date.UTC(year, monthNumber - 1, 1));
+  const gridStart = new Date(first);
+  gridStart.setUTCDate(1 - first.getUTCDay());
+  const end = financeWeekEnd(selected);
+  const days = Array.from({length:42}, (_, index) => {
+    const date = new Date(gridStart); date.setUTCDate(gridStart.getUTCDate() + index);
+    const value = date.toISOString().slice(0,10), inWeek = value >= selected && value <= end;
+    const edge = value === selected || value === end;
+    return `<button type="button" class="source-calendar-day${inWeek?' is-in-week':''}${edge?' is-edge':''}${date.getUTCMonth() !== monthNumber - 1?' is-outside':''}" data-source-calendar-day="${value}" aria-pressed="${edge}" aria-label="${value}">${date.getUTCDate()}</button>`;
+  }).join('');
+  const title = new Intl.DateTimeFormat('en-MY',{month:'long',year:'numeric',timeZone:'UTC'}).format(first);
+  return `<section class="source-week-calendar" aria-label="Choose a Monday to Sunday week"><header><button type="button" data-source-calendar-month="-1" aria-label="Previous month">‹</button><strong>${esc(title)}</strong><button type="button" data-source-calendar-month="1" aria-label="Next month">›</button></header><div class="source-calendar-weekdays">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(day=>`<span>${day}</span>`).join('')}</div><div class="source-calendar-days">${days}</div><footer><span>Selected week</span><strong>${esc(selected)} – ${esc(end)}</strong><small>Coordinated Universal Time &nbsp; UTC, GMT</small></footer></section>`;
+}
 async function financeSourceCall(path, input) {
   const controller = new AbortController(), timer = setTimeout(()=>controller.abort(),path==='sync'?100000:30000);
   try {
@@ -35,7 +57,7 @@ function financeSourceClear(clearDisplayed = false) {
 }
 function financeSourceMarkup() {
   const start = financeSource.selected ||= financePreviousWeek();
-  return `<div class="dashboard-tab-settings"><label><input type="checkbox" data-source-live ${financeSource.live?'checked':''} ${financeSource.busy?'disabled':''}> Live data ${financeSource.live?'ON':'OFF'}</label><p>ON uses current Grafana figures. OFF uses a saved Monday–Sunday week, including both weekly KPI totals. Table filters remain local.</p><label>Sync data · Week starting Monday<input type="date" data-source-week value="${esc(start)}" ${financeSource.busy?'disabled':''}></label><p>Week ends ${esc(financeWeekEnd(start))}</p><div><button class="button primary" data-source-sync ${financeSource.busy?'disabled':''}>${financeSource.busy?'Syncing…':'Sync now'}</button> <button class="button" data-source-use ${financeSource.busy?'disabled':''}>Use this week</button></div><p role="status">${esc(financeSource.message)}</p><p>Sync replaces only the selected week's saved copy. Existing deductions and Additional Jobs are unchanged.</p><div style="overflow:auto"><table><thead><tr><th>Week</th><th>Rows</th><th>Last updated</th><th>Status</th></tr></thead><tbody>${financeSource.weeks.map(week=>`<tr><td>${esc(week.start)} – ${esc(week.end)}</td><td>${week.rowCount}</td><td>${esc(formatFinanceDateTime(week.updatedAt))}</td><td>Synced</td></tr>`).join('') || '<tr><td colspan="4">No synced weeks yet.</td></tr>'}</tbody></table></div></div>`;
+  return `<div class="dashboard-tab-settings"><label><input type="checkbox" data-source-live ${financeSource.live?'checked':''} ${financeSource.busy?'disabled':''}> Live data ${financeSource.live?'ON':'OFF'}</label><p>ON uses current Grafana figures. OFF uses a saved Monday–Sunday week, including both weekly KPI totals. Table filters remain local.</p><div class="source-week-picker"><span>Sync data · Week starting Monday</span><button type="button" class="source-week-trigger" data-source-calendar-toggle aria-expanded="${financeSource.calendarOpen}" ${financeSource.busy?'disabled':''}><b>◷</b><strong>${esc(start)} – ${esc(financeWeekEnd(start))}</strong><i>⌄</i></button>${financeSource.calendarOpen?financeSourceCalendarMarkup():''}</div><div class="source-week-actions"><button class="button primary" data-source-sync ${financeSource.busy?'disabled':''}>${financeSource.busy?'Syncing…':'Sync now'}</button> <button class="button" data-source-use ${financeSource.busy?'disabled':''}>Last week (Mon–Sun)</button></div><p role="status">${esc(financeSource.message)}</p><p>Sync replaces only the selected week's saved copy. Existing deductions and Additional Jobs are unchanged.</p><div style="overflow:auto"><table><thead><tr><th>Week</th><th>Rows</th><th>Last updated</th><th>Status</th></tr></thead><tbody>${financeSource.weeks.map(week=>`<tr><td>${esc(week.start)} – ${esc(week.end)}</td><td>${week.rowCount}</td><td>${esc(formatFinanceDateTime(week.updatedAt))}</td><td>Synced</td></tr>`).join('') || '<tr><td colspan="4">No synced weeks yet.</td></tr>'}</tbody></table></div></div>`;
 }
 function financeSourceDialog() { showFinanceDialog('Data Source', 'Commission Rider · Live data and shared weekly snapshots', financeSourceMarkup()); }
 async function financeSourceUseWeek() {
@@ -78,12 +100,21 @@ async function financeSourcePayload(url) {
   return { response: { ok: true, status: 200 }, payload, elapsedMs: 0 };
 }
 document.addEventListener('click',async event=>{
-  const button = event.target.closest('[data-source-settings],[data-source-sync],[data-source-use]');
+  const monthButton = event.target.closest('[data-source-calendar-month]');
+  if (monthButton) {
+    const [year,month] = (financeSource.calendarMonth || financeSource.selected || financePreviousWeek()).slice(0,7).split('-').map(Number);
+    const next = new Date(Date.UTC(year,month - 1 + Number(monthButton.dataset.sourceCalendarMonth),1));
+    financeSource.calendarMonth = next.toISOString().slice(0,7); financeSourceDialog(); return;
+  }
+  const dayButton = event.target.closest('[data-source-calendar-day]');
+  if (dayButton) { financeSource.selected = financeWeekStart(dayButton.dataset.sourceCalendarDay); financeSource.calendarMonth = dayButton.dataset.sourceCalendarDay.slice(0,7); financeSourceDialog(); return; }
+  const button = event.target.closest('[data-source-settings],[data-source-sync],[data-source-use],[data-source-calendar-toggle]');
   if (!button || financeSource.busy) return;
+  if (button.hasAttribute('data-source-calendar-toggle')) { financeSource.calendarOpen = !financeSource.calendarOpen; financeSource.calendarMonth ||= (financeSource.selected || financePreviousWeek()).slice(0,7); financeSourceDialog(); return; }
   try {
     await financeSourceReady();
     if (button.hasAttribute('data-source-settings')) { financeSourceDialog(); return; }
-    if (button.hasAttribute('data-source-use')) { await financeSourceUseWeek(); return; }
+    if (button.hasAttribute('data-source-use')) { financeSource.selected = financePreviousWeek(); financeSource.calendarMonth = financeSource.selected.slice(0,7); await financeSourceUseWeek(); return; }
     const start = financeSource.selected || financePreviousWeek();
     if (new Date(start+'T00:00:00Z').getUTCDay() !== 1) throw Error('Select a Monday.');
     financeSource.busy = true; financeSource.message = 'Loading the complete table and both KPI sources…'; financeSourceDialog();
