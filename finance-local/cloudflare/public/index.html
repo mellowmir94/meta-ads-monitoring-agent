@@ -8000,16 +8000,43 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
         let timedOut = false;
         const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 45000);
         const request = (async () => {
-          const response = await fetch(requestUrl, {
+          // One bounded retry handles a transient gateway/network failure.
+          // The original deadline and cancellation signal cover both attempts.
+          for (let attempt = 0; attempt < 2; attempt++) {
+          controller.signal.throwIfAborted();
+          let response;
+          try { response = await fetch(requestUrl, {
             credentials: "same-origin",
             headers: { accept: "application/json" },
             signal: controller.signal,
             cache: force ? "no-store" : "default",
             priority: panelId === activePanel()?.id ? "high" : "low"
-          });
-          const payload = await response.json();
+          }); } catch (error) {
+            if (attempt === 0 && error?.name === 'TypeError' && !controller.signal.aborted) {
+              await new Promise(resolve => setTimeout(resolve, 350));
+              continue;
+            }
+            throw error;
+          }
+          if (attempt === 0 && [502, 503, 504, 520, 522, 524].includes(response.status)) {
+            if (response.body) void response.body.cancel().catch(() => {});
+            await new Promise(resolve => setTimeout(resolve, 350));
+            continue;
+          }
+          let payload;
+          try { payload = await response.json(); }
+          catch (error) {
+            controller.signal.throwIfAborted();
+            if (response.ok) throw new Error('Grafana returned an incomplete response. Your last loaded data is unchanged; please retry Refresh.');
+            payload = {};
+          }
+          if (!payload || typeof payload !== 'object') payload = {};
+          if (!response.ok && !payload.error) {
+            payload.error = `Grafana is temporarily unavailable (HTTP ${response.status}). Please retry Refresh. Your last loaded data has not been replaced.`;
+          }
           if (typeof financeSource !== 'undefined' && sourceEpoch !== financeSource.epoch) throw new Error('Data source changed. Please retry.');
           return { response, payload, elapsedMs: Math.round(performance.now() - startedAt) };
+          }
         })();
         financeInflightRequests.set(requestUrl, request);
         try { return await request; }
