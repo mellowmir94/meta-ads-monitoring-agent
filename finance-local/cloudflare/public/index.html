@@ -8009,7 +8009,7 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
             credentials: "same-origin",
             headers: { accept: "application/json" },
             signal: controller.signal,
-            cache: force ? "no-store" : "default",
+            cache: "no-store",
             priority: panelId === activePanel()?.id ? "high" : "low"
           }); } catch (error) {
             if (attempt === 0 && error?.name === 'TypeError' && !controller.signal.aborted) {

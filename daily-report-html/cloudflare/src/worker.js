@@ -27,24 +27,9 @@ const MAX_EMAIL_SALES_QUERY_DAYS = 14;
 const PITSTOP_CACHE_SECONDS = 600;
 const PITSTOP_PANEL_CACHE_SECONDS = 10 * 60;
 const FINANCE_PANEL_CACHE_SECONDS = 10 * 60;
-// Bump when Finance query semantics change so cached payloads cannot retain
-// calculations produced by an older Grafana query path.
-// Scope signatures are part of the snapshot key.  Bump this whenever the
-// Grafana variable/date semantics change so an older, differently-scoped
-// payload can never be served for a new dashboard selection.
-// Bump after changing Finance row-field normalization so previously stored
-// Grafana snapshots cannot keep serving an obsolete field shape.
+// Retained solely to identify historical saved snapshots. They are no longer
+// read, written, or removed by the live Finance data path.
 const FINANCE_SNAPSHOT_PREFIX = 'finance-snapshot:v11:';
-const FINANCE_SNAPSHOT_MAX_STALE_SECONDS = 30 * 60;
-const FINANCE_PREWARM_REQUESTS = [
-  ['commission-main', 'primary'],
-  ['commission-main', 'options'],
-  ['reimbursement-details', 'all'],
-  ['daily-sales-branch-overview', 'primary'],
-  ['daily-sales-branch-overview', 'tables'],
-  ['daily-sales-hq-dealer-overview', 'primary'],
-  ['daily-sales-hq-dealer-overview', 'tables']
-];
 const PITSTOP_GRAFANA_PANELS = [
   {
     channel: 'HQ',
@@ -86,7 +71,6 @@ const financeDashboardRequests = new Map();
 // briefly so detail, KPI, and filter-option requests share one exact scope.
 const financeCommissionVariableOptionsCache = new Map();
 const financeCommissionVariableOptionsRequests = new Map();
-let financePrewarmPromise = null;
 const SESSION_COOKIE = '__Host-daily_report_session';
 const UPLOAD_SESSION_COOKIE = '__Host-daily_report_upload_session';
 const SESSION_SECONDS = 8 * 60 * 60;
@@ -1277,27 +1261,6 @@ function financeSnapshotKey(url) {
   return `${FINANCE_SNAPSHOT_PREFIX}${params.toString()}`;
 }
 
-function financeSnapshotResponse(snapshot, ageSeconds, state = 'HIT') {
-  return new Response(String(snapshot.body || ''), {
-    status: Number(snapshot.status || 200),
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      'cache-control': 'private, no-store',
-      'x-content-type-options': 'nosniff',
-      'x-finance-snapshot': state,
-      'x-finance-snapshot-age': String(Math.max(0, Math.floor(ageSeconds)))
-    }
-  });
-}
-
-async function storeFinanceSnapshot(env, key, response) {
-  if (!env.DASHBOARD_DATA || !response || !response.ok) return;
-  const body = await response.clone().text();
-  await env.DASHBOARD_DATA.put(key, body, {
-    metadata: { status: response.status, storedAt: Date.now() }
-  });
-}
-
 // Large Finance detail tables are expensive to send as JSON objects because
 // every row repeats the same 20+ field names.  The dashboard can request this
 // lossless columnar representation instead: repeated text values are
@@ -1481,79 +1444,14 @@ async function financeLiveResponse(request, env) {
   }
 }
 
-async function internalFinanceApi(request, env, ctx) {
+async function internalFinanceApi(request, env, _ctx) {
   const supplied = String(request.headers.get('x-finance-proxy-secret') || '');
   const expected = String(env.FINANCE_PROXY_SHARED_SECRET || '');
   if (!expected || !constantTimeEqual(supplied, expected)) return json({ error: 'Finance proxy authorization failed.' }, 403);
-  const url = new URL(request.url);
-  // Commission KPIs are reconciliation figures. Never return a KV snapshot
-  // while Grafana may already be showing a newer datasource result.
-  const bypassSnapshot = url.searchParams.get('refresh') === '1'
-    || url.searchParams.get('panel') === 'commission-main';
-  const snapshotKey = financeSnapshotKey(url);
-  let snapshot = null;
-  if (env.DASHBOARD_DATA && !bypassSnapshot) {
-    try {
-      const stored = await env.DASHBOARD_DATA.getWithMetadata(snapshotKey, { type: 'text' });
-      if (stored && stored.value) {
-        snapshot = {
-          body: stored.value,
-          status: Number(stored.metadata && stored.metadata.status || 200),
-          storedAt: Number(stored.metadata && stored.metadata.storedAt || 0)
-        };
-        // One-cycle compatibility with snapshots written by the previous
-        // JSON-envelope build; the scheduled refresh rewrites them as raw
-        // response bodies with KV metadata to avoid an 8 MB double parse.
-        if (!snapshot.storedAt && String(stored.value).startsWith('{"status":')) {
-          try { snapshot = JSON.parse(stored.value); } catch { snapshot = null; }
-        }
-      }
-    } catch { snapshot = null; }
-  }
-  const ageSeconds = snapshot && Number(snapshot.storedAt)
-    ? Math.max(0, (Date.now() - Number(snapshot.storedAt)) / 1000)
-    : Number.POSITIVE_INFINITY;
-  const freshSeconds = financeSnapshotFreshSeconds(url);
-  if (snapshot && ageSeconds <= freshSeconds) return financeSnapshotResponse(snapshot, ageSeconds, 'HIT');
-  if (snapshot && ageSeconds <= FINANCE_SNAPSHOT_MAX_STALE_SECONDS) {
-    if (ctx && typeof ctx.waitUntil === 'function') {
-      const refreshRequest = new Request(request.url, { headers: request.headers });
-      ctx.waitUntil(financeLiveResponse(refreshRequest, env)
-        .then(async (response) => { await storeFinanceSnapshot(env, snapshotKey, response); })
-        .catch(() => {}));
-    }
-    return financeSnapshotResponse(snapshot, ageSeconds, 'STALE');
-  }
+  // Grafana reads are always live. Existing KV snapshot values are intentionally
+  // left untouched (no delete or rewrite); they are simply no longer served.
   const live = await financeLiveResponse(request, env);
-  if (live.ok && env.DASHBOARD_DATA) {
-    const write = storeFinanceSnapshot(env, snapshotKey, live).catch(() => {});
-    if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(write);
-    else await write;
-  } else if (snapshot) {
-    return financeSnapshotResponse(snapshot, ageSeconds, 'STALE-IF-ERROR');
-  }
   return live;
-}
-
-async function prewarmFinanceSnapshots(env, ctx) {
-  if (financePrewarmPromise) return financePrewarmPromise;
-  financePrewarmPromise = (async () => {
-    const origin = 'https://finance-prewarm.internal';
-    const headers = { 'x-finance-proxy-secret': String(env.FINANCE_PROXY_SHARED_SECRET || '') };
-    const refresh = async ([panel, part]) => {
-      const params = new URLSearchParams({ panel, scope: 'grafana', refresh: '1' });
-      params.set('format', 'packed');
-      if (part !== 'all') params.set('part', part);
-      const response = await internalFinanceApi(new Request(`${origin}/api/internal/finance-data?${params}`, { headers }), env, ctx);
-      if (!response.ok) throw new Error(`Finance prewarm failed for ${panel}:${part} (${response.status}).`);
-      return response.status;
-    };
-    const primary = FINANCE_PREWARM_REQUESTS.filter(([, part]) => part !== 'tables' && part !== 'options');
-    const supplemental = FINANCE_PREWARM_REQUESTS.filter(([, part]) => part === 'tables' || part === 'options');
-    await Promise.allSettled(primary.map(refresh));
-    await Promise.allSettled(supplemental.map(refresh));
-  })().finally(() => { financePrewarmPromise = null; });
-  return financePrewarmPromise;
 }
 
 function normalizedGrafanaKey(value) {
@@ -3209,7 +3107,6 @@ export default {
     return securityHeaders(await env.ASSETS.fetch(request), url.pathname);
   },
   async scheduled(_controller, env, ctx) {
-    ctx.waitUntil(prewarmFinanceSnapshots(env, ctx));
     const b2wConfigured = Boolean(env.MS_GRAPH_TENANT_ID && env.MS_GRAPH_CLIENT_ID && env.MS_GRAPH_CLIENT_SECRET && env.SHAREPOINT_B2W_SHARE_URL);
     if (env.OPERATIONS_JOBS) {
       ctx.waitUntil(scheduledOperations(env, () => syncSharePointB2w(env), b2wConfigured));

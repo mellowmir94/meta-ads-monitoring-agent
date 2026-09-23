@@ -8,20 +8,7 @@ export { DeductionRegister };
 
 const SESSION_COOKIE = "ledger_finance_session";
 const SESSION_SECONDS = 8 * 60 * 60;
-// Bump when the edge response contract or source-scope rules change so stale
-// cached payloads cannot survive a parity correction.
-const FINANCE_CACHE_SCHEMA = "grafana-finance-tables-v16";
 const financeRequests = new Map();
-const financeRevalidations = new Map();
-
-function financeCachePolicy(url) {
-  const part = String(url.searchParams.get("part") || "all").toLowerCase();
-  // Finance controls must follow current Grafana variable values closely.
-  if (part === "options") return { ttl: 60, stale: 120 };
-  if (part === "tables") return { ttl: 90, stale: 180 };
-  if (part === "primary") return { ttl: 45, stale: 180 };
-  return { ttl: 60, stale: 300 };
-}
 
 function html(body, status = 200, headers = {}) {
   return new Response(body, {
@@ -235,12 +222,9 @@ async function requireActiveLease(request, env) {
 
 function financeClientResponse(source, cacheStatus) {
   const headers = new Headers(source.headers);
-  // Authenticated Finance data may be reused briefly by this browser only.
-  // This removes a repeat multi-megabyte transfer on refresh/back navigation;
-  // Cloudflare still revalidates the shared Grafana snapshot independently.
-  headers.set("cache-control", source.ok && cacheStatus !== "BYPASS"
-    ? "private, max-age=30, stale-while-revalidate=120"
-    : "private, no-store");
+  // Live Finance queries always reach Grafana. Stored synced weeks are served
+  // by the separate data-source endpoint and are not affected by this header.
+  headers.set("cache-control", "private, no-store, max-age=0, must-revalidate");
   headers.set("x-content-type-options", "nosniff");
   headers.set("x-finance-cache", cacheStatus);
   return new Response(source.body, { status: source.status, statusText: source.statusText, headers });
@@ -259,53 +243,10 @@ async function fetchFinanceUpstream(upstreamUrl, env, requestKey) {
   finally { if (financeRequests.get(requestKey) === pending) financeRequests.delete(requestKey); }
 }
 
-async function prewarmCommissionPrimary(env) {
-  if (!env.GRAFANA_PROXY || !env.FINANCE_PROXY_SHARED_SECRET) return;
-  const url = new URL("https://daily-report.internal/api/internal/finance-data");
-  url.searchParams.set("panel", "commission-main");
-  url.searchParams.set("scope", "grafana");
-  url.searchParams.set("part", "primary");
-  url.searchParams.set("format", "packed");
-  const response = await env.GRAFANA_PROXY.fetch(new Request(url, {
-    headers: { "x-finance-proxy-secret": env.FINANCE_PROXY_SHARED_SECRET }
-  }));
-  if (!response.ok) return;
-  if (response.body) await response.body.pipeTo(new WritableStream());
-}
-
-async function writeFinanceEdgeCache(edgeCache, cacheKey, response, policy) {
-  if (!edgeCache || !response || !response.ok) return;
-  const cacheHeaders = new Headers(response.headers);
-  cacheHeaders.set("cache-control", `public, max-age=${policy.ttl + policy.stale}, s-maxage=${policy.ttl + policy.stale}, stale-while-revalidate=${policy.stale}`);
-  cacheHeaders.set("x-finance-cached-at", new Date().toISOString());
-  cacheHeaders.set("x-finance-fresh-seconds", String(policy.ttl));
-  await edgeCache.put(cacheKey, new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: cacheHeaders
-  }));
-}
-
-function revalidateFinanceCache(edgeCache, cacheKey, upstreamUrl, env, policy) {
-  const key = cacheKey.url;
-  let pending = financeRevalidations.get(key);
-  if (!pending) {
-    pending = fetchFinanceUpstream(upstreamUrl, env, upstreamUrl.toString())
-      .then((response) => writeFinanceEdgeCache(edgeCache, cacheKey, response, policy))
-      .finally(() => { if (financeRevalidations.get(key) === pending) financeRevalidations.delete(key); });
-    // Share revalidation through the whole streamed cache write, not just until
-    // upstream headers arrive. Concurrent viewers no longer repeat this work.
-    financeRevalidations.set(key, pending);
-  }
-  return pending;
-}
-
 async function financeDataApi(request, env, context) {
   if (request.method !== "GET") return json({ error: "Method not allowed." }, 405);
   if (!env.GRAFANA_PROXY || !env.FINANCE_PROXY_SHARED_SECRET) return json({ error: "Grafana finance proxy is not configured." }, 503);
   const incoming = new URL(request.url);
-  const bypassCache = incoming.searchParams.get("refresh") === "1";
-  const cachePolicy = financeCachePolicy(incoming);
   const upstreamUrl = new URL("https://daily-report.internal/api/internal/finance-data");
   // The upstream keeps the public object-row response compatible by default.
   // This private dashboard opts into the lossless compact representation so a
@@ -319,35 +260,12 @@ async function financeDataApi(request, env, context) {
   // revision here makes the edge cache return a different scope than the
   // dashboard variables the user just confirmed.
   ["panel", "from", "to", "scope", "part", "filters", "revision", "refresh"].forEach((key) => { const value = incoming.searchParams.get(key); if (value) upstreamUrl.searchParams.set(key, value); });
-  const cacheUrl = new URL("https://ledger-finance-cache.internal/data");
-  cacheUrl.searchParams.set("schema", FINANCE_CACHE_SCHEMA);
-  upstreamUrl.searchParams.forEach((value, key) => cacheUrl.searchParams.set(key, value));
-  const cacheKey = new Request(cacheUrl, { method: "GET" });
-  const edgeCache = globalThis.caches && globalThis.caches.default;
   try {
-    if (!bypassCache && edgeCache) {
-      const cached = await edgeCache.match(cacheKey);
-      if (cached) {
-        const cachedAt = Date.parse(cached.headers.get("x-finance-cached-at") || "");
-        const ageSeconds = Number.isFinite(cachedAt) ? Math.max(0, (Date.now() - cachedAt) / 1000) : 0;
-        if (ageSeconds <= cachePolicy.ttl) return financeClientResponse(cached, "HIT");
-        if (ageSeconds <= cachePolicy.ttl + cachePolicy.stale) {
-          const revalidate = revalidateFinanceCache(edgeCache, cacheKey, upstreamUrl, env, cachePolicy).catch(() => {});
-          if (context && typeof context.waitUntil === "function") context.waitUntil(revalidate);
-          else void revalidate;
-          return financeClientResponse(cached, "STALE");
-        }
-      }
-    }
-
-    const requestKey = `${upstreamUrl}${bypassCache ? ":refresh" : ""}`;
+    // In-flight sharing is retained so simultaneous Finance views reuse one
+    // Grafana pull; completed responses are never reused as cached data.
+    const requestKey = `${upstreamUrl}:live`;
     const upstreamResponse = await fetchFinanceUpstream(upstreamUrl, env, requestKey);
-    if (upstreamResponse.ok && edgeCache) {
-      const cacheWrite = writeFinanceEdgeCache(edgeCache, cacheKey, upstreamResponse.clone(), cachePolicy).catch(() => {});
-      if (context && typeof context.waitUntil === "function") context.waitUntil(cacheWrite);
-      else await cacheWrite;
-    }
-    return financeClientResponse(upstreamResponse, bypassCache ? "BYPASS" : "MISS");
+    return financeClientResponse(upstreamResponse, "BYPASS");
   } catch {
     return json({ error: "The Grafana finance service is temporarily unavailable." }, 503);
   }
@@ -481,11 +399,11 @@ export default {
 
     const response = await env.ASSETS.fetch(request);
     const headers = new Headers(response.headers);
-    // Vendor URLs are versioned by the HTML shell, so they are safe to cache as
-    // immutable while HTML remains revalidated after every deployment.
+    // Only versioned vendor assets remain cached; dashboard HTML and dynamic
+    // files are always fetched fresh. Finance business data is never deleted.
     headers.set("cache-control", url.pathname.startsWith("/vendor/")
       ? "public, max-age=31536000, immutable"
-      : "private, no-cache, must-revalidate");
+      : "private, no-store, max-age=0, must-revalidate");
     headers.set("x-content-type-options", "nosniff");
     headers.set("x-frame-options", "DENY");
     headers.set("referrer-policy", "no-referrer");
