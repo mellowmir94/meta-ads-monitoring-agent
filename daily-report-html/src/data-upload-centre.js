@@ -535,7 +535,7 @@
       function rowDiff(items, added) { return items.flatMap(function(item) { return Object.keys(item.values || {}).map(function(field) { return { branch: item.branch, field: field, current: added ? null : item.values[field], candidate: added ? item.values[field] : null }; }); }); }
       var changes = report.changed.flatMap(function(item) { return item.fields.map(function(field) { return Object.assign({ branch: item.branch }, field); }); });
       document.getElementById('masterReviewSummary').textContent = report.counts.added + ' added, ' + report.counts.removed + ' removed, ' + report.counts.changed + ' changed; ' + report.counts.warnings + ' warnings.';
-      document.getElementById('masterReviewDecision').textContent = report.canConfirm ? 'Review ready. Confirming saves the uploaded Master values.' : 'Correct duplicate branches and missing essential fields in the file, then select it again.';
+      document.getElementById('masterReviewDecision').textContent = report.canConfirm ? 'Confirming replaces the old Pitstop Master with this upload. For repeated branch names, the last row wins; each branch is saved once.' : 'Correct missing essential fields in the file, then select it again.';
       document.getElementById('masterPendingState').textContent = report.canConfirm ? 'Review required' : 'Corrections required';
       reviewBody.innerHTML = section('Duplicate branches', report.duplicates.length, issues(report.duplicates), !!report.duplicates.length) + section('Missing essential fields', report.missingFields.length, issues(report.missingFields), !!report.missingFields.length) + section('Warnings', report.warnings.length, issues(report.warnings), !!report.warnings.length) + section('Added branches', report.added.length, diffTable(rowDiff(report.added, true), 'Added branch values'), false) + section('Removed branches', report.removed.length, diffTable(rowDiff(report.removed, false), 'Removed branch values'), !!report.removed.length) + section('Changed branches', report.changed.length, diffTable(changes, 'Changed field values'), !!report.changed.length);
       reviewPanel.hidden = false;
@@ -565,7 +565,7 @@
           pendingFileName.textContent = file.name;
         } else pendingMaster = candidate;
         masterPendingName.textContent = file.name;
-        masterPendingStats.textContent = formatNumber(candidate.rows.length) + ' rows; ' + formatNumber(candidate.activeMalaysia) + ' active Malaysia';
+        masterPendingStats.textContent = formatNumber(candidate.review.rows.length) + ' branches to save; ' + formatNumber(candidate.review.rows.filter(function(row) { return isActiveMasterRow(row) && isMalaysiaMasterRow(row); }).length) + ' active Malaysia; ' + formatNumber(candidate.review.duplicates.length) + ' duplicate rows replaced';
         masterPending.hidden = false;
         masterConfirmButton.hidden = false;
         masterCancelButton.hidden = false;
@@ -612,7 +612,7 @@
           document.getElementById('masterReviewTitle').focus();
           return;
         }
-        var nextWorkbook = Object.assign({}, latest.workbook, { sourceFile: master.sourceFile, loadedAt: new Date().toISOString(), pitstopMasterSourceFile: master.sourceFile, pitstopMasterLoadedAt: new Date().toISOString(), sheets: Object.assign({}, latest.workbook.sheets, { 'Pitstop Master': { rows: master.rows } }) });
+        var nextWorkbook = Object.assign({}, latest.workbook, { sourceFile: master.sourceFile, loadedAt: new Date().toISOString(), pitstopMasterSourceFile: master.sourceFile, pitstopMasterLoadedAt: new Date().toISOString(), sheets: Object.assign({}, latest.workbook.sheets, { 'Pitstop Master': { rows: master.review.rows } }) });
         if (HOSTED_MODE) await saveHostedWorkbook(nextWorkbook, latest.etag);
         state.workbook = nextWorkbook;
         saveDashboardWorkbook();

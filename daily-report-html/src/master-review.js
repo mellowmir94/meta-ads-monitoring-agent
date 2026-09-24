@@ -57,15 +57,23 @@
       if (!currentMap.has(entry.key)) currentMap.set(entry.key, entry);
     });
     if (!candidate.length) result.missingFields.push({ code: 'empty_master', branch: '', row: null, field: 'Branch', message: 'The candidate Master contains no rows.' });
+    // Keep the last uploaded record for each branch, preserving its complete values.
+    var resolved = new Map();
+    candidate.forEach(function(entry) {
+      var identity = entry.key || entry;
+      if (resolved.has(identity)) {
+        var previous = resolved.get(identity);
+        result.duplicates.push(issue('duplicate_branch', entry, 'Branch', 'Data row ' + (entry.index + 1) + ' replaces duplicate data row ' + (previous.index + 1) + '. Only the last occurrence will be saved.', { rows: [previous.index + 1, entry.index + 1] }));
+      }
+      resolved.set(identity, entry);
+    });
+    candidate = Array.from(resolved.values());
+    result.rows = candidate.map(function(entry) { return clone(entry.source); });
     candidate.forEach(function(entry) {
       essentials.forEach(function(field) {
         if (!text(entry.values[field]).trim()) result.missingFields.push(issue('missing_essential', entry, field, field + ' is required.'));
       });
       if (!text(entry.values.Tier).trim()) result.warnings.push(issue('missing_tier', entry, 'Tier', 'Tier is missing. Check the branch classification.'));
-      if (entry.key && candidateMap.has(entry.key)) {
-        var previous = candidateMap.get(entry.key);
-        result.duplicates.push(issue('duplicate_branch', entry, 'Branch', 'Duplicate Branch name in candidate Master.', { rows: [previous.index + 1, entry.index + 1] }));
-      }
       if (!candidateMap.has(entry.key)) candidateMap.set(entry.key, entry);
       var compact = key(entry.values.Branch);
       if (compact && similar.has(compact) && similar.get(compact).key !== entry.key) result.warnings.push(issue('similar_branch', entry, 'Branch', 'Branch differs only by spacing or punctuation from ' + text(similar.get(compact).values.Branch) + '. Check for a duplicate.'));
@@ -75,6 +83,7 @@
       var country = text(entry.values.Country).trim().toUpperCase(), state = canonicalState(entry.values.State), expected = '';
       if (compact.indexOf('telukintan') !== -1) expected = 'Perak';
       if (compact.indexOf('presint15putrajaya') !== -1 || compact.indexOf('presint15') !== -1) expected = 'Putrajaya';
+      if (compact === 'bpputrajaya') expected = 'Putrajaya';
       if (expected && (state !== expected || ['MY', 'MALAYSIA'].indexOf(country) === -1)) result.warnings.push(issue('known_geography', entry, 'State', 'Check geography: ' + text(entry.values.Branch) + ' is expected in ' + expected + ', Malaysia.', { current: clone(entry.values.State), expected: expected, expectedCountry: 'Malaysia' }));
       if (['MY', 'MALAYSIA'].indexOf(country) !== -1 && state && states.indexOf(state) === -1) result.warnings.push(issue('unrecognized_state', entry, 'State', 'Unrecognized Malaysia state: ' + text(entry.values.State) + '.'));
       if (country && ['MY', 'MALAYSIA', 'ID', 'IDN', 'INDONESIA'].indexOf(country) === -1) result.warnings.push(issue('unrecognized_country', entry, 'Country', 'Verify the country value: ' + text(entry.values.Country) + '.'));
@@ -95,8 +104,8 @@
       else if (text(entry.values.State).trim() && canonicalState(entry.values.State) !== canonicalState(match.values.State)) { code = 'performance_state_mismatch'; field = 'State'; message = 'Performance State (' + text(entry.values.State) + ') differs from candidate State (' + text(match.values.State) + ').'; }
       if (code && !warned.has(code + entry.key)) { warned.add(code + entry.key); result.warnings.push(issue(code, entry, field, message, { source: 'performance' })); }
     });
-    result.canConfirm = result.duplicates.length === 0 && result.missingFields.length === 0;
-    result.requiresAcknowledgement = result.removed.length > 0 || result.changed.length > 0;
+    result.canConfirm = result.missingFields.length === 0;
+    result.requiresAcknowledgement = result.duplicates.length > 0 || result.removed.length > 0 || result.changed.length > 0;
     result.counts = { current: current.length, candidate: candidate.length, added: result.added.length, removed: result.removed.length, changed: result.changed.length, unchanged: candidate.length - result.added.length - result.changed.length, duplicates: result.duplicates.length, missingFields: result.missingFields.length, warnings: result.warnings.length };
     return result;
   }

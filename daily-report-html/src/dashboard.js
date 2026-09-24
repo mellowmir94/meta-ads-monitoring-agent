@@ -327,6 +327,7 @@
   }
   var PITSTOP_STATE_CORRECTIONS = {
     hqpresint15putrajaya: 'Putrajaya',
+    bpputrajaya: 'Putrajaya',
     hqtelukintan: 'Perak',
     bptelukintanjlnchangkatjong: 'Perak'
   };
@@ -817,7 +818,7 @@
     target = numberValue(target);
     if (!(target > 0)) return 'red';
     if (sales >= target) return 'green';
-    return sales * 10 >= target * 9 ? 'yellow' : 'red';
+    return target - sales <= 1 || sales * 10 >= target * 9 ? 'yellow' : 'red';
   }
 
   function normalizePayload(raw, sourceName) {
@@ -2105,7 +2106,7 @@
   function renderPitstops() {
     var pitstops = pitstopsForPeriod(), needle = state.pitSearch.trim().toLowerCase();
     var pitstopSourceNote = state.grafanaPitstopLastSync
-      ? ' Pitstop Master controls the active pitstop list, channel, state, region and tier. Target accumulates by selected calendar day (Tier 1: 12/day, Tier 2: 9/day, Tier 3: 7/day). HQ sales sync from ALL PERFORMANCE (HQ) HTML and BP sales sync from ALL PERFORMANCE (BP) HTML. Status is calculated from Sales ÷ accumulated Target: Green 100%+, Yellow 90–99%, Red below 90%.'
+? ' Pitstop Master controls the active pitstop list, channel, state, region and tier. Target accumulates by selected calendar day (Tier 1: 12/day, Tier 2: 9/day, Tier 3: 7/day). HQ sales sync from ALL PERFORMANCE (HQ) HTML and BP sales sync from ALL PERFORMANCE (BP) HTML. Status is calculated from Sales ÷ accumulated Target: Green 100%+, Yellow 90–99% or at most 1 unit short, Red otherwise.'
       : ' Pitstop Master controls the active pitstop list, channel, state, region and tier. Target is derived from tier (Tier 1: 12, Tier 2: 9, Tier 3: 7). Sales currently comes from the uploaded workbook; status is calculated from Sales ÷ Target.';
     var selectedChannels = Array.isArray(state.pitChannels) && state.pitChannels.length ? state.pitChannels : ['HQ', 'WH'];
     var filtered = pitstops.filter(function(pitstop) {
@@ -2283,8 +2284,8 @@
     // Keep the CEO/email sequence exactly as supplied. States that are not
     // present in this list (for example Putrajaya or Perlis when available)
     // are appended after it by summaryStateRank so they remain visible.
-    hq: ['JOHOR', 'MELAKA', 'N.SEMBILAN', 'PUTRAJAYA', 'KUALA LUMPUR', 'SELANGOR', 'PERAK', 'KEDAH', 'PENANG', 'PERLIS', 'KELANTAN', 'TERENGGANU', 'PAHANG', 'SABAH', 'SARAWAK'],
-    bp: ['JOHOR', 'MELAKA', 'N.SEMBILAN', 'PUTRAJAYA', 'KUALA LUMPUR', 'SELANGOR', 'PERAK', 'KEDAH', 'PENANG', 'PERLIS', 'KELANTAN', 'TERENGGANU', 'PAHANG', 'SABAH', 'SARAWAK']
+    hq: ['JOHOR', 'MELAKA', 'N.SEMBILAN', 'PUTRAJAYA', 'KUALA LUMPUR', 'SELANGOR', 'PERAK', 'PENANG', 'KEDAH', 'PERLIS', 'KELANTAN', 'TERENGGANU', 'PAHANG', 'SABAH', 'SARAWAK'],
+    bp: ['JOHOR', 'MELAKA', 'N.SEMBILAN', 'PUTRAJAYA', 'KUALA LUMPUR', 'SELANGOR', 'PERAK', 'PENANG', 'KEDAH', 'KELANTAN', 'TERENGGANU', 'PAHANG', 'SABAH', 'SARAWAK']
   };
   REPORT_MAPPING_REGISTRY.summary.stateOrder = SUMMARY_STATE_ORDER;
   var SUMMARY_PITSTOP_ORDER = {
@@ -2412,7 +2413,7 @@
 
   function specialNetworkPanel(label, rows) {
     var summary = specialStatusSummary(rows);
-    return '<article class="panel special-summary-panel"><div class="panel-header"><div><span class="eyebrow">' + escapeHtml(label) + ' network</span><h2>State achievement summary</h2><p>Green met target, yellow is within 10%, and red is more than 10% below target.</p></div><span class="result-count">' + formatNumber(summary.total) + ' pitstops</span></div><div class="table-scroll"><table class="data-table special-status-table"><thead><tr><th>State</th><th class="red">Red</th><th class="yellow">Yellow</th><th class="green">Green</th><th>Total</th></tr></thead><tbody>' + (specialStateRows(rows, label) || '<tr><td colspan="5"><div class="empty-state">No state results are available.</div></td></tr>') + '<tr class="total-row"><th>Grand total</th>' + specialStatusCells(summary) + '</tr></tbody></table></div></article>';
+    return '<article class="panel special-summary-panel"><div class="panel-header"><div><span class="eyebrow">' + escapeHtml(label) + ' network</span><h2>State achievement summary</h2><p>Green met target; yellow is within 10% or at most 1 unit short; red is below both limits.</p></div><span class="result-count">' + formatNumber(summary.total) + ' pitstops</span></div><div class="table-scroll"><table class="data-table special-status-table"><thead><tr><th>State</th><th class="red">Red</th><th class="yellow">Yellow</th><th class="green">Green</th><th>Total</th></tr></thead><tbody>' + (specialStateRows(rows, label) || '<tr><td colspan="5"><div class="empty-state">No state results are available.</div></td></tr>') + '<tr class="total-row"><th>Grand total</th>' + specialStatusCells(summary) + '</tr></tbody></table></div></article>';
   }
 
   function specialTierPanel(label, rows) {
@@ -3512,7 +3513,7 @@
     return JSON.parse(JSON.stringify({
       from: state.from, to: state.to, capturedAt: new Date().toISOString(), buildId: window.__DASHBOARD_BUILD_ID__ || 'local',
       filters: { reportPreset: state.range, network: networkWindow, weeklyRanking: weeklyRankingWindow(), weeklyTables: !state.emailRankingCollapsed, hideWarehouse: state.emailWarehouseHidden, weekendAverage: state.weekendAverageActive },
-      rules: { tierDailyTargets: [12, 9, 7], greenAt: 1, yellowAt: 0.9, mapping: REPORT_MAPPING_REGISTRY },
+      rules: { tierDailyTargets: [12, 9, 7], greenAt: 1, yellowAt: 0.9, yellowShortfallUnits: 1, mapping: REPORT_MAPPING_REGISTRY },
       master: { fingerprint: state.masterFingerprint, uploadedAt: state.cloudUpdatedAt, source: state.sourceName, rows: (state.data.pitstopMaster || []).map(function(row) { return Object.fromEntries(['name', 'channel', 'state', 'region', 'tier', 'active', 'closed', 'malaysia', 'order'].filter(function(key) { return row[key] !== undefined; }).map(function(key) { return [key, row[key]]; })); }), relocations: state.data.pitstopRelocations || [] },
       sources: summarySourceHealthEntries('special'),
       manual: { rsa: selected(state.manualRsaValues, dates), b2w: selected(state.manualB2wValues, dates), bgarage: selected(state.manualBGarageSummaryValues, [state.to]), indonesia: selected(state.manualIndonesiaSummaryValues, monthDates) },
@@ -3777,7 +3778,7 @@
     var salesEmptyMessage = state.emailSalesLoading ? 'Loading Order - Daily data from Grafana...' : state.emailSalesError ? escapeHtml(state.emailSalesError) : 'No sales data is available.';
     var content = '<div class="email-summary-document" id="emailSummaryContent"><p class="email-summary-greeting">Dear all,</p><p class="email-summary-intro">This is the sales report for our <strong>B2C and B2B2C</strong> channels as of <strong>' + escapeHtml(emailOrdinalDate(reportDate)) + '</strong>. The moving average for our total sales as of yesterday was <strong>' + formatNumber(movingAverage) + ' units</strong>. Please refer to the details below:</p>' +
       '<table class="email-table email-sales-table"><thead><tr><th>Date</th><th>B2C<br>(Units)</th><th>B2B2C<br>(Units)</th><th>Total (Units)</th><th>Movement</th></tr></thead><tbody>' + (salesBody || '<tr><td colspan="5">' + salesEmptyMessage + '</td></tr>') + '</tbody></table>' +
-      '<p class="email-major-lead"><strong>Please take a look at the details below on pitstops that achieved their targets by tier as of yesterday.</strong></p><table class="email-legend" role="presentation" cellpadding="0" cellspacing="0" border="0"><tbody><tr><td>' + emailStatusDot('green') + '</td><td>Green &ndash; Target met or exceeded</td></tr><tr><td>' + emailStatusDot('yellow') + '</td><td>Yellow &ndash; Within 10% of the target</td></tr><tr><td>' + emailStatusDot('red') + '</td><td>Red &ndash; More than 10% below the target</td></tr></tbody></table>' +
+      '<p class="email-major-lead"><strong>Please take a look at the details below on pitstops that achieved their targets by tier as of yesterday.</strong></p><table class="email-legend" role="presentation" cellpadding="0" cellspacing="0" border="0"><tbody><tr><td>' + emailStatusDot('green') + '</td><td>Green &ndash; Target met or exceeded</td></tr><tr><td>' + emailStatusDot('yellow') + '</td><td>Yellow &ndash; Within 10% or 1 unit short</td></tr><tr><td>' + emailStatusDot('red') + '</td><td>Red &ndash; More than 10% and 1 unit short</td></tr></tbody></table>' +
       emailStateSummary(hqRows, 'B2C', { localFilter: true }) + emailWeeklyTopBottom(weeklyHqRows, 'Pitstop', { showFilter: true, emptyMessage: weeklyEmptyMessage }) + emailTierSummary(achievementHqRows, 'B2C') + emailPitstopDetails(achievementHqRows, 'B2C') + emailStateSummary(bpRows, 'BP') + emailWeeklyTopBottom(weeklyNetworks.bp, 'BP', { emptyMessage: weeklyEmptyMessage }) + emailTierSummary(achievementBpRows, 'BP') + emailPitstopDetails(achievementBpRows, 'B2B2C') +
       manualServiceSaveHeading() + operationsTableStart('rsa', 'operations-rsa-table') + '<thead><tr><th>Date</th><th>RSA - Jumpstart<br>(Units)</th><th>RSA - Tyre Patch<br>(Units)</th><th>RSA - Fuel<br>(Units)</th><th>Total RSA<br>(Units)</th><th>B2W<br>(Pcs)</th></tr></thead><tbody>' + (rsaBody || '<tr><td colspan="6">No RSA or B2W data is available.</td></tr>') + '</tbody></table>' +
       '<p class="email-section-lead">For <strong>ResQ by state</strong>, please refer to the breakdowns below:</p>' + operationsTableStart('resq', 'operations-resq-table') + '<thead><tr><th>Date</th><th>ResQ - HQ Selangor<br>(Units)</th><th>ResQ - Johor Bahru<br>(Units)</th><th>ResQ - Pahang<br>(Units)</th><th>ResQ - Pulau Pinang<br>(Units)</th><th>Total All ResQ<br>(Units)</th></tr></thead><tbody>' + (resqBody || '<tr><td colspan="6">No ResQ data is available.</td></tr>') + '</tbody></table>' +

@@ -344,7 +344,7 @@ test('B2C, B2B2C, and BP detail tables match the reference order, widths, and al
   assert.match(css, /\.email-detail-table \.email-state-title th,\s*\.email-detail-table \.email-state-title td \{[\s\S]*background: #cee5d4;/);
   assert.match(css, /\.email-summary-document \.email-detail-table th,\s*\.email-summary-document \.email-detail-table td \{[\s\S]*white-space: nowrap;/);
   assert.match(source, /<colgroup><col width="32"><col width="244"><col width="100"><col width="108"><col width="58"><col width="48"><col width="100"><col width="86"><\/colgroup>/);
-  assert.match(source, /hq: \['JOHOR', 'MELAKA', 'N\.SEMBILAN', 'PUTRAJAYA', 'KUALA LUMPUR', 'SELANGOR', 'PERAK', 'KEDAH', 'PENANG', 'PERLIS', 'KELANTAN', 'TERENGGANU', 'PAHANG', 'SABAH', 'SARAWAK'\]/);
+  assert.match(source, /hq: \['JOHOR', 'MELAKA', 'N\.SEMBILAN', 'PUTRAJAYA', 'KUALA LUMPUR', 'SELANGOR', 'PERAK', 'PENANG', 'KEDAH', 'PERLIS', 'KELANTAN', 'TERENGGANU', 'PAHANG', 'SABAH', 'SARAWAK'\]/);
   assert.match(source, /var stateBandStyle = ' bgcolor="#cee5d4" style="background-color:#cee5d4"'/);
   assert.match(source, /<tr class="email-state-title"><td' \+ stateBandStyle \+ ' aria-hidden="true"><\/td><th' \+ stateBandStyle \+ ' scope="row">/);
   assert.match(source, /escapeHtml\(String\(row\.region \|\| ''\)\.toUpperCase\(\)\)/);
@@ -372,6 +372,9 @@ test('reviewed state corrections assign Presint 15 and Teluk Intan without chang
   );
 
   assert.equal(reportedPitstopState('HQ PRESINT 15 PUTRAJAYA', 'Selangor'), 'Putrajaya');
+  assert.equal(reportedPitstopState('BP PUTRAJAYA', 'Selangor'), 'Putrajaya');
+  assert.equal(reportedPitstopState(' bp putrajaya ', 'Selangor'), 'Putrajaya');
+  assert.equal(reportedPitstopState('BP PUCHONG', 'Selangor'), 'Selangor');
   assert.equal(reportedPitstopState('HQ TELUK INTAN', 'Penang'), 'Perak');
   assert.equal(reportedPitstopState('BP TELUK INTAN (JLN CHANGKAT JONG)', 'Penang'), 'Perak');
   assert.equal(reportedPitstopState('HQ SETAPAK', 'Kuala Lumpur'), 'Kuala Lumpur');
@@ -418,6 +421,11 @@ test('Pitstop achievement status follows the fixed green, yellow, and red target
   assert.equal(pitstopStatusValue(12, 12), 'green');
   assert.equal(pitstopStatusValue(13, 12), 'green');
   assert.equal(pitstopStatusValue(11, 12), 'yellow');
+  assert.equal(pitstopStatusValue(8, 9), 'yellow');
+  assert.equal(pitstopStatusValue(6, 7), 'yellow');
+  assert.equal(pitstopStatusValue(7, 9), 'red');
+  assert.equal(pitstopStatusValue(5, 7), 'red');
+  assert.equal(pitstopStatusValue(62, 63), 'yellow');
   assert.equal(pitstopStatusValue(90, 100), 'yellow');
   assert.equal(pitstopStatusValue(89, 100), 'red');
   assert.equal(pitstopStatusValue(0, 0), 'red');
