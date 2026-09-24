@@ -6403,26 +6403,41 @@
 [data-history-more] summary { cursor:pointer; color:var(--text); font-weight:700; }
 [data-history-more] .deduction-workflow-filters { margin-top:14px; }
 [data-history-more] button { color:var(--text); background:var(--surface-strong); border:1px solid var(--line); border-radius:7px; padding:9px 12px; }
-/* Installment exposure reuses the Ledger palette and never scrolls internally. */
-.deduction-exposure { padding: 20px; min-width: 0; }
-.deduction-exposure-filters { display:flex; flex-wrap:wrap; gap:12px; margin:16px 0; align-items:end; }
-.deduction-exposure-filters label { display:grid; gap:6px; font-size:12px; flex:1 1 120px; }
-.deduction-exposure-filters input,.deduction-exposure-filters select { width:100%; min-width:0; min-height:36px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--text); font:inherit; }
-.deduction-exposure-filters > button { min-height:36px; padding:6px 12px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--text); }
-.deduction-exposure-summary { display:flex; gap:20px; flex-wrap:wrap; padding:16px 0; border-bottom:1px solid var(--line); }
-.deduction-exposure-summary span { font-size:12px; }
-.deduction-exposure-summary strong { display:block; font-size:22px; margin-top:6px; }
-.deduction-exposure-row { padding:18px 0; border-bottom:1px solid var(--line); }
-.deduction-exposure-row > div:first-child { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; font-size:13px; }
-.deduction-exposure-track { display:flex; height:24px; background:var(--surface); border-radius:5px; overflow:hidden; margin:10px 0; }
-.deduction-exposure .is-statement { background:var(--danger,#ff9e70); }
-.deduction-exposure .is-reconciliation { background:var(--amber,#e5c85b); }
-.deduction-exposure .is-completed { background:var(--accent); }
-.deduction-exposure button.deduction-exposure-segment { padding:0; border:0; border-radius:0; min-width:0; height:24px; cursor:pointer; }
-.deduction-exposure-values { display:flex; flex-wrap:wrap; gap:6px 14px; }
-.deduction-exposure-values button { display:inline-flex; align-items:center; gap:5px; padding:2px 0; background:transparent; color:var(--text); border:0; font-size:11px; text-align:left; }
-.deduction-exposure-values i { width:8px; height:8px; border-radius:50%; flex:none; }
-.deduction-exposure button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+/* Equal-length bars show each deduction type's stage mix; RM totals carry magnitude. */
+.deduction-exposure { container-type:inline-size; padding:20px; min-width:0; }
+.deduction-exposure-filter-head { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:18px 0 10px; }
+.deduction-exposure-filter-head strong { color:var(--text-soft); font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+.deduction-exposure-filter-head button { padding:5px 2px; border:0; background:transparent; color:var(--accent-strong); font-size:12px; font-weight:700; cursor:pointer; }
+.deduction-exposure-filters { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr)); gap:10px; margin-bottom:16px; }
+.deduction-exposure-filters label { display:grid; gap:6px; min-width:0; color:var(--text-soft); font-size:11px; font-weight:700; }
+.deduction-exposure-filters select { width:100%; min-width:0; min-height:38px; padding:6px 10px; border:1px solid var(--line); border-radius:7px; background:var(--surface); color:var(--text); font:inherit; font-size:12px; }
+.deduction-exposure-summary { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+.deduction-exposure-summary span { flex:1 1 180px; padding:12px 14px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--text-soft); font-size:11px; }
+.deduction-exposure-summary strong { display:block; margin-top:4px; color:var(--text); font-size:20px; font-variant-numeric:tabular-nums; }
+.deduction-exposure-groups { display:grid; grid-template-columns:1fr; gap:12px; }
+.deduction-exposure-row { --exposure-type-color:var(--accent-secondary); min-width:0; padding:15px; border:1px solid var(--line); border-radius:9px; background:var(--surface-strong); }
+.deduction-exposure-row[data-deduction-type="epf"] { --exposure-type-color:#4d8eff; }
+.deduction-exposure-row[data-deduction-type="insurance"] { --exposure-type-color:#33b89c; }
+.deduction-exposure-row[data-deduction-type="battery-tester"] { --exposure-type-color:#a884ed; }
+.deduction-exposure-row[data-deduction-type="manual"] { --exposure-type-color:#e6a852; }
+.deduction-exposure-row-head { display:flex; justify-content:space-between; align-items:baseline; gap:12px; min-width:0; }
+.deduction-exposure-row-head strong { display:flex; align-items:center; gap:8px; min-width:0; color:var(--text); font-size:13px; }
+.deduction-exposure-row-head strong::before { content:""; flex:none; width:9px; height:9px; border-radius:3px; background:var(--exposure-type-color); }
+.deduction-exposure-row-head span { color:var(--text); font-size:15px; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.deduction-exposure-track { display:flex; align-items:center; height:22px; margin:12px 0; border-radius:5px; background:var(--surface-muted); overflow:hidden; }
+.deduction-exposure button.deduction-exposure-segment { flex:0 0 auto; min-width:0; height:22px; padding:0; border:0; border-radius:0; cursor:pointer; }
+.deduction-exposure .is-statement { background:var(--exposure-type-color); }
+.deduction-exposure .is-reconciliation { background:repeating-linear-gradient(135deg,var(--exposure-type-color) 0 6px,color-mix(in srgb,var(--exposure-type-color) 62%,var(--surface)) 6px 12px); }
+.deduction-exposure .is-completed { background:color-mix(in srgb,var(--exposure-type-color) 48%,var(--surface)); }
+.deduction-exposure-no-payments { padding-left:10px; color:var(--text-soft); font-size:11px; }
+.deduction-exposure-values { display:flex; flex-wrap:wrap; gap:6px; }
+.deduction-exposure-values button { display:flex; flex:1 1 145px; align-items:center; flex-wrap:wrap; gap:4px 6px; min-width:0; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--surface); color:var(--text-soft); font-size:11px; text-align:left; cursor:pointer; }
+.deduction-exposure-values button:disabled { opacity:.58; cursor:default; }
+.deduction-exposure-values button strong { margin-left:auto; color:var(--text); font-size:11px; font-variant-numeric:tabular-nums; }
+.deduction-exposure-values i { flex:none; width:9px; height:9px; border-radius:3px; }
+.deduction-exposure :is(button,select):focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.deduction-exposure .commission-status-note { margin-top:14px; line-height:1.5; }
+@container (min-width:760px) { .deduction-exposure-groups { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 /* Manual earnings are visually separate from deductions. */
 .additional-jobs { margin:18px 0; padding:18px; border:1px solid var(--line); border-radius:12px; background:var(--surface); }
 .additional-jobs p,.additional-jobs small { display:block; font-size:12px; line-height:1.5; color:var(--text-soft); }
@@ -17929,16 +17944,30 @@ document.addEventListener('change',event=>{if(event.target.matches?.('[data-book
 document.addEventListener('input',event=>{if(!event.target.matches?.('[data-booking-search]'))return;bookingState.search=event.target.value;bookingState.page=0;const position=event.target.selectionStart;bookingPaint();const input=document.querySelector('[data-booking-search]');input.focus();input.setSelectionRange(position,position);});
 document.addEventListener('click',async event=>{const button=event.target.closest?.('#bookingJobsView button');if(!button)return;try{if(button.hasAttribute('data-booking-refresh'))return await bookingLoad();if(button.hasAttribute('data-booking-export')){button.disabled=true;try{return await bookingExport();}finally{button.disabled=false;}}if(button.dataset.bookingDetail)return await bookingDetails(button.dataset.bookingDetail);if(button.hasAttribute('data-booking-week')){const delta=Number(button.dataset.bookingWeek);bookingState.week=delta?bookingAddDay(bookingState.week,delta):bookingMonday(bookingToday());bookingState.page=0;}if(button.hasAttribute('data-booking-page'))bookingState.page+=Number(button.dataset.bookingPage);if(button.hasAttribute('data-booking-reset'))Object.assign(bookingState,{search:'',branch:'',status:'',view:'week',page:0});bookingPaint();}catch(error){bookingState.error=error.message;bookingPaint();}});
 // Read-only installment aggregation. Completion uses the History reconciliation rule.
-const deductionExposureScope = { month: '', installment: '', progress: '', metric: 'amount' };
+const deductionExposureScope = { period: '', type: '', installment: '', progress: '', metric: 'amount' };
 const deductionExposureStages = { statement: 'Awaiting statement', reconciliation: 'Awaiting reconciliation', completed: 'Completed' };
+function deductionExposurePeriodScope(period) {
+  if (!period) return {};
+  if (period.startsWith('month:')) return { month: period.slice(6) };
+  const today = deductionToday();
+  if (period === 'this-month') return { month: today.slice(0, 7) };
+  if (period === 'overdue') return { dueEnd: deductionAddDays(today, -1) };
+  const week = deductionWeekBounds(today);
+  if (period === 'this-week') return { dueStart: week.start, dueEnd: week.end };
+  if (period === 'next-week') return { dueStart: deductionAddDays(week.start, 7), dueEnd: deductionAddDays(week.end, 7) };
+  return {};
+}
 function deductionExposureRows(records, scope) {
   const rows = [];
+  const paymentScope = { ...scope, ...deductionExposurePeriodScope(scope.period) };
   for (const record of records) {
     if (['cancelled', 'rejected', 'reversed'].includes(record.status)) continue;
+    if (scope.type && record.type !== scope.type) continue;
     const items = deductionHistoryProgress(record).items;
     items.forEach((item, index) => {
-      if (!window.LedgerHistoryWorkflow.installmentMatches(item, index, items.length, scope)) return;
+      if (!window.LedgerHistoryWorkflow.installmentMatches(item, index, items.length, paymentScope)) return;
       const stage = window.LedgerHistoryWorkflow.installmentCompleted(item) ? 'completed' : item.statementSentAt ? 'reconciliation' : 'statement';
+      if (scope.period === 'overdue' && stage === 'completed') return;
       rows.push({ type: record.type, stage, cents: deductionInstallmentAmount(record, item) });
     });
   }
@@ -17950,14 +17979,19 @@ function deductionExposureChart() {
   const amount = scope.metric === 'amount';
   const measure = row => amount ? row.cents : 1;
   const label = value => amount ? deductionMoney(value) : formatNumber(value) + ' payments';
-  const groups = Object.entries(deductionTypes).map(([type, name]) => ({ type, name, totals: Object.fromEntries(Object.keys(deductionExposureStages).map(stage => [stage, rows.filter(row => row.type === type && row.stage === stage).reduce((sum, row) => sum + measure(row), 0)])) }));
-  const maximum = Math.max(1, ...groups.map(group => Object.values(group.totals).reduce((sum, value) => sum + value, 0)));
+  const groups = Object.entries(deductionTypes).filter(([type]) => !scope.type || type === scope.type).map(([type, name]) => ({ type, name, totals: Object.fromEntries(Object.keys(deductionExposureStages).map(stage => [stage, rows.filter(row => row.type === type && row.stage === stage).reduce((sum, row) => sum + measure(row), 0)])) }));
   const options = (values, selected) => values.map(([value, text]) => `<option value="${esc(value)}"${selected === value ? ' selected' : ''}>${esc(text)}</option>`).join('');
   const maxPayment = Math.max(1, ...deductionState.records.map(record => deductionHistoryProgress(record).items.length));
-  const controls = `<div class="deduction-exposure-filters"><label>Payment month<input type="month" data-exposure-field="month" value="${esc(scope.month)}"></label><label>Payment number<select data-exposure-field="installment">${options([['','All payments'],['single','1/1 only'],['later','Payment 2 onwards'],['final','Final installment'], ...Array.from({length:maxPayment}, (_,i) => ['exact:'+(i+1),'Payment '+(i+1)])],scope.installment)}</select></label><label>Progress<select data-exposure-field="progress">${options([['','All progress'],...Object.entries(deductionExposureStages)],scope.progress)}</select></label><label>Show<select data-exposure-field="metric">${options([['amount','Amount (RM)'],['count','Payment count']],scope.metric)}</select></label><button type="button" data-exposure-reset>Reset</button></div>`;
-  const bars = groups.map(group => `<div class="deduction-exposure-row"><div><strong>${esc(group.name)}</strong><span>${esc(label(Object.values(group.totals).reduce((sum,value) => sum+value,0)))}</span></div><div class="deduction-exposure-track">${Object.entries(group.totals).filter(([,value]) => value > 0).map(([stage,value]) => `<button type="button" class="deduction-exposure-segment is-${stage}" style="width:${value/maximum*100}%" data-exposure-type="${esc(group.type)}" data-exposure-stage="${stage}" title="${esc(group.name+' · '+deductionExposureStages[stage]+': '+label(value))}" aria-label="${esc('Open History: '+group.name+' · '+deductionExposureStages[stage]+': '+label(value))}"></button>`).join('')}</div><div class="deduction-exposure-values">${Object.entries(group.totals).map(([stage,value]) => `<button type="button" data-exposure-type="${esc(group.type)}" data-exposure-stage="${stage}" ${value ? '' : 'disabled'}><i class="is-${stage}"></i>${esc(deductionExposureStages[stage])}: ${esc(label(value))}</button>`).join('')}</div></div>`).join('');
-  const body = !deductionState.loaded ? `<div class="empty-state" role="status">${esc(deductionState.error || 'Loading deduction history…')}<button type="button" data-exposure-retry>Retry</button></div>` : !rows.length ? '<div class="empty-state">No installments match these payment filters.</div>' : `<div class="deduction-exposure-summary"><span>Outstanding in scope<strong>${esc(label(rows.filter(row => row.stage !== 'completed').reduce((sum,row) => sum+measure(row),0)))}</strong></span><span>Completed in scope<strong>${esc(label(rows.filter(row => row.stage === 'completed').reduce((sum,row) => sum+measure(row),0)))}</strong></span></div>${bars}`;
-  return `<section class="secondary-visual finance-visual deduction-exposure" data-visual-key="commission-main:trend" data-default-columns="4" data-min-height="360" aria-label="Deduction Exposure by Installment Progress"><div class="secondary-visual-head"><div><strong>Deduction Exposure by Installment Progress</strong><span>Full Deduction History · ${scope.month ? esc(scope.month) : 'All payment months'}</span></div></div>${controls}${body}<p class="commission-status-note">Each installment is counted once. Outstanding includes upcoming payments. Statement recorded/downloaded is not confirmed payment completion. Final installments remain outstanding until completed. Click a bar or value to open matching History requests; other deductions may remain visible for context. Commission dashboard filters do not change this chart.</p></section>`;
+  const months = [...new Set(deductionState.records.flatMap(record => deductionHistoryProgress(record).items.map(item => String(item.dueDate || '').slice(0, 7))).filter(month => /^\d{4}-\d{2}$/.test(month)))].sort().reverse();
+  const periods = [['', 'All payment dates'], ['overdue', 'Overdue · outstanding'], ['this-week', 'Due this week'], ['next-week', 'Due next week'], ['this-month', 'Due this month'], ...months.map(month => ['month:' + month, month])];
+  const controls = `<div class="deduction-exposure-filter-head"><strong>Focus payments</strong><button type="button" data-exposure-reset>Reset filters</button></div><div class="deduction-exposure-filters"><label>Due period<select data-exposure-field="period">${options(periods,scope.period)}</select></label><label>Deduction type<select data-exposure-field="type">${options([['','All deductions'],...Object.entries(deductionTypes)],scope.type)}</select></label><label>Payment number<select data-exposure-field="installment">${options([['','All payments'],['single','1/1 only'],['later','Payment 2 onwards'],['final','Final installment'], ...Array.from({length:maxPayment}, (_,i) => ['exact:'+(i+1),'Payment '+(i+1)])],scope.installment)}</select></label><label>Progress<select data-exposure-field="progress">${options([['','All progress'],...Object.entries(deductionExposureStages)],scope.progress)}</select></label><label>Measure<select data-exposure-field="metric">${options([['amount','Amount (RM)'],['count','Payment count']],scope.metric)}</select></label></div>`;
+  const bars = groups.map(group => {
+    const total = Object.values(group.totals).reduce((sum,value) => sum+value,0);
+    const stageRows = Object.entries(group.totals);
+    return `<article class="deduction-exposure-row" data-deduction-type="${esc(group.type)}"><div class="deduction-exposure-row-head"><strong>${esc(group.name)}</strong><span>${esc(label(total))}</span></div><div class="deduction-exposure-track" role="group" aria-label="${esc(group.name)} payment progress">${total ? stageRows.filter(([,value]) => value > 0).map(([stage,value]) => `<button type="button" class="deduction-exposure-segment is-${stage}" style="width:${value/total*100}%" data-exposure-type="${esc(group.type)}" data-exposure-stage="${stage}" title="${esc(group.name+' · '+deductionExposureStages[stage]+': '+label(value))}" aria-label="${esc('Open History: '+group.name+' · '+deductionExposureStages[stage]+': '+label(value))}"></button>`).join('') : '<span class="deduction-exposure-no-payments">No payments in scope</span>'}</div><div class="deduction-exposure-values">${stageRows.map(([stage,value]) => `<button type="button" data-exposure-type="${esc(group.type)}" data-exposure-stage="${stage}" ${value ? '' : 'disabled'}><i class="is-${stage}"></i><span>${esc(deductionExposureStages[stage])}</span><strong>${esc(label(value))}</strong></button>`).join('')}</div></article>`;
+  }).join('');
+  const body = !deductionState.loaded ? `<div class="empty-state" role="status">${esc(deductionState.error || 'Loading deduction history…')}<button type="button" data-exposure-retry>Retry</button></div>` : !rows.length ? '<div class="empty-state">No installments match these filters. Try another due period or reset the filters.</div>' : `<div class="deduction-exposure-summary"><span>Outstanding in scope<strong>${esc(label(rows.filter(row => row.stage !== 'completed').reduce((sum,row) => sum+measure(row),0)))}</strong></span><span>Completed in scope<strong>${esc(label(rows.filter(row => row.stage === 'completed').reduce((sum,row) => sum+measure(row),0)))}</strong></span></div><div class="deduction-exposure-groups">${bars}</div>`;
+  return `<section class="secondary-visual finance-visual deduction-exposure" data-visual-key="commission-main:trend" data-default-columns="4" data-min-height="360" aria-label="Deduction Exposure by Installment Progress"><div class="secondary-visual-head"><div><strong>Deduction Exposure by Installment Progress</strong><span>Full Deduction History · Filter by payment due date, type and stage</span></div></div>${controls}${body}<p class="commission-status-note">Each bar shows the stage mix within one deduction type; compare amounts or counts above the bars. Click a segment or stage amount to open matching History payments. Statement download is not confirmed payment completion. Commission filters do not change this chart.</p></section>`;
 }
 document.addEventListener('change', event => {
   const field = event.target.dataset?.exposureField;
@@ -17966,7 +18000,7 @@ document.addEventListener('change', event => {
   render();
 });
 document.addEventListener('click', async event => {
-  if (event.target.closest('[data-exposure-reset]')) { Object.assign(deductionExposureScope, {month:'',installment:'',progress:'',metric:'amount'}); render(); return; }
+  if (event.target.closest('[data-exposure-reset]')) { Object.assign(deductionExposureScope, {period:'',type:'',installment:'',progress:'',metric:'amount'}); render(); return; }
   if (event.target.closest('[data-exposure-retry]')) { try { await deductionLoad(); } catch {} render(); return; }
   const button = event.target.closest('[data-exposure-type]');
   if (!button) return;
@@ -17976,7 +18010,8 @@ document.addEventListener('click', async event => {
   if (!view) return;
   // Clear unrelated History filters so a click cannot silently hide chart matches.
   view.querySelectorAll('.deduction-history-toolbar input, .deduction-history-toolbar select, [data-history-more] input, [data-history-more] select').forEach(control => { control.value = ''; });
-  Object.assign(deductionWorkflowScope, {tab:'all',month:deductionExposureScope.month,installment:deductionExposureScope.installment,progress,dueStart:'',dueEnd:''});
+  const periodScope = deductionExposurePeriodScope(deductionExposureScope.period);
+  Object.assign(deductionWorkflowScope, {tab:'all',month:periodScope.month || '',installment:deductionExposureScope.installment,progress,dueStart:periodScope.dueStart || '',dueEnd:periodScope.dueEnd || ''});
   view.querySelector('[data-deduction-history-type]').value = type;
   deductionHistoryRender();
 });

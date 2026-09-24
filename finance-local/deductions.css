@@ -273,26 +273,41 @@
 [data-history-more] summary { cursor:pointer; color:var(--text); font-weight:700; }
 [data-history-more] .deduction-workflow-filters { margin-top:14px; }
 [data-history-more] button { color:var(--text); background:var(--surface-strong); border:1px solid var(--line); border-radius:7px; padding:9px 12px; }
-/* Installment exposure reuses the Ledger palette and never scrolls internally. */
-.deduction-exposure { padding: 20px; min-width: 0; }
-.deduction-exposure-filters { display:flex; flex-wrap:wrap; gap:12px; margin:16px 0; align-items:end; }
-.deduction-exposure-filters label { display:grid; gap:6px; font-size:12px; flex:1 1 120px; }
-.deduction-exposure-filters input,.deduction-exposure-filters select { width:100%; min-width:0; min-height:36px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--text); font:inherit; }
-.deduction-exposure-filters > button { min-height:36px; padding:6px 12px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--text); }
-.deduction-exposure-summary { display:flex; gap:20px; flex-wrap:wrap; padding:16px 0; border-bottom:1px solid var(--line); }
-.deduction-exposure-summary span { font-size:12px; }
-.deduction-exposure-summary strong { display:block; font-size:22px; margin-top:6px; }
-.deduction-exposure-row { padding:18px 0; border-bottom:1px solid var(--line); }
-.deduction-exposure-row > div:first-child { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; font-size:13px; }
-.deduction-exposure-track { display:flex; height:24px; background:var(--surface); border-radius:5px; overflow:hidden; margin:10px 0; }
-.deduction-exposure .is-statement { background:var(--danger,#ff9e70); }
-.deduction-exposure .is-reconciliation { background:var(--amber,#e5c85b); }
-.deduction-exposure .is-completed { background:var(--accent); }
-.deduction-exposure button.deduction-exposure-segment { padding:0; border:0; border-radius:0; min-width:0; height:24px; cursor:pointer; }
-.deduction-exposure-values { display:flex; flex-wrap:wrap; gap:6px 14px; }
-.deduction-exposure-values button { display:inline-flex; align-items:center; gap:5px; padding:2px 0; background:transparent; color:var(--text); border:0; font-size:11px; text-align:left; }
-.deduction-exposure-values i { width:8px; height:8px; border-radius:50%; flex:none; }
-.deduction-exposure button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+/* Equal-length bars show each deduction type's stage mix; RM totals carry magnitude. */
+.deduction-exposure { container-type:inline-size; padding:20px; min-width:0; }
+.deduction-exposure-filter-head { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:18px 0 10px; }
+.deduction-exposure-filter-head strong { color:var(--text-soft); font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+.deduction-exposure-filter-head button { padding:5px 2px; border:0; background:transparent; color:var(--accent-strong); font-size:12px; font-weight:700; cursor:pointer; }
+.deduction-exposure-filters { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr)); gap:10px; margin-bottom:16px; }
+.deduction-exposure-filters label { display:grid; gap:6px; min-width:0; color:var(--text-soft); font-size:11px; font-weight:700; }
+.deduction-exposure-filters select { width:100%; min-width:0; min-height:38px; padding:6px 10px; border:1px solid var(--line); border-radius:7px; background:var(--surface); color:var(--text); font:inherit; font-size:12px; }
+.deduction-exposure-summary { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+.deduction-exposure-summary span { flex:1 1 180px; padding:12px 14px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--text-soft); font-size:11px; }
+.deduction-exposure-summary strong { display:block; margin-top:4px; color:var(--text); font-size:20px; font-variant-numeric:tabular-nums; }
+.deduction-exposure-groups { display:grid; grid-template-columns:1fr; gap:12px; }
+.deduction-exposure-row { --exposure-type-color:var(--accent-secondary); min-width:0; padding:15px; border:1px solid var(--line); border-radius:9px; background:var(--surface-strong); }
+.deduction-exposure-row[data-deduction-type="epf"] { --exposure-type-color:#4d8eff; }
+.deduction-exposure-row[data-deduction-type="insurance"] { --exposure-type-color:#33b89c; }
+.deduction-exposure-row[data-deduction-type="battery-tester"] { --exposure-type-color:#a884ed; }
+.deduction-exposure-row[data-deduction-type="manual"] { --exposure-type-color:#e6a852; }
+.deduction-exposure-row-head { display:flex; justify-content:space-between; align-items:baseline; gap:12px; min-width:0; }
+.deduction-exposure-row-head strong { display:flex; align-items:center; gap:8px; min-width:0; color:var(--text); font-size:13px; }
+.deduction-exposure-row-head strong::before { content:""; flex:none; width:9px; height:9px; border-radius:3px; background:var(--exposure-type-color); }
+.deduction-exposure-row-head span { color:var(--text); font-size:15px; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.deduction-exposure-track { display:flex; align-items:center; height:22px; margin:12px 0; border-radius:5px; background:var(--surface-muted); overflow:hidden; }
+.deduction-exposure button.deduction-exposure-segment { flex:0 0 auto; min-width:0; height:22px; padding:0; border:0; border-radius:0; cursor:pointer; }
+.deduction-exposure .is-statement { background:var(--exposure-type-color); }
+.deduction-exposure .is-reconciliation { background:repeating-linear-gradient(135deg,var(--exposure-type-color) 0 6px,color-mix(in srgb,var(--exposure-type-color) 62%,var(--surface)) 6px 12px); }
+.deduction-exposure .is-completed { background:color-mix(in srgb,var(--exposure-type-color) 48%,var(--surface)); }
+.deduction-exposure-no-payments { padding-left:10px; color:var(--text-soft); font-size:11px; }
+.deduction-exposure-values { display:flex; flex-wrap:wrap; gap:6px; }
+.deduction-exposure-values button { display:flex; flex:1 1 145px; align-items:center; flex-wrap:wrap; gap:4px 6px; min-width:0; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--surface); color:var(--text-soft); font-size:11px; text-align:left; cursor:pointer; }
+.deduction-exposure-values button:disabled { opacity:.58; cursor:default; }
+.deduction-exposure-values button strong { margin-left:auto; color:var(--text); font-size:11px; font-variant-numeric:tabular-nums; }
+.deduction-exposure-values i { flex:none; width:9px; height:9px; border-radius:3px; }
+.deduction-exposure :is(button,select):focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.deduction-exposure .commission-status-note { margin-top:14px; line-height:1.5; }
+@container (min-width:760px) { .deduction-exposure-groups { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 /* Manual earnings are visually separate from deductions. */
 .additional-jobs { margin:18px 0; padding:18px; border:1px solid var(--line); border-radius:12px; background:var(--surface); }
 .additional-jobs p,.additional-jobs small { display:block; font-size:12px; line-height:1.5; color:var(--text-soft); }
