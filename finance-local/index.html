@@ -965,13 +965,9 @@
     .dashboard-chart-grid { gap: 16px; margin-bottom: 16px; }
     .chart-panel, .secondary-visual { border: 1px solid var(--line); border-radius: 12px; background: var(--surface-lowest); }
     .chart-panel { padding: 16px 18px; }
-    .chart-panel.commission-state-collapsed { min-height: 72px; max-height: 72px; }
-    .dashboard-chart-grid.visual-stack-layout > .chart-panel.finance-visual.commission-state-collapsed.visual-sized {
-      min-height: 72px;
-      max-height: 72px;
-      overflow: visible;
+    body:not(.arrange-finance-visuals) .dashboard-chart-grid.visual-stack-layout.commission-state-chart-hidden > [data-visual-key="commission-main:trend"] {
+      grid-column: 1 / -1 !important;
     }
-    .commission-state-toggle { flex: 0 0 auto; align-self: center; white-space: nowrap; }
     .secondary-visual { overflow: hidden; }
     .secondary-visual-head { padding: 16px 18px 0; }
     .chart-head { flex-wrap: wrap; }
@@ -5025,7 +5021,7 @@
       body:not(.arrange-finance-visuals) .panel-commission-main .dashboard-chart-grid:not(.visual-stack-layout) > .secondary-visual.finance-visual {
         grid-column: span 4 !important;
       }
-      body:not(.arrange-finance-visuals) .panel-commission-main .dashboard-chart-grid:not(.visual-stack-layout):has(> .commission-state-collapsed) > :is(.chart-panel, .secondary-visual).finance-visual {
+      body:not(.arrange-finance-visuals) .panel-commission-main .dashboard-chart-grid.commission-state-chart-hidden:not(.visual-stack-layout) > .secondary-visual.finance-visual {
         grid-column: 1 / -1 !important;
       }
       body:not(.arrange-finance-visuals) .panel-daily-sales-hq-dealer-overview .dashboard-chart-grid:not(.visual-stack-layout) > :is(.chart-panel, .secondary-visual).finance-visual {
@@ -7081,6 +7077,7 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
                 <button class="button" id="dataScopeButton" type="button">Data source &amp; scope</button>
                 <button class="button" data-source-settings type="button">Data Source settings</button>
                 <button class="button" id="dashboardTabsButton" type="button">Dashboard tabs</button>
+                <button class="button" id="dashboardVisualsButton" type="button">Dashboard visuals</button>
                 <button class="button" id="themeButton" type="button">Theme</button>
                 <button class="button" id="logoutButton" type="button">Exit</button>
               </div>
@@ -7240,6 +7237,7 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
       const SIDEBAR_KEY = "ledger-local-sidebar-collapsed";
       const VISUAL_ORDER_KEY = "ledger-local-finance-visual-order-v1";
       const VISUAL_SIZE_KEY = "ledger-local-finance-visual-sizes-v1";
+      const COMMISSION_STATE_CHART_VISIBLE_KEY = "ledger-local-finance-commission-state-chart-visible-v1";
       const TABLE_VISUALS_KEY = "ledger-local-finance-table-visuals-v1";
       const TABLE_COPIES_KEY = "ledger-local-finance-table-copies-v1";
       const COMMISSION_HQ_STYLE_KEY = "ledger-local-finance-commission-hq-style-v2";
@@ -9984,6 +9982,10 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
         }).join("")}</div><p class="dashboard-tab-settings-note"><strong>API behavior:</strong> these dashboards are not deleted or preloaded. When you show one and open its tab, the existing Grafana API request runs for that dashboard.</p></div>`;
       }
 
+      function dashboardVisualsSettingsMarkup() {
+        return `<div class="dashboard-tab-settings"><p class="dashboard-tab-settings-intro">Choose which Commission Rider visuals appear on this device. Hidden visuals are not deleted.</p><div class="dashboard-tab-settings-list"><label class="dashboard-tab-setting"><input type="checkbox" data-commission-state-visibility ${commissionStateChartVisible ? "checked" : ""}><span><strong>Total Commission by State</strong><small>Show the state chart and commission breakdown on the dashboard.</small></span></label></div></div>`;
+      }
+
       function renderTabs() {
         syncOptionalTabVisibility();
         document.body.classList.toggle('booking-jobs-active', state.activeTab === 'bookingjobs');
@@ -11467,17 +11469,16 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
         return `${chartInsight("Latest month", formatFinanceDate(months[latestIndex]), `${formatNumber(totals[latestIndex])} orders; ${latestLeader?.[0] || "No area"} leads with ${formatNumber(latestLeader?.[1] || 0)}.`)}<div class="series-legend">${areas.map((area, index) => `<span class="legend-toggle" style="--legend-color:${colors[index]}">${esc(area)}</span>`).join("")}</div><div class="status-periods">${rowsMarkup}</div>`;
       }
 
-      let commissionStateChartExpanded = false;
+      let commissionStateChartVisible = (() => { try { return localStorage.getItem(COMMISSION_STATE_CHART_VISIBLE_KEY) === "1"; } catch { return false; } })();
       function chartPanel(panel) {
-        const collapsed = panel.id === "commission-main" && !commissionStateChartExpanded;
-        const sourceRows = collapsed ? [] : baseFilteredRows(panel);
-        const chartBody = collapsed ? "" : panel.id === "daily-sales-branch-overview" ? branchChart(panel, sourceRows) : panel.id === "daily-sales-hq-dealer-overview" ? hqDealerChart(panel, sourceRows) : panel.id === "quantity-pitstop-details" ? quantityMonthlyChart(panel, sourceRows) : rankedChart(panel, sourceRows);
+        if (panel.id === "commission-main" && !commissionStateChartVisible) return "";
+        const sourceRows = baseFilteredRows(panel);
+        const chartBody = panel.id === "daily-sales-branch-overview" ? branchChart(panel, sourceRows) : panel.id === "daily-sales-hq-dealer-overview" ? hqDealerChart(panel, sourceRows) : panel.id === "quantity-pitstop-details" ? quantityMonthlyChart(panel, sourceRows) : rankedChart(panel, sourceRows);
         const defaultColumns = ["reimbursement-details", "daily-sales-branch-overview", "job-booking", "pending-job", "pending-payment-combined", "quantity-pitstop-details", "quantity-pitstop-summary"].includes(panel.id) ? 12 : panel.id === "daily-sales-hq-dealer-overview" ? 6 : 8;
         const chartTitle = panel.chart.title;
         const chartSubtitle = panel.chart.subtitle;
-        const toolbarMarkup = collapsed ? "" : chartToolbar(panel, !["daily-sales-hq-dealer-overview"].includes(panel.id), false);
-        const toggleMarkup = panel.id === "commission-main" ? `<button class="button commission-state-toggle" type="button" data-commission-state-toggle aria-expanded="${!collapsed}" aria-label="${collapsed ? "Show" : "Hide"} Total Commission by State chart">${collapsed ? "Show chart" : "Hide chart"}</button>` : "";
-        return `<div class="chart-panel finance-visual${collapsed ? " commission-state-collapsed" : ""}" data-chart-panel="${esc(panel.id)}" data-visual-key="${esc(panel.id)}:primary" data-default-columns="${defaultColumns}" data-min-height="280"><div class="chart-head"><div><strong>${esc(chartTitle)}</strong><span>${esc(chartSubtitle)}</span></div>${toggleMarkup}${toolbarMarkup}</div>${chartBody}</div>`;
+        const toolbarMarkup = chartToolbar(panel, !["daily-sales-hq-dealer-overview"].includes(panel.id), false);
+        return `<div class="chart-panel finance-visual" data-chart-panel="${esc(panel.id)}" data-visual-key="${esc(panel.id)}:primary" data-default-columns="${defaultColumns}" data-min-height="280"><div class="chart-head"><div><strong>${esc(chartTitle)}</strong><span>${esc(chartSubtitle)}</span></div>${toolbarMarkup}</div>${chartBody}</div>`;
       }
 
       function commissionLiabilityChart(panel, sourceRows) {
@@ -12882,7 +12883,7 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
             </details>
             ${initialLoading ? `<div class="initial-load-skeleton" role="status" aria-label="Loading ${esc(panel.title)} from Grafana"><div class="initial-load-skeleton-card"><span class="initial-load-skeleton-line short"></span><span class="initial-load-skeleton-line value"></span></div><div class="initial-load-skeleton-card"><span class="initial-load-skeleton-line short"></span><span class="initial-load-skeleton-line value"></span></div><div class="initial-load-skeleton-card"><span class="initial-load-skeleton-line short"></span><span class="initial-load-skeleton-line value"></span></div><div class="initial-load-skeleton-chart"><span class="initial-load-skeleton-line"></span></div></div>` : `${branchAlertMarkup(panel)}`}
             ${financeControlCenterMarkup(panel)}
-            <div class="dashboard-chart-grid finance-arrange-container" data-visual-panel="${esc(panel.id)}">${initialLoading ? "" : decisionKpiMarkup(panel)}${chartPanel(panel)}${trendVisual(panel)}${grafanaSourceTablesMarkup(panel)}${tableDashboardVisualsMarkup(panel)}
+            <div class="dashboard-chart-grid finance-arrange-container${panel.id === "commission-main" && !commissionStateChartVisible ? " commission-state-chart-hidden" : ""}" data-visual-panel="${esc(panel.id)}">${initialLoading ? "" : decisionKpiMarkup(panel)}${chartPanel(panel)}${trendVisual(panel)}${grafanaSourceTablesMarkup(panel)}${tableDashboardVisualsMarkup(panel)}
             <div class="ledger-card finance-visual${singleRiderScope ? " is-single-rider-scope" : ""}${fullscreenTableId === panel.id ? " is-table-fullscreen" : ""}" data-visual-key="${esc(panel.id)}:table" data-default-columns="12" data-min-height="${tableMinHeight}" id="${esc(panel.id)}-ledger">
               <div class="ledger-head"><div><h4>${esc(ledgerTitle)}</h4><span class="ledger-grain">${esc(ledgerGrain(panel))}</span></div><div class="ledger-actions">${tableColumnMenuMarkup(panel.id, panel.columns, { tableTitle: ledgerTitle, compactPanelId: panel.id })}${TABLE_HEADER_FILTER_PANELS.has(panel.id) ? tableExportMenuMarkup(panel.id, { tableTitle: ledgerTitle }) : `<button type="button" data-table-export="${esc(panel.id)}" title="Export all filtered rows with source, period, and active filters">Export</button>`}<div class="ledger-search"><input type="search" placeholder="${esc(searchPlaceholder(panel.id))}" value="${esc(state.searchDraft[panel.id] ?? state.search[panel.id] ?? "")}" data-search="${esc(panel.id)}" aria-label="Search ${esc(ledgerTitle)}"><button type="button" data-search-submit="${esc(panel.id)}" aria-label="Apply table search">&#128269;</button></div>${panel.id === "commission-main" ? `<button class="table-header-filter-reset-button" type="button" data-table-header-filter-reset="${esc(tableFilterId(panel.id))}" title="Reset all Line Item Audit header filters" aria-label="Reset all Line Item Audit header filters"><span aria-hidden="true">×</span><span>Reset filters</span></button><button class="table-fullscreen-button" type="button" data-table-fullscreen="${esc(panel.id)}" title="${fullscreenTableId === panel.id ? "Exit full screen" : "Full-screen table"}" aria-label="${fullscreenTableId === panel.id ? "Exit full-screen table" : "Full-screen table"}" aria-pressed="${fullscreenTableId === panel.id}">${fullscreenTableId === panel.id ? "×" : "⛶"}</button>` : ""}</div></div>
             <div class="table-wrap ${state.compactTables[panel.id] ? "compact" : ""}" tabindex="0" role="region" aria-label="${esc(ledgerTitle)} scrollable data table" aria-describedby="${esc(panel.id)}-scroll-status" data-scroll-ledger="${esc(panel.id)}" data-table-id="${esc(tableFilterId(panel.id))}" data-rendered-rows="${renderedCount}" data-rows-complete="${renderedCount >= dataRows.length ? "true" : "false"}">
@@ -14778,13 +14779,6 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
       document.addEventListener("touchcancel", () => { calendarTouch = null; });
 
       document.addEventListener("click", async (event) => {
-        const commissionStateToggle = event.target.closest("[data-commission-state-toggle]");
-        if (commissionStateToggle) {
-          commissionStateChartExpanded = !commissionStateChartExpanded;
-          render();
-          document.querySelector("[data-commission-state-toggle]")?.focus({ preventScroll: true });
-          return;
-        }
         const openFilterAtClick = state.openFilter;
         if (openFilterAtClick) {
           const openTrigger = document.getElementById(`${openFilterAtClick.panelId}-${openFilterAtClick.key}-trigger`);
@@ -15604,6 +15598,13 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
       });
 
       document.addEventListener("change", async (event) => {
+        const commissionStateVisibility = event.target.closest("[data-commission-state-visibility]");
+        if (commissionStateVisibility) {
+          commissionStateChartVisible = commissionStateVisibility.checked;
+          try { localStorage.setItem(COMMISSION_STATE_CHART_VISIBLE_KEY, commissionStateChartVisible ? "1" : "0"); } catch {}
+          render();
+          return;
+        }
         const tabVisibilityToggle = event.target.closest("[data-tab-visibility-toggle]");
         if (tabVisibilityToggle) {
           const tabId = tabVisibilityToggle.dataset.tabVisibilityToggle;
@@ -15758,6 +15759,9 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
       });
       $("#dashboardTabsButton").addEventListener("click", () => {
         showFinanceDialog("Dashboard tabs", "Choose which optional Finance dashboards appear in navigation.", dashboardTabsSettingsMarkup());
+      });
+      $("#dashboardVisualsButton").addEventListener("click", () => {
+        showFinanceDialog("Dashboard visuals", "Show or hide optional Commission Rider visuals on this device.", dashboardVisualsSettingsMarkup());
       });
       $("#sidebarToggle").addEventListener("click", () => {
         setSidebarCollapsed(!$("#appRoot").classList.contains("sidebar-collapsed"));
