@@ -965,6 +965,13 @@
     .dashboard-chart-grid { gap: 16px; margin-bottom: 16px; }
     .chart-panel, .secondary-visual { border: 1px solid var(--line); border-radius: 12px; background: var(--surface-lowest); }
     .chart-panel { padding: 16px 18px; }
+    .chart-panel.commission-state-collapsed { min-height: 72px; max-height: 72px; }
+    .dashboard-chart-grid.visual-stack-layout > .chart-panel.finance-visual.commission-state-collapsed.visual-sized {
+      min-height: 72px;
+      max-height: 72px;
+      overflow: visible;
+    }
+    .commission-state-toggle { flex: 0 0 auto; align-self: center; white-space: nowrap; }
     .secondary-visual { overflow: hidden; }
     .secondary-visual-head { padding: 16px 18px 0; }
     .chart-head { flex-wrap: wrap; }
@@ -5017,6 +5024,9 @@
       }
       body:not(.arrange-finance-visuals) .panel-commission-main .dashboard-chart-grid:not(.visual-stack-layout) > .secondary-visual.finance-visual {
         grid-column: span 4 !important;
+      }
+      body:not(.arrange-finance-visuals) .panel-commission-main .dashboard-chart-grid:not(.visual-stack-layout):has(> .commission-state-collapsed) > :is(.chart-panel, .secondary-visual).finance-visual {
+        grid-column: 1 / -1 !important;
       }
       body:not(.arrange-finance-visuals) .panel-daily-sales-hq-dealer-overview .dashboard-chart-grid:not(.visual-stack-layout) > :is(.chart-panel, .secondary-visual).finance-visual {
         grid-column: span 6 !important;
@@ -11457,14 +11467,17 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
         return `${chartInsight("Latest month", formatFinanceDate(months[latestIndex]), `${formatNumber(totals[latestIndex])} orders; ${latestLeader?.[0] || "No area"} leads with ${formatNumber(latestLeader?.[1] || 0)}.`)}<div class="series-legend">${areas.map((area, index) => `<span class="legend-toggle" style="--legend-color:${colors[index]}">${esc(area)}</span>`).join("")}</div><div class="status-periods">${rowsMarkup}</div>`;
       }
 
+      let commissionStateChartExpanded = false;
       function chartPanel(panel) {
-        const sourceRows = baseFilteredRows(panel);
-        const chartBody = panel.id === "daily-sales-branch-overview" ? branchChart(panel, sourceRows) : panel.id === "daily-sales-hq-dealer-overview" ? hqDealerChart(panel, sourceRows) : panel.id === "quantity-pitstop-details" ? quantityMonthlyChart(panel, sourceRows) : rankedChart(panel, sourceRows);
+        const collapsed = panel.id === "commission-main" && !commissionStateChartExpanded;
+        const sourceRows = collapsed ? [] : baseFilteredRows(panel);
+        const chartBody = collapsed ? "" : panel.id === "daily-sales-branch-overview" ? branchChart(panel, sourceRows) : panel.id === "daily-sales-hq-dealer-overview" ? hqDealerChart(panel, sourceRows) : panel.id === "quantity-pitstop-details" ? quantityMonthlyChart(panel, sourceRows) : rankedChart(panel, sourceRows);
         const defaultColumns = ["reimbursement-details", "daily-sales-branch-overview", "job-booking", "pending-job", "pending-payment-combined", "quantity-pitstop-details", "quantity-pitstop-summary"].includes(panel.id) ? 12 : panel.id === "daily-sales-hq-dealer-overview" ? 6 : 8;
         const chartTitle = panel.chart.title;
         const chartSubtitle = panel.chart.subtitle;
-        const toolbarMarkup = chartToolbar(panel, !["daily-sales-hq-dealer-overview"].includes(panel.id), false);
-        return `<div class="chart-panel finance-visual" data-chart-panel="${esc(panel.id)}" data-visual-key="${esc(panel.id)}:primary" data-default-columns="${defaultColumns}" data-min-height="280"><div class="chart-head"><div><strong>${esc(chartTitle)}</strong><span>${esc(chartSubtitle)}</span></div>${toolbarMarkup}</div>${chartBody}</div>`;
+        const toolbarMarkup = collapsed ? "" : chartToolbar(panel, !["daily-sales-hq-dealer-overview"].includes(panel.id), false);
+        const toggleMarkup = panel.id === "commission-main" ? `<button class="button commission-state-toggle" type="button" data-commission-state-toggle aria-expanded="${!collapsed}" aria-label="${collapsed ? "Show" : "Hide"} Total Commission by State chart">${collapsed ? "Show chart" : "Hide chart"}</button>` : "";
+        return `<div class="chart-panel finance-visual${collapsed ? " commission-state-collapsed" : ""}" data-chart-panel="${esc(panel.id)}" data-visual-key="${esc(panel.id)}:primary" data-default-columns="${defaultColumns}" data-min-height="280"><div class="chart-head"><div><strong>${esc(chartTitle)}</strong><span>${esc(chartSubtitle)}</span></div>${toggleMarkup}${toolbarMarkup}</div>${chartBody}</div>`;
       }
 
       function commissionLiabilityChart(panel, sourceRows) {
@@ -14765,6 +14778,13 @@ body.booking-jobs-active #railToolbarSlot #arrangeVisualsButton { display:none; 
       document.addEventListener("touchcancel", () => { calendarTouch = null; });
 
       document.addEventListener("click", async (event) => {
+        const commissionStateToggle = event.target.closest("[data-commission-state-toggle]");
+        if (commissionStateToggle) {
+          commissionStateChartExpanded = !commissionStateChartExpanded;
+          render();
+          document.querySelector("[data-commission-state-toggle]")?.focus({ preventScroll: true });
+          return;
+        }
         const openFilterAtClick = state.openFilter;
         if (openFilterAtClick) {
           const openTrigger = document.getElementById(`${openFilterAtClick.panelId}-${openFilterAtClick.key}-trigger`);
