@@ -2826,7 +2826,7 @@
       var stateBandStyle = ' bgcolor="#cee5d4" style="background-color:#cee5d4"';
       return '<tbody class="email-state-group"><tr class="email-state-title"><td' + stateBandStyle + ' aria-hidden="true"></td><th' + stateBandStyle + ' scope="row">' + escapeHtml(emailSummaryStateLabel(stateName)) + '</th><td' + stateBandStyle + ' aria-hidden="true"></td><td' + stateBandStyle + ' aria-hidden="true"></td><td' + stateBandStyle + ' aria-hidden="true"></td><td' + stateBandStyle + ' aria-hidden="true"></td><td' + stateBandStyle + ' aria-hidden="true"></td><td' + stateBandStyle + ' aria-hidden="true"></td></tr><tr class="email-column-row"><th>No</th><th>Name</th><th>Region</th><th>State</th><th>Tier</th><th>Target</th><th>Total Sales</th><th>Achievement</th></tr>' + body + '</tbody>';
     }).join('');
-    return '<p class="email-section-lead"><strong>Below are the ' + escapeHtml(networkLabel) + ' state details:</strong></p><div class="email-table-scroll"><table class="email-table email-detail-table">' + emailDetailColumnGroup() + (groups || '<tbody><tr><td>No pitstop data is available.</td></tr></tbody>') + '</table></div>';
+    return '<p class="email-section-lead"><strong>Below are the ' + escapeHtml(networkLabel) + ' state details:</strong></p><div class="email-table-scroll"><table class="email-table email-detail-table email-state-detail-table">' + emailDetailColumnGroup() + (groups || '<tbody><tr><td>No pitstop data is available.</td></tr></tbody>') + '</table></div>';
   }
 
   // Email-ready ranking tables.  These use the same snapshot rows as the
@@ -5273,10 +5273,34 @@
           var value = sourceTableStyle.getPropertyValue(property);
           if (value) copiedTable.style.setProperty(property, value);
         });
-        var tableWidth = Math.round(sourceTable.getBoundingClientRect().width);
+        var renderedWidth = Math.round(sourceTable.getBoundingClientRect().width);
+        var tableWidth = Math.max(1000, renderedWidth);
+        var tableScale = renderedWidth > 0 ? tableWidth / renderedWidth : 1;
         if (tableWidth > 0) {
           copiedTable.style.width = tableWidth + 'px';
+          copiedTable.style.maxWidth = tableWidth + 'px';
           copiedTable.setAttribute('width', String(tableWidth));
+        }
+        var columnCount = Array.from(sourceTable.rows).reduce(function(maxCount, row) {
+          var count = Array.from(row.cells).reduce(function(sum, cell) { return sum + (cell.colSpan || 1); }, 0);
+          return Math.max(maxCount, count);
+        }, 0);
+        var sizingRow = Array.from(sourceTable.rows).find(function(row) {
+          return Array.from(row.cells).reduce(function(sum, cell) { return sum + (cell.colSpan || 1); }, 0) === columnCount && Array.from(row.cells).every(function(cell) { return cell.colSpan === 1; });
+        });
+        if (sizingRow && columnCount) {
+          var columnWidths = Array.from(sizingRow.cells).map(function(cell) { return Math.round(cell.getBoundingClientRect().width * tableScale); });
+          var oldColumnGroup = copiedTable.querySelector('colgroup');
+          if (oldColumnGroup) oldColumnGroup.remove();
+          var columnGroup = document.createElement('colgroup');
+          columnWidths.forEach(function(width) {
+            var column = document.createElement('col');
+            column.setAttribute('width', String(width));
+            column.style.width = width + 'px';
+            columnGroup.appendChild(column);
+          });
+          copiedTable.insertBefore(columnGroup, copiedTable.firstChild);
+          copiedTable.style.tableLayout = 'fixed';
         }
         Array.from(sourceTable.rows).forEach(function(sourceRow, rowIndex) {
           var copiedRow = copiedTable.rows[rowIndex];
@@ -5286,8 +5310,13 @@
             if (!copiedCell) return;
             var cellWidth = Math.round(sourceCell.getBoundingClientRect().width);
             if (cellWidth > 0) {
-              copiedCell.style.width = cellWidth + 'px';
-              copiedCell.setAttribute('width', String(cellWidth));
+              var scaledCellWidth = Math.round(cellWidth * tableScale);
+              var cellFontSize = parseFloat(window.getComputedStyle(sourceCell).fontSize) || 12;
+              copiedCell.style.width = scaledCellWidth + 'px';
+              copiedCell.style.fontSize = Math.max(12, Math.round(cellFontSize * 1.12)) + 'px';
+              copiedCell.style.lineHeight = '1.25';
+              copiedCell.style.height = Math.round(sourceCell.getBoundingClientRect().height * tableScale) + 'px';
+              copiedCell.setAttribute('width', String(scaledCellWidth));
             }
           });
         });
@@ -5357,7 +5386,7 @@
       var noCells = Array.from(table.querySelectorAll('tbody tr:not(.email-state-title) td:first-child')).filter(function(cell) { return /^\d+$/.test(String(cell.textContent || '').trim()); });
       var largestNoLength = noCells.reduce(function(maxLength, cell) { return Math.max(maxLength, String(cell.textContent || '').trim().length); }, 1);
       var noWidth = Math.max(32, largestNoLength * 8 + 14);
-      var detailColumnWidths = [noWidth, 322, 99, 129, 60, 50, 112, 105];
+      var detailColumnWidths = [noWidth, 352, 114, 140, 64, 72, 114, 112];
       var detailTableWidth = detailColumnWidths.reduce(function(sum, width) { return sum + width; }, 0);
       table.setAttribute('width', String(detailTableWidth));
       table.setAttribute('cellpadding', '0');
@@ -5366,10 +5395,15 @@
       table.style.setProperty('min-width', detailTableWidth + 'px', 'important');
       table.style.setProperty('max-width', detailTableWidth + 'px', 'important');
       table.style.setProperty('table-layout', 'fixed', 'important');
+      table.querySelectorAll('th, td').forEach(function(cell) {
+        cell.style.setProperty('font-size', '18px', 'important');
+        cell.style.setProperty('line-height', '1.25', 'important');
+        cell.style.setProperty('height', '27px', 'important');
+      });
       Array.from(table.querySelectorAll('col')).forEach(function(column, index) {
         if (detailColumnWidths[index] === undefined) return;
         column.setAttribute('width', String(detailColumnWidths[index]));
-        column.style.width = detailColumnWidths[index] + 'px';
+        column.style.setProperty('width', detailColumnWidths[index] + 'px', 'important');
       });
       Array.from(table.rows).forEach(function(row) {
         Array.from(row.cells).forEach(function(cell, index) {

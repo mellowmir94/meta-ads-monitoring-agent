@@ -1444,6 +1444,7 @@ body[data-report-mode="1"] .admin-only { display: none !important; }
   table-layout: auto;
 }
 .email-table-scroll > .email-table { margin-bottom: 0; }
+.email-summary-document .email-table { width: max-content; max-width: none; }
 .email-table th,
 .email-table td {
   padding: 4px 6px;
@@ -1546,12 +1547,11 @@ body[data-report-mode="1"] .admin-only { display: none !important; }
   background-color: #f8d7da !important;
   color: #000 !important;
 }
-.email-state-summary { width: min(100%, 540px); }
-.email-state-summary th:not(:first-child), .email-state-summary td:not(:first-child) { width: 18%; }
+.email-state-summary { width: max-content; }
 .email-total-row > th,
 .email-total-row > td,
 .email-tier-total { background: #cee5d4; font-weight: 700; }
-.email-tier-matrix { min-width: 850px; font-size: 10px; }
+.email-tier-matrix { width: max-content; font-size: 10px; }
 .email-tier-matrix th,
 .email-tier-matrix td { padding: 3px 4px; white-space: nowrap; }
 .email-tier-matrix thead tr:first-child th:first-child,
@@ -1560,7 +1560,7 @@ body[data-report-mode="1"] .admin-only { display: none !important; }
 .email-tier-matrix thead tr:nth-child(2) th:first-child,
 .email-tier-matrix thead tr:nth-child(2) th .email-status-dot { margin-left: auto; margin-right: auto; }
 .email-tier-matrix .email-status-dot { width: 11px; height: 11px; flex-basis: 11px; }
-.email-detail-table { width: 909px; min-width: 909px; max-width: 909px; table-layout: fixed; font-size: 10px; }
+.email-detail-table { width: max-content; table-layout: auto; font-size: 10px; }
 .email-detail-table th,
 .email-detail-table td {
   padding: 2px 4px;
@@ -1584,7 +1584,7 @@ body[data-report-mode="1"] .admin-only { display: none !important; }
 .email-summary-document .email-detail-table .email-column-row th:first-child,
 .email-summary-document .email-detail-table tbody td:first-child { text-align: center !important; }
 .email-detail-table .email-column-row th:nth-child(2),
-.email-detail-table td:nth-child(2) { min-width: 220px; text-align: left; }
+.email-detail-table td:nth-child(2) { min-width: 0; text-align: left; }
 .email-detail-table .email-column-row th:nth-child(3),
 .email-detail-table .email-column-row th:nth-child(4),
 .email-detail-table td:nth-child(3),
@@ -1607,7 +1607,7 @@ body[data-report-mode="1"] .admin-only { display: none !important; }
 .email-ranking-tables { width: 100%; }
 .email-weekly-ranking-filter { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 8px; color: #536b80; font-size: 11px; font-weight: 700; }
 .email-weekly-ranking-status.has-error { color: #b33d35; }
-.email-ranking-table { min-width: 760px; margin-top: 0; margin-bottom: 10px; }
+.email-ranking-table { width: max-content; margin-top: 0; margin-bottom: 10px; }
 .email-ranking-table thead tr:first-child th { text-align: center; letter-spacing: .02em; }
 .email-ranking-top thead tr:first-child th { background: #d9efdf; }
 .email-ranking-bottom thead tr:first-child th { background: #f7dada; }
@@ -1627,10 +1627,10 @@ body[data-report-mode="1"] .admin-only { display: none !important; }
 .email-performance.below,
 .email-performance.critical { background: #f7dada; }
 .email-performance.na { background: #eceff1; }
-.email-bgarage-table { min-width: 1180px; font-size: 9.5px; }
+.email-bgarage-table { width: max-content; font-size: 9.5px; }
 .email-bgarage-table th,
 .email-bgarage-table td { padding: 3px 4px; }
-.email-indonesia-table { min-width: 1120px; font-size: 9.5px; }
+.email-indonesia-table { width: max-content; font-size: 9.5px; }
 .email-indonesia-table th,
 .email-indonesia-table td { padding: 3px 4px; }
 
@@ -1809,11 +1809,27 @@ body[data-report-mode="1"] .admin-only { display: none !important; }
   max-width: none;
 }
 .email-summary-document .email-detail-table {
-  width: 776px;
-  min-width: 776px;
-  max-width: 776px;
-  table-layout: fixed;
+  width: max-content;
+  min-width: 0;
+  max-width: none;
+  table-layout: auto;
 }
+.email-summary-document .email-detail-table col { width: auto !important; }
+.email-summary-document .email-state-detail-table {
+  width: max-content;
+  min-width: 892px;
+  font-size: 16px;
+}
+.email-summary-document .email-state-detail-table col:nth-child(1) { width: 32px !important; }
+.email-summary-document .email-state-detail-table col:nth-child(2) { width: 306px !important; }
+.email-summary-document .email-state-detail-table col:nth-child(3) { width: 101px !important; }
+.email-summary-document .email-state-detail-table col:nth-child(4) { width: 124px !important; }
+.email-summary-document .email-state-detail-table col:nth-child(5) { width: 57px !important; }
+.email-summary-document .email-state-detail-table col:nth-child(6) { width: 66px !important; }
+.email-summary-document .email-state-detail-table col:nth-child(7) { width: 101px !important; }
+.email-summary-document .email-state-detail-table col:nth-child(8) { width: 105px !important; }
+.email-summary-document .email-state-detail-table th,
+.email-summary-document .email-state-detail-table td { padding: 2px 6px; }
 .email-summary-document .email-table-scroll {
   max-width: 100%;
   scrollbar-gutter: stable;

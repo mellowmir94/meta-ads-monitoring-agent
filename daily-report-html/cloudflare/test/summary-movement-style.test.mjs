@@ -73,10 +73,16 @@ test('Full Summary clipboard locks the rendered table and cell widths for Outloo
   const copyHandler = source.slice(copyStart, copyEnd);
 
   assert.match(copyHandler, /if \(fullSummaryCopy\) \{[\s\S]*var sourceTables = Array\.from\(source\.querySelectorAll\('table'\)\)/);
-  assert.match(copyHandler, /var tableWidth = Math\.round\(sourceTable\.getBoundingClientRect\(\)\.width\)/);
+  assert.match(copyHandler, /var renderedWidth = Math\.round\(sourceTable\.getBoundingClientRect\(\)\.width\)/);
+  assert.match(copyHandler, /var tableWidth = Math\.max\(1000, renderedWidth\)/);
   assert.match(copyHandler, /copiedTable\.setAttribute\('width', String\(tableWidth\)\)/);
-  assert.match(copyHandler, /var cellWidth = Math\.round\(sourceCell\.getBoundingClientRect\(\)\.width\)/);
-  assert.match(copyHandler, /copiedCell\.setAttribute\('width', String\(cellWidth\)\)/);
+  assert.match(copyHandler, /var sizingRow = Array\.from\(sourceTable\.rows\)\.find/);
+  assert.match(copyHandler, /var columnWidths = Array\.from\(sizingRow\.cells\)\.map\(function\(cell\) \{ return Math\.round\(cell\.getBoundingClientRect\(\)\.width \* tableScale\); \}\)/);
+  assert.match(copyHandler, /copiedTable\.insertBefore\(columnGroup, copiedTable\.firstChild\)/);
+  assert.match(copyHandler, /copiedTable\.style\.tableLayout = 'fixed'/);
+  assert.match(copyHandler, /var scaledCellWidth = Math\.round\(cellWidth \* tableScale\)/);
+  assert.match(copyHandler, /copiedCell\.style\.fontSize = Math\.max\(12, Math\.round\(cellFontSize \* 1\.12\)\) \+ 'px'/);
+  assert.match(copyHandler, /copiedCell\.setAttribute\('width', String\(scaledCellWidth\)\)/);
 });
 
 test('B2C and B2B2C performance tables share one independent local date shortcut', async () => {
@@ -337,13 +343,17 @@ test('B2C, B2B2C, and BP detail tables match the reference order, widths, and al
 
   assert.match(css, /.email-detail-table \.email-column-row th:nth-child\(1\),\s*\.email-detail-table td:nth-child\(1\) \{ width: max-content; min-width: 32px; text-align: center; white-space: nowrap; \}/s);
   assert.match(css, /\.email-summary-document \.email-detail-table \.email-column-row th:first-child,[\s\S]*\.email-summary-document \.email-detail-table tbody td:first-child \{ text-align: center !important; \}/s);
-  assert.match(css, /.email-detail-table \.email-column-row th:nth-child\(2\),\s*\.email-detail-table td:nth-child\(2\) \{ min-width: 220px; text-align: left; \}/s);
+  assert.match(css, /.email-detail-table \.email-column-row th:nth-child\(2\),\s*\.email-detail-table td:nth-child\(2\) \{ min-width: 0; text-align: left; \}/s);
   assert.match(css, /.email-detail-table \.email-column-row th:nth-child\(3\),[\s\S]*\.email-detail-table td:nth-child\(4\) \{ text-align: left; \}/s);
   assert.match(css, /.email-detail-table \.email-column-row th:nth-child\(5\),[\s\S]*\.email-detail-table td:nth-child\(8\) \{ text-align: center; \}/s);
-  assert.match(css, /\.email-detail-table \{ width: 776px; min-width: 776px; max-width: 776px; table-layout: fixed;/);
+  assert.match(css, /\.email-summary-document \.email-detail-table \{\s*width: max-content;\s*min-width: 0;\s*max-width: none;\s*table-layout: auto;/);
+  assert.match(css, /\.email-summary-document \.email-detail-table col \{ width: auto !important; \}/);
+  assert.match(css, /\.email-summary-document \.email-state-detail-table \{\s*width: max-content;\s*min-width: 892px;\s*font-size: 16px;/);
+  assert.match(source, /email-detail-table email-state-detail-table/);
+  assert.match(source, /var detailColumnWidths = \[noWidth, 352, 114, 140, 64, 72, 114, 112\]/);
   assert.match(css, /\.email-detail-table \.email-state-title th,\s*\.email-detail-table \.email-state-title td \{[\s\S]*background: #cee5d4;/);
   assert.match(css, /\.email-summary-document \.email-detail-table th,\s*\.email-summary-document \.email-detail-table td \{[\s\S]*white-space: nowrap;/);
-  assert.match(source, /<colgroup><col width="32"><col width="244"><col width="100"><col width="108"><col width="58"><col width="48"><col width="100"><col width="86"><\/colgroup>/);
+  assert.match(source, /<colgroup><col width="32"><col width="322"><col width="99"><col width="129"><col width="60"><col width="50"><col width="112"><col width="105"><\/colgroup>/);
   assert.match(source, /hq: \['JOHOR', 'MELAKA', 'N\.SEMBILAN', 'PUTRAJAYA', 'KUALA LUMPUR', 'SELANGOR', 'PERAK', 'PENANG', 'KEDAH', 'PERLIS', 'KELANTAN', 'TERENGGANU', 'PAHANG', 'SABAH', 'SARAWAK'\]/);
   assert.match(source, /var stateBandStyle = ' bgcolor="#cee5d4" style="background-color:#cee5d4"'/);
   assert.match(source, /<tr class="email-state-title"><td' \+ stateBandStyle \+ ' aria-hidden="true"><\/td><th' \+ stateBandStyle \+ ' scope="row">/);
@@ -355,7 +365,7 @@ test('B2C, B2B2C, and BP detail tables match the reference order, widths, and al
   assert.match(source, /var noWidth = Math\.max\(32, largestNoLength \* 8 \+ 14\)/);
   assert.match(source, /clone\.querySelectorAll\('\.email-detail-table td:first-child, \.email-detail-table \.email-column-row th:first-child'\)\.forEach\(function\(cell\) \{ cell\.style\.setProperty\('text-align', 'center', 'important'\); \}\)/);
   assert.match(source, /cell\.setAttribute\('bgcolor', '#cee5d4'\)/);
-  assert.match(source, /var detailColumnWidths = \[noWidth, 244, 100, 108, 58, 48, 100, 86\]/);
+  assert.match(source, /var detailColumnWidths = \[noWidth, 352, 114, 140, 64, 72, 114, 112\]/);
   assert.match(source, /cell\.setAttribute\('nowrap', 'nowrap'\)/);
   assert.match(source, /cell\.style\.setProperty\('overflow-wrap', 'normal', 'important'\)/);
   assert.match(source, /cell\.style\.setProperty\('word-break', 'normal', 'important'\)/);
