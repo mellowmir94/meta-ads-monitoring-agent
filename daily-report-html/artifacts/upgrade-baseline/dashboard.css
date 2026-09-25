@@ -1528,12 +1528,6 @@ body[data-report-mode="1"] .admin-only { display: none !important; }
 .email-summary-document:not(.operations-summary-document):not([data-copy-variant]) .email-table tbody td strong * {
   font-weight: 700 !important;
 }
-.email-summary-document .email-table {
-  width: 540px !important;
-  min-width: 0 !important;
-  max-width: 540px !important;
-  table-layout: auto !important;
-}
 .email-summary-document:not(.operations-summary-document):not([data-copy-variant]) .email-bgarage-table tbody tr:not(.email-total-row) td:not(:first-child),
 .email-summary-document:not(.operations-summary-document):not([data-copy-variant]) .email-bgarage-table tbody tr:not(.email-total-row) td:not(:first-child) * {
   font-weight: 400 !important;
@@ -1566,7 +1560,7 @@ body[data-report-mode="1"] .admin-only { display: none !important; }
 .email-tier-matrix thead tr:nth-child(2) th:first-child,
 .email-tier-matrix thead tr:nth-child(2) th .email-status-dot { margin-left: auto; margin-right: auto; }
 .email-tier-matrix .email-status-dot { width: 11px; height: 11px; flex-basis: 11px; }
-.email-detail-table { width: 540px; min-width: 0; max-width: 540px; table-layout: auto; font-size: 10px; }
+.email-detail-table { width: 909px; min-width: 909px; max-width: 909px; table-layout: fixed; font-size: 10px; }
 .email-detail-table th,
 .email-detail-table td {
   padding: 2px 4px;
@@ -1823,28 +1817,6 @@ body[data-report-mode="1"] .admin-only { display: none !important; }
 .email-summary-document .email-table-scroll {
   max-width: 100%;
   scrollbar-gutter: stable;
-}
-
-.email-summary-document .email-table {
-  width: 540px !important;
-  min-width: 540px !important;
-  max-width: 540px !important;
-  table-layout: fixed !important;
-}
-.email-summary-document .email-table col { width: auto !important; }
-.email-summary-document .email-detail-table col:nth-child(1) { width: 32px !important; }
-.email-summary-document .email-detail-table col:nth-child(2) { width: 140px !important; }
-.email-summary-document .email-detail-table col:nth-child(3) { width: 64px !important; }
-.email-summary-document .email-detail-table col:nth-child(4) { width: 72px !important; }
-.email-summary-document .email-detail-table col:nth-child(5) { width: 54px !important; }
-.email-summary-document .email-detail-table col:nth-child(6) { width: 52px !important; }
-.email-summary-document .email-detail-table col:nth-child(7) { width: 74px !important; }
-.email-summary-document .email-detail-table col:nth-child(8) { width: 52px !important; }
-.email-summary-document .email-table th,
-.email-summary-document .email-table td {
-  min-width: 0 !important;
-  overflow-wrap: anywhere !important;
-  white-space: normal !important;
 }
 
 @media (max-width: 700px) {
