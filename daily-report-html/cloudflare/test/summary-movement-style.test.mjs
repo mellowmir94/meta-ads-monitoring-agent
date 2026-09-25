@@ -74,14 +74,15 @@ test('Full Summary clipboard locks the rendered table and cell widths for Outloo
 
   assert.match(copyHandler, /if \(fullSummaryCopy\) \{[\s\S]*var sourceTables = Array\.from\(source\.querySelectorAll\('table'\)\)/);
   assert.match(copyHandler, /var renderedWidth = Math\.round\(sourceTable\.getBoundingClientRect\(\)\.width\)/);
-  assert.match(copyHandler, /var tableWidth = Math\.max\(1000, renderedWidth\)/);
+  assert.match(copyHandler, /var keepCompactSize = sourceTable\.matches\('\.email-sales-table, \.email-state-summary'\)/);
+  assert.match(copyHandler, /var tableWidth = keepCompactSize \? renderedWidth : Math\.max\(1000, renderedWidth\)/);
   assert.match(copyHandler, /copiedTable\.setAttribute\('width', String\(tableWidth\)\)/);
   assert.match(copyHandler, /var sizingRow = Array\.from\(sourceTable\.rows\)\.find/);
   assert.match(copyHandler, /var columnWidths = Array\.from\(sizingRow\.cells\)\.map\(function\(cell\) \{ return Math\.round\(cell\.getBoundingClientRect\(\)\.width \* tableScale\); \}\)/);
   assert.match(copyHandler, /copiedTable\.insertBefore\(columnGroup, copiedTable\.firstChild\)/);
   assert.match(copyHandler, /copiedTable\.style\.tableLayout = 'fixed'/);
   assert.match(copyHandler, /var scaledCellWidth = Math\.round\(cellWidth \* tableScale\)/);
-  assert.match(copyHandler, /copiedCell\.style\.fontSize = Math\.max\(12, Math\.round\(cellFontSize \* 1\.12\)\) \+ 'px'/);
+  assert.match(copyHandler, /copiedCell\.style\.fontSize = \(keepCompactSize \? cellFontSize : Math\.max\(12, Math\.round\(cellFontSize \* 1\.12\)\)\) \+ 'px'/);
   assert.match(copyHandler, /copiedCell\.setAttribute\('width', String\(scaledCellWidth\)\)/);
 });
 

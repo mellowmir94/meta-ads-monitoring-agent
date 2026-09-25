@@ -5274,7 +5274,8 @@
           if (value) copiedTable.style.setProperty(property, value);
         });
         var renderedWidth = Math.round(sourceTable.getBoundingClientRect().width);
-        var tableWidth = Math.max(1000, renderedWidth);
+        var keepCompactSize = sourceTable.matches('.email-sales-table, .email-state-summary');
+        var tableWidth = keepCompactSize ? renderedWidth : Math.max(1000, renderedWidth);
         var tableScale = renderedWidth > 0 ? tableWidth / renderedWidth : 1;
         if (tableWidth > 0) {
           copiedTable.style.width = tableWidth + 'px';
@@ -5313,7 +5314,7 @@
               var scaledCellWidth = Math.round(cellWidth * tableScale);
               var cellFontSize = parseFloat(window.getComputedStyle(sourceCell).fontSize) || 12;
               copiedCell.style.width = scaledCellWidth + 'px';
-              copiedCell.style.fontSize = Math.max(12, Math.round(cellFontSize * 1.12)) + 'px';
+              copiedCell.style.fontSize = (keepCompactSize ? cellFontSize : Math.max(12, Math.round(cellFontSize * 1.12))) + 'px';
               copiedCell.style.lineHeight = '1.25';
               copiedCell.style.height = Math.round(sourceCell.getBoundingClientRect().height * tableScale) + 'px';
               copiedCell.setAttribute('width', String(scaledCellWidth));
