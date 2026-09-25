@@ -2534,7 +2534,7 @@
   }
 
   function emailDetailColumnGroup() {
-    return '<colgroup><col width="32"><col width="322"><col width="99"><col width="129"><col width="60"><col width="50"><col width="112"><col width="105"></colgroup>';
+    return '<colgroup><col width="32"><col width="140"><col width="64"><col width="72"><col width="54"><col width="52"><col width="74"><col width="52"></colgroup>';
   }
 
   function emailSummaryStateLabel(value) {
@@ -5357,8 +5357,8 @@
       var noCells = Array.from(table.querySelectorAll('tbody tr:not(.email-state-title) td:first-child')).filter(function(cell) { return /^\d+$/.test(String(cell.textContent || '').trim()); });
       var largestNoLength = noCells.reduce(function(maxLength, cell) { return Math.max(maxLength, String(cell.textContent || '').trim().length); }, 1);
       var noWidth = Math.max(32, largestNoLength * 8 + 14);
-      var detailColumnWidths = [noWidth, 322, 99, 129, 60, 50, 112, 105];
-      var detailTableWidth = detailColumnWidths.reduce(function(sum, width) { return sum + width; }, 0);
+      var detailColumnWidths = [32, 140, 64, 72, 54, 52, 74, 52];
+      var detailTableWidth = 540;
       table.setAttribute('width', String(detailTableWidth));
       table.setAttribute('cellpadding', '0');
       table.setAttribute('cellspacing', '0');
@@ -5385,6 +5385,25 @@
     });
     clone.querySelectorAll('.email-classification th, .email-classification td').forEach(function(cell) {
       cell.style.textAlign = 'center';
+    });
+    clone.querySelectorAll('.email-summary-document .email-table').forEach(function(table) {
+      table.setAttribute('width', '540');
+      table.style.setProperty('width', '540px', 'important');
+      table.style.setProperty('min-width', '0', 'important');
+      table.style.setProperty('max-width', '540px', 'important');
+      table.style.setProperty('table-layout', 'auto', 'important');
+      table.style.setProperty('border-collapse', 'collapse', 'important');
+      table.style.setProperty('border-spacing', '0', 'important');
+      table.querySelectorAll('col').forEach(function(column) { column.removeAttribute('width'); column.style.removeProperty('width'); });
+      table.querySelectorAll('th, td').forEach(function(cell) {
+        cell.removeAttribute('width');
+        cell.style.removeProperty('width');
+        cell.style.removeProperty('min-width');
+        cell.style.removeProperty('max-width');
+        cell.style.setProperty('white-space', 'normal', 'important');
+        cell.style.setProperty('overflow-wrap', 'anywhere', 'important');
+        cell.style.setProperty('word-break', 'normal', 'important');
+      });
     });
     prepareCopiedStatusDots(clone);
     var html = '<div style="background:#ffffff;margin:0;padding:0;border:0;outline:0">' + clone.outerHTML + '</div>', plain = clone.innerText || clone.textContent || '';
