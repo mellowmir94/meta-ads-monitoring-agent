@@ -2534,7 +2534,7 @@
   }
 
   function emailDetailColumnGroup() {
-    return '<colgroup><col width="32"><col width="244"><col width="100"><col width="108"><col width="58"><col width="48"><col width="100"><col width="86"></colgroup>';
+    return '<colgroup><col width="32"><col width="322"><col width="99"><col width="129"><col width="60"><col width="50"><col width="112"><col width="105"></colgroup>';
   }
 
   function emailSummaryStateLabel(value) {
@@ -5295,6 +5295,7 @@
     }
     var copiedLegend = clone.querySelector('.email-legend');
     if (copiedLegend) {
+      copiedLegend.querySelectorAll('td:nth-child(2)').forEach(function(cell) { cell.style.setProperty('font-weight', '700', 'important'); });
       copiedLegend.setAttribute('role', 'presentation');
       copiedLegend.setAttribute('border', '0');
       copiedLegend.setAttribute('cellpadding', '0');
@@ -5356,7 +5357,7 @@
       var noCells = Array.from(table.querySelectorAll('tbody tr:not(.email-state-title) td:first-child')).filter(function(cell) { return /^\d+$/.test(String(cell.textContent || '').trim()); });
       var largestNoLength = noCells.reduce(function(maxLength, cell) { return Math.max(maxLength, String(cell.textContent || '').trim().length); }, 1);
       var noWidth = Math.max(32, largestNoLength * 8 + 14);
-      var detailColumnWidths = [noWidth, 244, 100, 108, 58, 48, 100, 86];
+      var detailColumnWidths = [noWidth, 322, 99, 129, 60, 50, 112, 105];
       var detailTableWidth = detailColumnWidths.reduce(function(sum, width) { return sum + width; }, 0);
       table.setAttribute('width', String(detailTableWidth));
       table.setAttribute('cellpadding', '0');

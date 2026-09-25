@@ -1418,6 +1418,7 @@ body[data-report-mode="1"] .admin-only { display: none !important; }
 .email-legend td { height: 24px; padding: 0; border: 0; background: #fff; color: #000; font-weight: 700; line-height: 20px; vertical-align: middle; white-space: nowrap; }
 .email-legend td:first-child { width: 24px; padding-right: 8px; text-align: center; }
 .email-legend td:nth-child(2) { width: 328px; text-align: left; }
+.email-summary-document .email-legend td:nth-child(2) { font-weight: 700 !important; }
 .email-status-dot {
   display: inline-block;
   width: 16px;
@@ -1559,7 +1560,7 @@ body[data-report-mode="1"] .admin-only { display: none !important; }
 .email-tier-matrix thead tr:nth-child(2) th:first-child,
 .email-tier-matrix thead tr:nth-child(2) th .email-status-dot { margin-left: auto; margin-right: auto; }
 .email-tier-matrix .email-status-dot { width: 11px; height: 11px; flex-basis: 11px; }
-.email-detail-table { width: 776px; min-width: 776px; max-width: 776px; table-layout: fixed; font-size: 10px; }
+.email-detail-table { width: 909px; min-width: 909px; max-width: 909px; table-layout: fixed; font-size: 10px; }
 .email-detail-table th,
 .email-detail-table td {
   padding: 2px 4px;
