@@ -4706,13 +4706,117 @@
       circle.style.setProperty('width', inLegend ? '20px' : '16px', 'important');
       circle.style.setProperty('color', color, 'important');
       circle.style.setProperty('font-family', 'Segoe UI Emoji, Arial, sans-serif', 'important');
-      circle.style.setProperty('font-size', inLegend ? '16px' : '14px', 'important');
+      circle.style.setProperty('font-size', '16px', 'important');
       circle.style.setProperty('font-weight', '400', 'important');
       circle.style.setProperty('line-height', inLegend ? '20px' : '16px', 'important');
       circle.style.setProperty('text-align', 'center', 'important');
       circle.style.setProperty('vertical-align', 'middle', 'important');
       dot.replaceWith(circle);
     });
+  }
+
+  function prepareCopiedTableLayout(root) {
+    // Final clipboard sizing is independent of browser zoom, viewport and the
+    // dashboard's compact table CSS. HTML width attributes also guide Outlook.
+    var referenceWidth = 1100, reportWidth = referenceWidth;
+    var measure = document.createElement('canvas').getContext('2d');
+    root.style.setProperty('max-width', 'none', 'important');
+    [root].concat(Array.from(root.querySelectorAll('div, section, article'))).forEach(function(container) {
+      if (container.closest('table')) return;
+      container.style.setProperty('height', 'auto', 'important');
+      container.style.setProperty('max-height', 'none', 'important');
+    });
+    root.querySelectorAll('.email-table-scroll').forEach(function(wrapper) {
+      wrapper.style.setProperty('max-width', 'none', 'important');
+      wrapper.style.setProperty('overflow', 'visible', 'important');
+    });
+    root.querySelectorAll('table.email-table').forEach(function(table) {
+      var tableWidth = referenceWidth;
+      var grid = [], cells = [], count = 0;
+      Array.from(table.rows).forEach(function(row, rowIndex) {
+        grid[rowIndex] = grid[rowIndex] || [];
+        var column = 0;
+        Array.from(row.cells).forEach(function(cell) {
+          while (grid[rowIndex][column]) column++;
+          var span = cell.colSpan || 1;
+          cells.push({ cell: cell, start: column, span: span });
+          for (var y = rowIndex; y < rowIndex + (cell.rowSpan || 1); y++) {
+            grid[y] = grid[y] || [];
+            for (var x = column; x < column + span; x++) grid[y][x] = true;
+          }
+          column += span;
+          count = Math.max(count, column);
+        });
+        row.removeAttribute('height');
+        row.style.removeProperty('height');
+      });
+      if (!count) return;
+      var detail = table.classList.contains('email-detail-table') && count === 8;
+      var weights = detail ? [35, 387, 126, 154, 70, 80, 125, 123] :
+        table.classList.contains('email-sales-table') && count === 5 ? [180, 210, 210, 250, 250] :
+        table.classList.contains('email-state-summary') && count === 5 ? [300, 200, 200, 200, 200] :
+        Array.from(table.querySelectorAll('col')).map(function(col) { return parseFloat(col.style.width || col.getAttribute('width')) || 1; });
+      if (weights.length !== count) weights = Array.from({ length: count }, function(_, index) { return index === 0 ? 2 : 1; });
+      var weightTotal = weights.reduce(function(sum, width) { return sum + width; }, 0);
+      var widths = weights.map(function(weight) { return Math.floor(tableWidth * weight / weightTotal); });
+      widths[widths.length - 1] += tableWidth - widths.reduce(function(sum, width) { return sum + width; }, 0);
+      // Dense reports may need more room than the eight-column reference.
+      // Keep whole words and numeric values intact instead of shrinking type.
+      cells.forEach(function(item) {
+        if (item.span !== 1 || !measure) return;
+        measure.font = (item.cell.tagName === 'TH' || item.cell.querySelector('strong') ? '700 ' : '400 ') + '16px Arial';
+        var words = String(item.cell.textContent || '').trim().split(/\s+/);
+        var minimum = Math.ceil(words.reduce(function(max, word) { return Math.max(max, measure.measureText(word).width); }, 0)) + 13;
+        widths[item.start] = Math.max(widths[item.start], minimum);
+      });
+      tableWidth = widths.reduce(function(sum, width) { return sum + width; }, 0);
+      reportWidth = Math.max(reportWidth, tableWidth);
+      var wrapper = table.closest('.email-table-scroll');
+      if (wrapper) wrapper.style.setProperty('width', tableWidth + 'px', 'important');
+      table.querySelectorAll('colgroup').forEach(function(group) { group.remove(); });
+      var colgroup = document.createElement('colgroup');
+      widths.forEach(function(width) {
+        var col = document.createElement('col');
+        col.setAttribute('width', String(width));
+        col.style.width = width + 'px';
+        colgroup.appendChild(col);
+      });
+      table.insertBefore(colgroup, table.firstChild);
+      table.setAttribute('width', String(tableWidth));
+      table.setAttribute('cellpadding', '0');
+      table.setAttribute('cellspacing', '0');
+      table.removeAttribute('height');
+      Object.entries({ width: tableWidth + 'px', 'min-width': '0', 'max-width': 'none', height: 'auto', 'table-layout': 'fixed', 'border-collapse': 'collapse', 'border-spacing': '0', 'font-family': 'Arial, Helvetica, sans-serif', 'font-size': '16px', 'border': '1px solid #bfbfbf' }).forEach(function(entry) { table.style.setProperty(entry[0], entry[1], 'important'); });
+      cells.forEach(function(item) {
+        var cell = item.cell, width = widths.slice(item.start, item.start + item.span).reduce(function(sum, value) { return sum + value; }, 0);
+        var heading = cell.tagName === 'TH' || !!cell.closest('thead, .email-state-title, .email-column-row');
+        var total = !!cell.closest('.email-total-row') || cell.classList.contains('email-tier-total');
+        cell.setAttribute('width', String(width));
+        cell.setAttribute('height', '30');
+        cell.setAttribute('valign', 'middle');
+        cell.removeAttribute('nowrap');
+        Object.entries({ width: width + 'px', 'min-width': '0', 'max-width': 'none', height: '30px', padding: '4px 6px', border: '1px solid #bfbfbf', 'font-family': 'Arial, Helvetica, sans-serif', 'font-size': '16px', 'line-height': '20px', 'vertical-align': 'middle', 'white-space': 'normal', 'overflow-wrap': 'normal', 'word-break': 'normal', 'letter-spacing': '0' }).forEach(function(entry) { cell.style.setProperty(entry[0], entry[1], 'important'); });
+        if (heading || total) {
+          if (heading || !cell.classList.contains('email-performance')) {
+            cell.setAttribute('bgcolor', '#cee5d4');
+            cell.style.setProperty('background-color', '#cee5d4', 'important');
+          }
+          cell.style.setProperty('font-weight', '700', 'important');
+        }
+        if (detail) cell.style.setProperty('text-align', item.start >= 1 && item.start <= 3 ? 'left' : 'center', 'important');
+        cell.querySelectorAll('span, strong, b, font').forEach(function(text) {
+          if (text.classList.contains('email-status-dot')) return;
+          text.removeAttribute('size');
+          text.style.setProperty('font-size', '16px', 'important');
+          text.style.setProperty('line-height', '20px', 'important');
+          text.style.setProperty('white-space', 'normal', 'important');
+          text.style.setProperty('min-width', '0', 'important');
+        });
+      });
+    });
+    root.style.setProperty('width', reportWidth + 'px', 'important');
+    // The legend is not a data table and retains its compact, borderless layout.
+    root.querySelectorAll('.email-legend colgroup').forEach(function(group) { group.remove(); });
   }
 
   async function copyEmailSummary(options) {
@@ -5421,6 +5525,7 @@
     clone.querySelectorAll('.email-classification th, .email-classification td').forEach(function(cell) {
       cell.style.textAlign = 'center';
     });
+    prepareCopiedTableLayout(clone);
     prepareCopiedStatusDots(clone);
     var html = '<div style="background:#ffffff;margin:0;padding:0;border:0;outline:0">' + clone.outerHTML + '</div>', plain = clone.innerText || clone.textContent || '';
     snapshotHost.remove();
