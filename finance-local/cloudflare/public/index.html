@@ -16733,7 +16733,7 @@ function deductionHistoryFilters(view) {
   return { search: deductionRiderKey(view?.querySelector('[data-deduction-history-search]')?.value), status: view?.querySelector('[data-deduction-history-status]')?.value || '', type: view?.querySelector('[data-deduction-history-type]')?.value || '', due: view?.querySelector('[data-deduction-history-due]')?.value || '', timing: view?.querySelector('[data-deduction-history-timing]')?.value || '', month: view?.querySelector('[data-deduction-history-month]')?.value || '', periodStart: view?.querySelector('[data-deduction-history-period-start]')?.value || '', periodEnd: view?.querySelector('[data-deduction-history-period-end]')?.value || '' };
 }
 function deductionHistoryCommissionRange() {
-  const dates = typeof auditCapture === 'function' ? auditCapture('commission-main-ledger')?.scope?.dates : state?.dates?.['commission-main'];
+  const dates = (typeof auditCapture === 'function' ? auditCapture('commission-main:table')?.scope?.dates : null) || (typeof state !== 'undefined' ? state.dates?.['commission-main'] : null);
   return { start: String(dates?.start || '').slice(0, 10), end: String(dates?.end || '').slice(0, 10) };
 }
 function deductionHistoryUseCommissionRange(view) {
@@ -16835,10 +16835,10 @@ function deductionHistoryEffectiveFormula(group) {
 function deductionHistoryPdfControls(group) {
   const index=deductionHistoryFormulaIndex(group), saved=deductionHistorySavedFormula(group,index);
   const available=saved?.lines || (index===0?deductionHistoryDownloadOptions(group).map(option=>({type:option.record.type})):[]);
-  return '<fieldset class="history-pdf-types"><legend>Include in PDF</legend>'+Object.entries(deductionTypes).map(([type,label])=>{
-    const exists=available.some(line=>line.type===type), checked=exists&&!deductionPaymentPdfExclusions.has(group.id+'|'+index+'|'+type);
+  return '<fieldset class="history-pdf-types"><legend>Exclude from PDF</legend>'+Object.entries(deductionTypes).map(([type,label])=>{
+    const exists=available.some(line=>line.type===type), checked=exists&&deductionPaymentPdfExclusions.has(group.id+'|'+index+'|'+type);
     return '<label><input type="checkbox" data-payment-pdf-type="'+type+'"'+(checked?' checked':'')+(exists?'':' disabled')+'> '+esc(label)+'</label>';
-  }).join('')+'</fieldset>';
+  }).join('')+'<small>Tick to remove the deduction row and amount. Net commission recalculates.</small></fieldset>';
 }
 function deductionHistoryBatchPaymentPicker(group, today = deductionToday()) {
   const count = deductionHistoryBatchPaymentCount(group, today);
@@ -17143,6 +17143,7 @@ async function deductionFreshPaymentStatementPayload(record, index, commissionRa
   const panel = panels?.find(panel => panel.id === 'commission-main');
   if (!panel || typeof requestFinancePayload !== 'function' || typeof canonicalizeFinancePayloadRows !== 'function' || typeof visibleTableColumns !== 'function') throw new Error('Commission Rider export is not ready. Return to Commission Rider and try again.');
   const allRows = await deductionLoadStatementRows(panel, period.start, period.end), riderKey = deductionRiderKey(record.rider), rows = allRows.filter(row => deductionRiderKey(row.rider_name) === riderKey);
+  if (!rows.length) throw new Error('No commission rows found for '+record.rider+' in '+deductionPeriodLabel(period)+'. Check the Commission Rider dates and saved payment formula before downloading. No PDF was created.');
   const columns = visibleTableColumns(panel).map(column => ({ key: column.key, label: column.label, value: row => row[column.key] }));
   const commissionColumn = columns.find(column => String(column.key || '').trim().toLowerCase().replace(/[\s-]+/g, '_') === 'commission');
   if (!commissionColumn) throw new Error('The Commission Rider table has no commission column.');
@@ -17450,7 +17451,7 @@ document.addEventListener('change', event => {
     const group=deductionHistoryGroups(deductionState.records).find(item=>item.id===paymentInclude.closest('[data-deduction-batch-id]')?.dataset.deductionBatchId);
     if(!group)return;
     const key=group.id+'|'+deductionHistoryFormulaIndex(group)+'|'+paymentInclude.dataset.paymentPdfType;
-    if(paymentInclude.checked)deductionPaymentPdfExclusions.delete(key);else deductionPaymentPdfExclusions.add(key);
+    if(paymentInclude.checked)deductionPaymentPdfExclusions.add(key);else deductionPaymentPdfExclusions.delete(key);
     deductionStatementPayloadCache.clear();deductionHistoryRender();return;
   }
   const pdfInclude = event.target.closest?.('[data-deduction-history-pdf-include]');

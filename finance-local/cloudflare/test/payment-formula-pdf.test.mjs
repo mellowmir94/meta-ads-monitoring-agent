@@ -5,8 +5,9 @@ import {readFileSync} from 'node:fs';
 import * as LedgerHistoryWorkflow from '../src/deduction-workflow.js';
 
 function fixture(){
+  const events=[];
   const columns=[{key:'rider_name',label:'Rider',value:r=>r.rider_name},{key:'commission',label:'Commission',value:r=>r.commission}];
-  const context=vm.createContext({window:{LedgerHistoryWorkflow},document:{addEventListener(){}},URLSearchParams,
+  const context=vm.createContext({window:{LedgerHistoryWorkflow},document:{addEventListener(type,handler){events.push({type,handler});}},URLSearchParams,
     formatMoney:value=>'RM '+Number(value).toFixed(2),formatNumber:String,numberValue:Number,esc:String,
     auditQuickRange:()=>({start:'2026-09-29T00:00:00Z'}),
     FINANCE_API_ENDPOINT:'/api/grafana/finance',panels:[{id:'commission-main',columns}],visibleTableColumns:panel=>panel.columns,
@@ -15,8 +16,51 @@ function fixture(){
   });
   vm.runInContext(readFileSync(new URL('../../deductions.js',import.meta.url),'utf8')+'\n'+readFileSync(new URL('../../rider-statement.js',import.meta.url),'utf8')+'\nthis.selections=deductionHistoryBatchPaymentSelections;',context);
   const record=(type,count,amountCents)=>({id:type,batchId:'case-a',rider:'PNG BH AIDID',type,status:'applied',amountCents,installmentCount:count,periodStart:'2026-09-14',periodEnd:'2026-09-20',installments:Array.from({length:count},(_,index)=>({index,status:'applied',dueDate:'2026-09-24',amountCents}))});
-  return {context,group:{id:'case-a',rider:'PNG BH AIDID',records:[record('epf',4,2500),record('battery-tester',7,4000)]}};
+  return {context,events,group:{id:'case-a',rider:'PNG BH AIDID',records:[record('epf',4,2500),record('battery-tester',7,4000)]}};
 }
+
+test('actual checkbox change handler excludes on tick and restores on untick with correct PDF totals',async()=>{
+  const {context,events,group}=fixture();context.selections.set(group.id,1);
+  group.records[0].paymentFormulas={1:{paymentIndex:1,lines:[{type:'epf',amountCents:2500},{type:'insurance',amountCents:1800}]}};
+  context.deductionHistoryGroups=()=>[group];context.deductionHistoryRender=()=>{};
+  const handler=events.find(event=>event.type==='change'&&String(event.handler).includes('data-payment-pdf-type')).handler;
+  const checkbox={checked:true,dataset:{paymentPdfType:'epf'},closest:selector=>selector==='[data-payment-pdf-type]'?checkbox:{dataset:{deductionBatchId:'case-a'}}};
+  handler({target:checkbox});
+  const exportStatement=()=>context.deductionCombinedPaymentStatementPayload(context.deductionHistoryDownloadOptions(group),{start:'2026-09-14',end:'2026-09-20'},context.deductionHistoryEffectiveFormula(group));
+  let payload=await exportStatement();assert.equal(payload.summary.value,'RM 282.00');assert.doesNotMatch(JSON.stringify(payload.footerRows),/EPF/);
+  checkbox.checked=false;handler({target:checkbox});
+  payload=await exportStatement();assert.equal(payload.summary.value,'RM 257.00');assert.match(JSON.stringify(payload.footerRows),/EPF/);
+  checkbox.checked=true;handler({target:checkbox});checkbox.dataset.paymentPdfType='insurance';handler({target:checkbox});
+  payload=await exportStatement();assert.equal(payload.summary.value,'RM 300.00');assert.equal(payload.footerRows.length,3);
+  assert.equal(payload.rows.length,1);assert.equal(group.records[0].paymentFormulas[1].lines.length,2);
+});
+
+test('History exports the Audit commission week, not the future payment due week',async()=>{
+  const {context,group}=fixture();context.selections.set(group.id,1);
+  context.auditCapture=id=>id==='commission-main:table'?{scope:{dates:{start:'2026-09-14T00:00:00Z',end:'2026-09-20T23:59:59Z'}}}:null;
+  context.state={dates:{'commission-main':{start:'2026-09-14',end:'2026-09-20'}}};
+  group.records.forEach(record=>record.installments[1].dueDate='2026-10-08');
+  group.records[0].paymentFormulas={1:{paymentIndex:1,lines:[]}};
+  context.requestFinancePayload=async url=>({response:{ok:true},payload:{rows:url.includes('2026-09-14')?[{rider_name:'PNG BH AIDID',commission:300}]:[]}});
+  const range=context.deductionHistoryCommissionRange();
+  const payload=await context.deductionCombinedPaymentStatementPayload(context.deductionHistoryDownloadOptions(group),range,context.deductionHistoryEffectiveFormula(group));
+  assert.equal(payload.rows.length,1);assert.equal(payload.summary.value,'RM 300.00');assert.equal(payload.statementScope.start,'2026-09-14');
+});
+
+test('PDF exclusion controls are unchecked by default and checked means remove',()=>{
+  const {context,group}=fixture();context.selections.set(group.id,1);
+  group.records[0].paymentFormulas={1:{paymentIndex:1,lines:[{type:'epf',amountCents:2500}]}};
+  let html=context.deductionHistoryPdfControls(group);
+  assert.match(html,/Exclude from PDF/);assert.doesNotMatch(html,/ checked/);
+  vm.runInContext("deductionPaymentPdfExclusions.add('case-a|1|epf')",context);
+  html=context.deductionHistoryPdfControls(group);assert.match(html,/data-payment-pdf-type="epf" checked/);
+  assert.equal(context.deductionHistoryEffectiveFormula(group).lines.length,0);
+});
+
+test('an empty commission response cannot silently export RM0.00',async()=>{
+  const {context,group}=fixture();context.requestFinancePayload=async()=>({response:{ok:true},payload:{rows:[]}});
+  await assert.rejects(context.deductionCombinedPaymentStatementPayload(context.deductionHistoryDownloadOptions(group),{start:'2026-09-14',end:'2026-09-20'},{paymentIndex:0,lines:[]}),/No commission rows/);
+});
 
 test('History exclusions remove rows and amounts without changing the saved formula',async()=>{
   const {context,group}=fixture();context.selections.set(group.id,1);
