@@ -16828,16 +16828,16 @@ async function deductionSaveMainPayment(id, summary, button) {
 }
 function deductionHistoryEffectiveFormula(group) {
   const index=deductionHistoryFormulaIndex(group), saved=deductionHistorySavedFormula(group,index);
-  if(index>0&&!saved) return null;
-  const lines=saved?.lines || deductionHistoryDownloadOptions(group).map(option=>({type:option.record.type,amountCents:option.amountCents}));
+  // A saved manual formula wins, including an explicit empty formula. Legacy
+  // payments use only their own installment, never Payment 1's saved formula.
+  const lines=saved?.lines || deductionHistoryPaymentOptions(group).filter(option=>option.index===index&&!['cancelled','rejected','reversed'].includes(option.record.status)&&!['cancelled','reversed'].includes(option.item.status)).map(option=>({type:option.record.type,amountCents:option.amountCents}));
   return {...saved,paymentIndex:index,lines:lines.filter(line=>!deductionPaymentPdfExclusions.has(group.id+'|'+index+'|'+line.type))};
 }
 function deductionHistoryPdfControls(group) {
-  const index=deductionHistoryFormulaIndex(group), saved=deductionHistorySavedFormula(group,index);
-  const available=saved?.lines || (index===0?deductionHistoryDownloadOptions(group).map(option=>({type:option.record.type})):[]);
+  const index=deductionHistoryFormulaIndex(group);
   return '<fieldset class="history-pdf-types"><legend>Exclude from PDF</legend>'+Object.entries(deductionTypes).map(([type,label])=>{
-    const exists=available.some(line=>line.type===type), checked=exists&&deductionPaymentPdfExclusions.has(group.id+'|'+index+'|'+type);
-    return '<label><input type="checkbox" data-payment-pdf-type="'+type+'"'+(checked?' checked':'')+(exists?'':' disabled')+'> '+esc(label)+'</label>';
+    const checked=deductionPaymentPdfExclusions.has(group.id+'|'+index+'|'+type);
+    return '<label><input type="checkbox" data-payment-pdf-type="'+type+'"'+(checked?' checked':'')+'> '+esc(label)+'</label>';
   }).join('')+'<small>Tick to remove the deduction row and amount. Net commission recalculates.</small></fieldset>';
 }
 function deductionHistoryBatchPaymentPicker(group, today = deductionToday()) {

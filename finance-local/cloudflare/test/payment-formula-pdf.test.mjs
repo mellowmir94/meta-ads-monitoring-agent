@@ -75,7 +75,7 @@ test('History exclusions remove rows and amounts without changing the saved form
   payload=await context.deductionCombinedPaymentStatementPayload(context.deductionHistoryDownloadOptions(group),null,formula);
   assert.equal(payload.summary.value,'RM 300.00');assert.equal(payload.footerRows.length,3);
   assert.equal(group.records[0].paymentFormulas[1].lines.length,2);
-  context.selections.set(group.id,2);assert.equal(context.deductionHistoryEffectiveFormula(group),null);
+  context.selections.set(group.id,2);assert.equal(context.deductionHistoryEffectiveFormula(group).lines.length,2);
 });
 
 test('Proceed saves main form exact payment and dates, not a new plan',async()=>{
@@ -118,11 +118,13 @@ test('all unticked is zero deductions, independent of the scheduled amounts',asy
   const payload=await context.deductionCombinedPaymentStatementPayload(context.deductionHistoryDownloadOptions(group),{start:'2026-09-14',end:'2026-09-20'},context.deductionHistorySavedFormula(group));
   assert.equal(payload.summary.value,'RM 300.00');assert.equal(payload.footerRows.length,3);assert.match(payload.period,/Payment 4 of 7/);
 });
-test('later payments require their own formula instead of silently inheriting Payment 1',()=>{
+test('later payments use their own installment amounts without inheriting Payment 1 formula',()=>{
   const {context,group}=fixture();context.selections.set(group.id,1);
   group.records[0].paymentFormulas={0:{paymentIndex:0,lines:[{type:'epf',amountCents:2500}]}};
   assert.equal(context.deductionHistorySavedFormula(group),null);
   const html=context.deductionHistoryDownloadCell(group);
-  assert.match(html,/Payment 2 needs its own formula/);assert.doesNotMatch(html,/data-deduction-history-batch-download/);
+  assert.match(html,/data-deduction-history-batch-download/);
+  assert.doesNotMatch(context.deductionHistoryPdfControls(group),/ disabled/);
+  assert.equal(context.deductionHistoryEffectiveFormula(group).lines.length,2);
   assert.equal(context.deductionHistorySavedFormula({id:'other',records:[]},1),null);
 });
