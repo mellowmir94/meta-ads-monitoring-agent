@@ -10,6 +10,16 @@ export async function savePaymentFormula(tx, input, actor, now) {
     after = page.length === 500 ? page.at(-1)[0] : '';
   } while (after);
   if (!records.length) throw new Error('Deduction request no longer exists. Refresh History.');
+  if (input.rider !== undefined && records.some(record => record.rider.trim().toLowerCase() !== String(input.rider).trim().toLowerCase())) throw new Error('The selected request belongs to a different rider.');
+  const period = {};
+  if (input.periodStart !== undefined || input.periodEnd !== undefined) {
+    for (const key of ['periodStart', 'periodEnd']) {
+      const value = input[key];
+      if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0,10) !== value) throw new Error('Choose a valid commission date range.');
+      period[key] = value;
+    }
+    if (period.periodStart > period.periodEnd) throw new Error('Commission start date must precede end date.');
+  }
   const active = records.filter(record => !['cancelled', 'rejected', 'reversed'].includes(record.status));
   const count = Math.max(0, ...active.map(record => record.installments?.length || 0));
   const index = input.paymentIndex;
@@ -25,7 +35,7 @@ export async function savePaymentFormula(tx, input, actor, now) {
   const owner = records.sort((a, b) => a.id.localeCompare(b.id))[0];
   const previous = owner.paymentFormulas?.[index] || null;
   if (input.expectedRevision !== (previous?.revision || 0)) throw new Error('This payment formula changed. Refresh History and review it before saving.');
-  const formula = { paymentIndex: index, lines, revision: (previous?.revision || 0) + 1, savedAt: now, savedBy: actor.name };
+  const formula = { paymentIndex: index, lines, ...period, revision: (previous?.revision || 0) + 1, savedAt: now, savedBy: actor.name };
   owner.paymentFormulas = { ...owner.paymentFormulas, [index]: formula };
   owner.audit = [...(owner.audit || []), { action: 'payment-formula-saved', installmentIndex: index, at: now, by: actor.name, role: actor.role, previousFormula: previous, formula }];
   owner.updatedAt = now;

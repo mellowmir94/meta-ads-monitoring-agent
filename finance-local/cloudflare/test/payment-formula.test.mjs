@@ -41,6 +41,13 @@ test('all unchecked saves an explicit zero formula and retry does not duplicate 
   assert.deepEqual(first.body.formula.lines,[]);
   assert.equal((await storage.get('record:record-0')).audit.length,2);
 });
+
+test('main form stores its filtered period and rejects wrong rider or invalid dates',async()=>{
+  const {save}=await fixture();
+  for(const patch of [{rider:'Other rider'},{periodStart:'2026-02-30',periodEnd:'2026-03-01'},{periodStart:'2026-09-28',periodEnd:'2026-09-21'}]) assert.equal((await save(patch)).status,400);
+  const result=await save({rider:'PNG BH AIDID',periodStart:'2026-09-21',periodEnd:'2026-09-27'});
+  assert.equal(result.status,201);assert.equal(result.body.formula.periodStart,'2026-09-21');assert.equal(result.body.formula.periodEnd,'2026-09-27');
+});
 test('rejects stale edits, invalid money, types, indices and missing batches without mutation',async()=>{
   const {storage,save}=await fixture();await save();
   const before=structuredClone(storage.data);

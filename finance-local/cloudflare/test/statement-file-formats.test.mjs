@@ -15,7 +15,7 @@ function fixture(formats, failPdf = false, overrides = {}) {
     deductionDownloadFeedback: (_button, message) => { feedback.textContent = message; },
     deductionHistoryEnsure: () => ({querySelector: () => feedback}),
     deductionHistoryGroups: () => [{id: 'group'}], deductionHistoryFilters: () => ({}),
-    deductionLoad: async () => {}, deductionHistoryFormulaIndex: () => 0, deductionHistorySavedFormula: () => null,
+    deductionLoad: async () => {}, deductionHistoryFormulaIndex: () => 0, deductionHistoryEffectiveFormula: () => null,
     deductionToday: () => '2026-09-21',
     deductionHistoryDownloadOptions: () => [{record: {id: 'record'}, index: 0, item: {}, state: 'ready'}],
     ensureFinanceExportBundle: async format => calls.push('bundle:' + format),
@@ -59,7 +59,7 @@ test('failed PDF does not mark acknowledgement and releases download button', as
 test('a saved all-unticked payment exports but does not acknowledge excluded schedule entries',async()=>{
   const formula={paymentIndex:1,lines:[]};
   const f=fixture(['pdf'],false,{
-    deductionHistoryFormulaIndex:()=>1,deductionHistorySavedFormula:()=>formula,
+    deductionHistoryFormulaIndex:()=>1,deductionHistoryEffectiveFormula:()=>formula,
     deductionCombinedPaymentStatementPayload:async(_options,_range,saved)=>{assert.equal(saved,formula);return {};},
   });
   await f.run();assert.ok(f.calls.includes('pdf'));assert.ok(!f.calls.includes('mark'));

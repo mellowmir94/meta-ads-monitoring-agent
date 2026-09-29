@@ -17,6 +17,38 @@ function fixture(){
   const record=(type,count,amountCents)=>({id:type,batchId:'case-a',rider:'PNG BH AIDID',type,status:'applied',amountCents,installmentCount:count,periodStart:'2026-09-14',periodEnd:'2026-09-20',installments:Array.from({length:count},(_,index)=>({index,status:'applied',dueDate:'2026-09-24',amountCents}))});
   return {context,group:{id:'case-a',rider:'PNG BH AIDID',records:[record('epf',4,2500),record('battery-tester',7,4000)]}};
 }
+
+test('History exclusions remove rows and amounts without changing the saved formula',async()=>{
+  const {context,group}=fixture();context.selections.set(group.id,1);
+  group.records[0].paymentFormulas={1:{paymentIndex:1,periodStart:'2026-09-21',periodEnd:'2026-09-27',lines:[{type:'epf',amountCents:2500},{type:'insurance',amountCents:1800}]}};
+  vm.runInContext("deductionPaymentPdfExclusions.add('case-a|1|epf')",context);
+  let formula=context.deductionHistoryEffectiveFormula(group);
+  let payload=await context.deductionCombinedPaymentStatementPayload(context.deductionHistoryDownloadOptions(group),{start:'2026-09-14',end:'2026-09-20'},formula);
+  assert.equal(payload.summary.value,'RM 282.00');assert.doesNotMatch(JSON.stringify(payload.footerRows),/EPF/);
+  assert.equal(payload.statementScope.start,'2026-09-21');assert.equal(payload.statementScope.end,'2026-09-27');
+  vm.runInContext("deductionPaymentPdfExclusions.add('case-a|1|insurance')",context);
+  formula=context.deductionHistoryEffectiveFormula(group);
+  payload=await context.deductionCombinedPaymentStatementPayload(context.deductionHistoryDownloadOptions(group),null,formula);
+  assert.equal(payload.summary.value,'RM 300.00');assert.equal(payload.footerRows.length,3);
+  assert.equal(group.records[0].paymentFormulas[1].lines.length,2);
+  context.selections.set(group.id,2);assert.equal(context.deductionHistoryEffectiveFormula(group),null);
+});
+
+test('Proceed saves main form exact payment and dates, not a new plan',async()=>{
+  const {context,group}=fixture();let input;
+  context.crypto={randomUUID:()=> 'request-test'};
+  context.auditCapture=()=>({scope:{dates:{start:'2026-09-21T00:00:00Z',end:'2026-09-27T23:59:59Z'}}});
+  context.deductionRows=()=>[{rider_name:'PNG BH AIDID'}];
+  context.deductionHistoryGroups=()=>[group];context.deductionHistoryOpen=async()=>{};
+  context.deductionRequest=async(path,body)=>{assert.equal(path,'/save-payment-formula');input=body;return {ownerId:'epf',formula:{paymentIndex:body.paymentIndex,lines:[]}};};
+  vm.runInContext("deductionState.loaded=true;deductionDrafts.set('main',{targetBatch:'case-a',paymentIndex:6,selected:['insurance'],amounts:{epf:'25',insurance:'17.25'}})",context);
+  const feedback={textContent:''},button={disabled:false};
+  await context.deductionSaveMainPayment('main',{querySelector:()=>feedback},button);
+  assert.ok(input,feedback.textContent);assert.equal(input.paymentIndex,6);assert.equal(input.periodStart,'2026-09-21');
+  assert.equal(JSON.stringify(input.lines),JSON.stringify([{type:'insurance',amount:'17.25'}]));assert.equal(button.disabled,false);
+  vm.runInContext("deductionDrafts.get('main').selected=[]",context);
+  await context.deductionSaveMainPayment('main',{querySelector:()=>feedback},button);assert.equal(input.lines.length,0);
+});
 test('Payment 2 excludes EPF even when Payment 1 included it; PDF retains saved payment number',async()=>{
   const {context,group}=fixture();
   group.records[0].paymentFormulas={0:{paymentIndex:0,lines:[{type:'epf',amountCents:2500}]},1:{paymentIndex:1,lines:[{type:'insurance',amountCents:1875}]}};

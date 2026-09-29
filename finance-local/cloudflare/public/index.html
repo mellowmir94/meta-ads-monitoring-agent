@@ -6129,6 +6129,13 @@
 <!-- BEGIN DEDUCTION STYLES -->
 <style>
 /* Commission Rider settlement workspace. Keep after legacy deduction styles. */
+.deduction-payment-target { display:flex; flex-wrap:wrap; gap:12px; margin:16px 0; align-items:end; }
+.deduction-payment-target label { display:grid; gap:6px; flex:1 1 220px; min-width:0; font-weight:600; }
+.deduction-payment-target select { width:100%; min-height:40px; color:var(--text); background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:8px; }
+.deduction-payment-target small { flex-basis:100%; color:var(--muted); }
+.history-pdf-types { display:grid; gap:8px; border:0; padding:8px 0; margin:8px 0; text-align:left; }
+.history-pdf-types legend { font-size:11px; color:var(--muted); }
+.history-pdf-types label { display:flex; align-items:center; gap:6px; font-size:12px; min-height:24px; }
 .deduction-workspace {
   --deduction-surface: color-mix(in srgb, var(--success) 11%, var(--surface));
   --deduction-border: color-mix(in srgb, var(--success) 28%, var(--line));
@@ -16303,6 +16310,7 @@ const deductionHistorySelected = new Set();
 const deductionHistoryPaymentSelections = new Map();
 const deductionHistoryBatchPaymentSelections = new Map();
 const deductionHistoryPdfExclusions = new Set();
+const deductionPaymentPdfExclusions = new Set();
 const deductionHistoryRangePicker = { open: false, anchor: '', month: '', draftStart: '', draftEnd: '', recent: [] };
 const deductionHolidayCache = new Map();
 const deductionStatementPayloadCache = new Map();
@@ -16468,9 +16476,9 @@ function deductionDraftFor(id, rider, dates) {
 function deductionSelectedPreview(draft, summary) {
   const amounts = { epf: 0, insurance: 0, 'battery-tester': 0, manual: 0 };
   for (const type of draft.selected) {
-    const entered = type === 'epf' ? 25 : type === 'battery-tester' && draft.batteryPlan !== 'manual'
+    const entered = draft.targetBatch ? Number(draft.amounts[type]) : type === 'epf' ? 25 : type === 'battery-tester' && draft.batteryPlan !== 'manual'
       ? draft.batteryPlan === 'fixed-7' ? 40 : 50 : Number(draft.amounts[type]);
-    const count = type === 'manual' ? Number(draft.manualCount) : 1;
+    const count = !draft.targetBatch && type === 'manual' ? Number(draft.manualCount) : 1;
     if (Number.isFinite(entered) && entered > 0 && entered <= 1000000 && Number.isInteger(count) && count > 0) amounts[type] = Math.round(entered * 100 / count);
   }
   const approvedCents = Object.values(amounts).reduce((sum, cents) => sum + cents, 0);
@@ -16482,6 +16490,9 @@ function deductionSummaryMarkup(dataRows, tableId) {
   // It must never compete with the normal multi-rider table workflow.
   if (!rider.valid) return '';
   const savedSummary = deductionSummaryForRows(dataRows, dates), draft = deductionDraftFor(tableId, rider, dates);
+  const requests = deductionHistoryGroups(deductionState.records).filter(group => deductionRiderKey(group.rider) === rider.key && deductionHistoryBatchPaymentCount(group)>0);
+  const target = requests.find(group=>group.id===draft.targetBatch);
+  const targetControls = '<div class="deduction-payment-target"><label>Save to request<select data-deduction-target-request><option value="">New request</option>'+requests.map(group=>'<option value="'+esc(group.id)+'"'+(group.id===draft.targetBatch?' selected':'')+'>'+esc(group.references.join(' / ')+' · '+group.periodStart+' – '+group.periodEnd)+'</option>').join('')+'</select></label>'+(target?'<label>Payment number<select data-deduction-target-payment>'+Array.from({length:deductionHistoryBatchPaymentCount(target)},(_,index)=>'<option value="'+index+'"'+(index===(draft.paymentIndex||0)?' selected':'')+'>Payment '+(index+1)+'</option>').join('')+'</select></label><small>Proceed saves only this payment, using the filtered rider, dates, checked types and amounts below. All unticked means RM0.00 deductions.</small>':'')+'</div>';
   const summary = deductionSelectedPreview(draft, savedSummary);
   const enabled = rider.valid && summary.loaded, disabled = enabled ? '' : ' disabled';
   const selected = type => draft.selected.includes(type);
@@ -16491,12 +16502,12 @@ function deductionSummaryMarkup(dataRows, tableId) {
   const error = summary.error || (!rider.valid ? rider.message : '');
   return '<section class="commission-deduction-summary deduction-workspace" data-deduction-table="' + esc(tableId) + '" aria-label="Commission deduction calculation"><header class="deduction-workspace-head"><div><span class="deduction-eyebrow">Commission deduction formula</span><h3>' + esc(rider.valid ? rider.rider : 'Select one rider to prepare deductions') + '</h3><p>' + esc(String(dates.start || '').slice(0, 10) + ' — ' + String(dates.end || '').slice(0, 10)) + ' <span>· ' + formatNumber(dataRows.length) + ' filtered rows</span></p></div></header>' +
     (error ? '<div class="deduction-feedback is-error" role="alert">' + esc(error) + (summary.error ? ' <button type="button" data-deduction-retry>Retry register</button>' : '') + '</div>' : !summary.loaded ? '<div class="deduction-feedback" role="status">Loading deduction register…</div>' : '') +
-    '<div class="deduction-choice-grid">' + card('epf', field('epf', '25.00', true), 'RM25 × first 4 weeks · RM100 monthly<br>Thursday; Friday when Wednesday is a holiday') + card('insurance', field('insurance', draft.amounts.insurance), 'Amount per payment · 2 weekly payments') +
+    targetControls + (draft.targetBatch ? '<div class="deduction-choice-grid">'+Object.keys(deductionTypes).map(type=>card(type,field(type,draft.amounts[type]),'Amount for Payment '+((draft.paymentIndex||0)+1)+' only')).join('')+'</div>' : '<div class="deduction-choice-grid">' + card('epf', field('epf', '25.00', true), 'RM25 × first 4 weeks · RM100 monthly<br>Thursday; Friday when Wednesday is a holiday') + card('insurance', field('insurance', draft.amounts.insurance), 'Amount per payment · 2 weekly payments') +
     card('battery-tester', '<select aria-label="Battery Tester payment plan" data-deduction-inline-battery-plan' + disabled + '><option value="fixed-2"' + (draft.batteryPlan === 'fixed-2' ? ' selected' : '') + '>2 × RM50 · RM100 total</option><option value="fixed-7"' + (draft.batteryPlan === 'fixed-7' ? ' selected' : '') + '>7 × RM40 · RM280 total</option><option value="manual"' + (draft.batteryPlan === 'manual' ? ' selected' : '') + '>Manual · set amount and payments</option></select>' + field('battery-tester', draft.batteryPlan === 'manual' ? draft.amounts['battery-tester'] : draft.batteryPlan === 'fixed-7' ? '40.00' : '50.00', draft.batteryPlan !== 'manual') + '<label class="deduction-payment-count"><span>Payments</span><input aria-label="Battery Tester number of payments" type="number" min="1" max="52" step="1" inputmode="numeric" data-deduction-inline-battery-count value="' + esc(draft.batteryPlan === 'fixed-7' ? '7' : draft.batteryPlan === 'fixed-2' ? '2' : String(draft.batteryCount || 3)) + '"' + (draft.batteryPlan !== 'manual' ? ' readonly' : '') + disabled + '></label>', 'Fixed weekly schedule or Finance-set weekly payments') + card('manual', field('manual', draft.amounts.manual, false, true) + '<label class="deduction-payment-count"><span>Payments</span><input aria-label="Special Case number of payments" type="number" min="1" max="52" step="1" inputmode="numeric" data-deduction-inline-manual-count value="' + esc(String(draft.manualCount || 1)) + '"' + disabled + '></label><strong class="deduction-payment-breakdown" data-deduction-inline-breakdown="manual"></strong>', 'Enter the total deduction, then split it into weekly payments') + '</div>' +
-    additionalJobsMarkup(tableId, rider, dates, summary) +
+    '') + additionalJobsMarkup(tableId, rider, dates, summary) +
     '<div class="deduction-settlement-strip" data-preview-gross="' + summary.grossCents + '" data-preview-additional="' + summary.additionalCents + '"><div><span>Gross commission</span><strong>' + esc(deductionMoney(summary.grossCents)) + '</strong></div><span class="deduction-equation-sign" aria-hidden="true">+</span><div><span>Additional Jobs</span><strong>' + esc(deductionMoney(summary.additionalCents)) + '</strong></div><span class="deduction-equation-sign" aria-hidden="true">−</span><div><span>Total deductions</span><strong data-deduction-preview-total>' + esc(enabled ? deductionMoney(summary.approvedCents) : '—') + '</strong><small>' + esc(enabled ? 'Preview follows checked payments. Saved History is unchanged.' : 'Requires one rider and a complete register') + '</small></div><span class="deduction-equation-sign" aria-hidden="true">=</span><div class="commission-net-total' + (summary.netCents < 0 ? ' is-negative' : '') + '"><span>Net commission</span><strong data-deduction-preview-net>' + esc(enabled ? deductionMoney(summary.netCents) : '—') + '</strong></div></div>' +
     (summary.legacyCount ? '<p class="deduction-legacy-note">' + summary.legacyCount + ' legacy applied payment(s) use their original due date for this report.</p>' : '') +
-    '<footer class="deduction-inline-actions"><button type="button" data-deduction-history-open>History</button><div><strong data-deduction-inline-preview>Deduction preview: —</strong><span data-deduction-inline-message>' + esc(enabled ? 'Choose one or more types, then Proceed. Dates and remarks can be edited in History.' : error || 'Waiting for the deduction register.') + '</span></div><strong class="deduction-inline-total">Total Deducted: ' + esc(enabled ? deductionMoney(summary.approvedCents) : '—') + '</strong><button type="button" data-deduction-inline-create' + (enabled && draft.selected.length || !draft.selected.length && additionalJobsCanProceed(tableId) ? '' : ' disabled') + '>Proceed</button></footer></section>';
+    '<footer class="deduction-inline-actions"><button type="button" data-deduction-history-open>History</button><div><strong data-deduction-inline-preview>Deduction preview: —</strong><span data-deduction-inline-message>' + esc(enabled ? 'Choose deductions, then Proceed. Existing requests save only the selected payment.' : error || 'Waiting for the deduction register.') + '</span></div><strong class="deduction-inline-total">Total Deducted: ' + esc(enabled ? deductionMoney(summary.approvedCents) : '—') + '</strong><button type="button" data-deduction-inline-create' + (enabled && (draft.selected.length || target) || !draft.selected.length && additionalJobsCanProceed(tableId) ? '' : ' disabled') + '>Proceed</button></footer></section>';
 }
 function deductionUpdateInline(summary) {
   if (!summary) return;
@@ -16507,11 +16518,11 @@ function deductionUpdateInline(summary) {
   draft.manualCount = Number(summary.querySelector('[data-deduction-inline-manual-count]')?.value) || 0;
   summary.querySelectorAll('[data-deduction-inline-amount]').forEach(input => { draft.amounts[input.dataset.deductionInlineAmount] = input.value; });
   summary.querySelectorAll('.deduction-choice-card').forEach(card => card.classList.toggle('is-selected', Boolean(card.querySelector('[data-deduction-inline-type]:checked'))));
-  let total = 0, valid = Boolean(choices.length);
+  let total = 0, valid = Boolean(choices.length || draft.targetBatch);
   for (const type of draft.selected) {
     const amount = Number(draft.amounts[type]);
     if (!(amount > 0) || amount > 1000000 || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.00001) valid = false;
-    const count = type === 'insurance' ? 2 : type === 'battery-tester' ? draft.batteryPlan === 'fixed-7' ? 7 : draft.batteryPlan === 'fixed-2' ? 2 : draft.batteryCount : type === 'manual' ? draft.manualCount : type === 'epf' ? 4 : 1;
+    const count = draft.targetBatch ? 1 : type === 'insurance' ? 2 : type === 'battery-tester' ? draft.batteryPlan === 'fixed-7' ? 7 : draft.batteryPlan === 'fixed-2' ? 2 : draft.batteryCount : type === 'manual' ? draft.manualCount : type === 'epf' ? 4 : 1;
     if (!Number.isInteger(count) || count < 1 || count > 52) valid = false;
     const cents = Math.round((amount || 0) * 100);
     if (type === 'manual') {
@@ -16539,6 +16550,7 @@ function deductionUpdateInline(summary) {
   const preview = summary.querySelector('[data-deduction-inline-preview]'); if (preview) preview.textContent = 'Deduction preview: ' + deductionMoney(selectedPreview.approvedCents);
   const message = summary.querySelector('[data-deduction-inline-message]'); if (message && choices.length) message.textContent = valid ? 'Selected payment preview. Proceed saves the full plan (' + deductionMoney(total) + ') and opens History.' : 'Enter a valid amount for every selected deduction.';
   if(message&&!choices.length)message.textContent=jobsOnly?'Ready. Proceed saves Additional Jobs only. No deduction will be created.':'Select a deduction or add a valid Additional Job to proceed.';
+  if(message&&draft.targetBatch)message.textContent=valid?'Proceed saves Payment '+((draft.paymentIndex||0)+1)+' exactly as selected, including RM0.00 when all unticked.':'Enter a valid amount for each checked deduction.';
 }
 function deductionDialog(title) {
   document.getElementById('deductionDialog')?.remove();
@@ -16796,38 +16808,37 @@ function deductionHistoryFormulaIndex(group) {
 function deductionHistorySavedFormula(group, index = deductionHistoryFormulaIndex(group)) {
   return group.records.find(record => record.paymentFormulas?.[index])?.paymentFormulas[index] || null;
 }
-function deductionPaymentFormulaDialog(groupId, paymentIndex) {
-  const group = deductionHistoryGroups(deductionState.records).find(item => item.id === groupId);
-  if (!group) throw new Error('Refresh History to load this request.');
-  const count = deductionHistoryBatchPaymentCount(group), index = paymentIndex ?? deductionHistoryFormulaIndex(group);
-  const saved = deductionHistorySavedFormula(group, index);
-  // Unreviewed later payments start empty: no automatic copy from Payment 1.
-  const lines = saved?.lines || (index === 0 ? group.records.filter(record => !['cancelled','rejected','reversed'].includes(record.status)).map(record => ({type:record.type,amountCents:deductionInstallmentAmount(record, deductionInstallments(record)[0])})) : []);
-  const dialog = deductionDialog('Commission deduction formula'), body = dialog.querySelector('[data-deduction-body]');
-  body.innerHTML = '<p><strong>' + esc(group.rider) + '</strong></p><form class="payment-formula-editor"><label>Payment number<select data-formula-number>' + Array.from({length:count},(_,i)=>'<option value="'+i+'"'+(i===index?' selected':'')+'>Payment '+(i+1)+' of '+count+'</option>').join('') + '</select></label><p>Tick the deductions and enter the RM amount for this payment’s PDF. Every payment is saved separately. Leave all unticked for RM0.00 deductions. These statement amounts do not change the original installment schedule.</p><div class="payment-formula-lines">' + Object.entries(deductionTypes).map(([type,label])=>{const line=lines.find(item=>item.type===type);return '<label class="payment-formula-line"><span><input type="checkbox" data-formula-type="'+type+'"'+(line?' checked':'')+'> '+esc(label)+'</span><span>RM <input type="number" aria-label="'+esc(label)+' amount for this payment" data-formula-amount="'+type+'" min="0.01" max="1000000" step="0.01" inputmode="decimal" value="'+(line?(line.amountCents/100).toFixed(2):'')+'"'+(line?' required':' disabled')+'></span></label>';}).join('') + '</div><strong data-formula-total></strong><small>'+(saved?'Saved by '+esc(saved.savedBy)+' · '+esc(formatGrafanaTimestamp(saved.savedAt)):'Not saved for this payment yet.')+'</small><p role="status" data-formula-feedback></p><button type="submit">Save payment formula</button></form>';
-  const form=body.querySelector('form'),feedback=form.querySelector('[data-formula-feedback]'),button=form.querySelector('[type="submit"]');
-  const total=()=>{const cents=[...form.querySelectorAll('[data-formula-type]:checked')].reduce((sum,check)=>sum+Math.round(Number(form.querySelector('[data-formula-amount="'+check.dataset.formulaType+'"]').value||0)*100),0);form.querySelector('[data-formula-total]').textContent='Payment '+(index+1)+' deductions: '+deductionMoney(cents);};
-  let dirty=false;
-  form.onchange=event=>{
-    if(event.target.matches('[data-formula-number]')){if(dirty){event.target.value=String(index);feedback.textContent='Save this payment formula before switching payment numbers.';return;}const next=Number(event.target.value);deductionHistoryBatchPaymentSelections.set(groupId,next);dialog.close();deductionPaymentFormulaDialog(groupId,next);return;}
-    dirty=true;
-    if(event.target.matches('[data-formula-type]')){const input=form.querySelector('[data-formula-amount="'+event.target.dataset.formulaType+'"]');input.disabled=!event.target.checked;input.required=event.target.checked;}
-    total();
-  };
-  form.oninput=event=>{if(!event.target.matches('[data-formula-number]'))dirty=true;total();};total();
-  const identity=deductionRequestIdentity();
-  form.onsubmit=async event=>{
-    event.preventDefault();if(button.disabled||!form.reportValidity())return;
-    const input={batchId:groupId,paymentIndex:index,expectedRevision:saved?.revision||0,lines:[...form.querySelectorAll('[data-formula-type]:checked')].map(check=>({type:check.dataset.formulaType,amount:form.querySelector('[data-formula-amount="'+check.dataset.formulaType+'"]').value}))};
-    button.disabled=true;feedback.textContent='Saving payment '+(index+1)+' formula…';
-    try{
-      const result=await deductionRequest('/save-payment-formula',{...input,requestId:identity(input)});
-      const owner=deductionState.records.find(record=>record.id===result.ownerId);
-      if(owner)owner.paymentFormulas={...owner.paymentFormulas,[index]:result.formula};
-      deductionHistoryBatchPaymentSelections.set(groupId,index);deductionStatementPayloadCache.clear();deductionHistoryRender();dialog.close();
-      deductionHistoryEnsure().querySelector('[data-deduction-history-feedback]').textContent='Payment '+(index+1)+' formula saved. PDF and Excel will use these selections and amounts.';
-    }catch(error){feedback.textContent=error.message;button.disabled=false;}
-  };
+async function deductionSaveMainPayment(id, summary, button) {
+  const draft=deductionDrafts.get(id), group=deductionHistoryGroups(deductionState.records).find(item=>item.id===draft.targetBatch);
+  const dates=auditCapture(id)?.scope?.dates, rider=deductionSingleRider(deductionRows(id,true));
+  const feedback=summary.querySelector('[data-deduction-inline-message]');
+  if(!group || !rider.valid || deductionRiderKey(group.rider)!==rider.key) { feedback.textContent='Choose an existing request for this rider.'; return; }
+  const index=draft.paymentIndex||0, saved=deductionHistorySavedFormula(group,index);
+  const input={batchId:group.id,paymentIndex:index,expectedRevision:saved?.revision||0,rider:rider.rider,periodStart:String(dates?.start||'').slice(0,10),periodEnd:String(dates?.end||'').slice(0,10),lines:draft.selected.map(type=>({type,amount:draft.amounts[type]}))};
+  button.disabled=true;
+  try {
+    const result=await deductionRequest('/save-payment-formula',{...input,requestId:deductionRequestIdentity()(input)});
+    const owner=deductionState.records.find(record=>record.id===result.ownerId);
+    if(owner) owner.paymentFormulas={...owner.paymentFormulas,[index]:result.formula};
+    deductionHistoryBatchPaymentSelections.set(group.id,index);
+    Object.keys(deductionTypes).forEach(type=>deductionPaymentPdfExclusions.delete(group.id+'|'+index+'|'+type));
+    deductionStatementPayloadCache.clear();
+    await deductionHistoryOpen();
+  } catch(error) { feedback.textContent=error.message; } finally { button.disabled=false; }
+}
+function deductionHistoryEffectiveFormula(group) {
+  const index=deductionHistoryFormulaIndex(group), saved=deductionHistorySavedFormula(group,index);
+  if(index>0&&!saved) return null;
+  const lines=saved?.lines || deductionHistoryDownloadOptions(group).map(option=>({type:option.record.type,amountCents:option.amountCents}));
+  return {...saved,paymentIndex:index,lines:lines.filter(line=>!deductionPaymentPdfExclusions.has(group.id+'|'+index+'|'+line.type))};
+}
+function deductionHistoryPdfControls(group) {
+  const index=deductionHistoryFormulaIndex(group), saved=deductionHistorySavedFormula(group,index);
+  const available=saved?.lines || (index===0?deductionHistoryDownloadOptions(group).map(option=>({type:option.record.type})):[]);
+  return '<fieldset class="history-pdf-types"><legend>Include in PDF</legend>'+Object.entries(deductionTypes).map(([type,label])=>{
+    const exists=available.some(line=>line.type===type), checked=exists&&!deductionPaymentPdfExclusions.has(group.id+'|'+index+'|'+type);
+    return '<label><input type="checkbox" data-payment-pdf-type="'+type+'"'+(checked?' checked':'')+(exists?'':' disabled')+'> '+esc(label)+'</label>';
+  }).join('')+'</fieldset>';
 }
 function deductionHistoryBatchPaymentPicker(group, today = deductionToday()) {
   const count = deductionHistoryBatchPaymentCount(group, today);
@@ -16849,7 +16860,7 @@ function deductionHistoryPaymentCell(group, type, today = deductionToday(), timi
   if (!selected) return '<strong>—</strong><small>Not in this payment</small>';
   const status = selected.state === 'sent' ? '✓ Statement downloaded' : selected.state === 'ready' ? 'Ready to download' : 'Upcoming';
   const pdfKey = deductionHistoryPdfSelectionKey(group, type, selected), included = deductionWorkflowIncluded(group, selected);
-  return '<label class="deduction-history-payment-picker"><span>Payment</span><select data-deduction-history-type-payment-select data-deduction-history-payment-type="' + esc(type) + '">' + options.map(option => '<option value="' + esc(option.key) + '"' + (option.key === selected.key ? ' selected' : '') + '>' + esc('Payment ' + (option.index + 1) + '/' + option.count + ' · ' + deductionDateLabel(option.item.dueDate) + ' · ' + deductionMoney(option.amountCents)) + '</option>').join('') + '</select></label><label class="deduction-history-pdf-include"><input type="checkbox" data-deduction-history-pdf-include data-deduction-history-pdf-type="' + esc(type) + '" data-deduction-history-pdf-payment="' + esc(selected.key) + '"' + (included ? ' checked' : '') + '> Include in PDF</label>';
+return '<label class="deduction-history-payment-picker"><span>Payment</span><select data-deduction-history-type-payment-select data-deduction-history-payment-type="' + esc(type) + '">' + options.map(option => '<option value="' + esc(option.key) + '"' + (option.key === selected.key ? ' selected' : '') + '>' + esc('Payment ' + (option.index + 1) + '/' + option.count + ' · ' + deductionDateLabel(option.item.dueDate) + ' · ' + deductionMoney(option.amountCents)) + '</option>').join('') + '</select></label>';
 }
 function deductionHistoryPdfSelectionKey(group, type, option) {
   return [group?.id || '', type || '', option?.key || ''].join('|');
@@ -16859,8 +16870,8 @@ function deductionHistoryDownloadOptions(group, typeTimings = {}, today = deduct
   return group.records.map(record => deductionHistorySelectedPayment(group, record.type, today, typeTimings[record.type] || '', periodStart, periodEnd)).filter(option => option && deductionWorkflowIncluded(group, option));
 }
 function deductionHistoryDownloadCell(group, typeTimings = {}, today = deductionToday(), periodStart = '', periodEnd = '') {
-  const index=deductionHistoryFormulaIndex(group),formula=deductionHistorySavedFormula(group,index),edit='<button type="button" data-payment-formula-edit="'+esc(group.id)+'">'+(formula?'Edit':'Set')+' payment '+(index+1)+' formula</button>';
-  if(index>0&&!formula)return '<td class="deduction-history-download-cell"><strong>Payment '+(index+1)+' needs its own formula</strong><small>Choose deductions and amounts before exporting.</small>'+edit+'</td>';
+  const index=deductionHistoryFormulaIndex(group),formula=deductionHistoryEffectiveFormula(group),edit='';
+  if(index>0&&!formula)return '<td class="deduction-history-download-cell"><strong>Payment '+(index+1)+' needs its own formula</strong><small>In Commission Rider, choose this existing request and payment, then Proceed.</small>'+edit+'</td>';
   const selected = deductionHistoryDownloadOptions(group, typeTimings, today, periodStart, periodEnd), upcoming = selected.filter(option => option.state === 'upcoming');
   if (!selected.length) return '<td class="deduction-history-download-cell"><small>Set this payment’s deduction formula before exporting.</small>'+edit+'</td>';
   const labels = formula ? (formula.lines.map(line=>deductionTypes[line.type]+' '+deductionMoney(line.amountCents)).join(' · ')||'No deductions · RM 0.00') : selected.map(option => (deductionTypes[option.record.type] || option.record.type) + ' payment ' + (option.index + 1)).join(' · ');
@@ -16870,6 +16881,7 @@ function deductionHistoryDownloadCell(group, typeTimings = {}, today = deduction
 }
 function deductionRecordMatchesCommissionRange(record, start = '', end = '') {
   if (!start && !end) return true;
+  if (Object.values(record.paymentFormulas || {}).some(formula => formula.periodStart && formula.periodEnd && (!start || formula.periodEnd >= start) && (!end || formula.periodStart <= end))) return true;
   return deductionHistoryProgress(record).items.some((item, index) => {
     return deductionPaymentMatchesCommissionRange({ record, item, index }, start, end);
   });
@@ -16924,9 +16936,9 @@ function deductionHistoryTypeHeader(_type, label) {
   return '<th class="deduction-type-heading">' + esc(label) + '</th>';
 }
 function deductionHistoryTypeCell(group, type, checker, timing = '', periodStart = '', periodEnd = '') {
-  const record = group.records.find(item => item.type === type); if (!record) return '<td class="deduction-type-cell is-empty">—</td>';
+  const record = group.records.find(item => item.type === type); if (!record) return '<td class="deduction-type-cell is-empty">'+(deductionHistorySavedFormula(group)?deductionHistoryPaymentCell(group,type):'—')+'</td>';
   const progress = deductionHistoryProgress(record), total = progress.items.reduce((sum, installment) => sum + deductionInstallmentAmount(record, installment), 0), selected = deductionHistorySelectedPayment(group, type, deductionToday(), timing, periodStart, periodEnd), masterPayment = deductionHistoryBatchPaymentSelections.get(group.id), noticeLabel = selected ? (selected.state === 'ready' ? 'Ongoing' : selected.state === 'sent' ? deductionStatementLabel(record, selected.item, selected.index) : selected.state === 'upcoming' ? 'Upcoming' : 'Completed') + ' · Payment ' + (selected.index + 1) : '';
-  const paymentContent = selected ? '<span class="deduction-payment-notice ' + esc(selected.state) + '">' + esc(noticeLabel) + '<small>' + esc(deductionDateLabel(selected.item.dueDate)) + '</small></span>' + deductionHistoryPaymentCell(group, type, deductionToday(), timing, periodStart, periodEnd) : Number.isInteger(masterPayment) ? '<strong>—</strong><small>Payment ' + (masterPayment + 1) + ' is not available</small>' : '<small>No payment in this Commission Rider range.</small>';
+  const paymentContent = deductionHistorySavedFormula(group) ? deductionHistoryPaymentCell(group,type) : selected ? '<span class="deduction-payment-notice ' + esc(selected.state) + '">' + esc(noticeLabel) + '<small>' + esc(deductionDateLabel(selected.item.dueDate)) + '</small></span>' + deductionHistoryPaymentCell(group, type, deductionToday(), timing, periodStart, periodEnd) : Number.isInteger(masterPayment) ? '<strong>—</strong><small>Payment ' + (masterPayment + 1) + ' is not available</small>' : '<small>No payment in this Commission Rider range.</small>';
   return '<td class="deduction-type-cell" data-deduction-record-id="' + esc(record.id) + '"><strong>' + esc(deductionMoney(total)) + '</strong><small>' + esc(deductionPlanLabel(record)) + '</small>' + paymentContent + deductionWorkflowPaymentMarkup(group, record, selected) + '<span class="deduction-history-status ' + esc(deductionStatus(record)) + '">' + esc(deductionDisplayStatus(record)) + '</span>' + (record.reason ? '<small>Reason: ' + esc(record.reason) + '</small>' : '') + '<div class="deduction-type-actions">' + deductionHistoryActions(record, checker) + '</div></td>';
 }
 function deductionHistoryRangeDisplay(value, end = false) {
@@ -17019,7 +17031,7 @@ function deductionHistoryRender() {
   view.querySelector('[data-deduction-history-kpis]').innerHTML = [['Total deducted', deductionMoney(totals.appliedCents)], ['Applied installments', formatNumber(totals.appliedInstallments)], ['Deduction records', formatNumber(totals.recordCount)], ['Remaining', deductionMoney(totals.remainingCents)], ['Reversed payments', deductionMoney(totals.reversedCents)]].map(([label, value]) => '<article><span>' + esc(label) + '</span><strong>' + esc(deductionState.loaded ? value : '—') + '</strong></article>').join('');
   view.querySelector('[data-deduction-history-body]').innerHTML = deductionState.loaded ? groups.map((group, rowIndex) => {
     const p = group.progress;
-    return '<tr data-deduction-batch-id="' + esc(group.id) + '"><td>' + (rowIndex + 1) + '</td><td class="deduction-export-check"><div class="deduction-row-controls"><input type="checkbox" data-deduction-history-select aria-label="Select ' + esc(group.rider) + ' request for Rider PDF"' + (deductionHistorySelected.has(group.id) ? ' checked' : '') + '><button type="button" data-deduction-delete-batch aria-label="Delete ' + esc(group.rider) + ' deduction request" title="Delete request">×</button></div></td><td><strong>' + esc(group.rider) + '</strong><small>' + group.records.length + ' deductions in one request</small><small>' + esc(group.references.join(' | ')) + '</small>' + deductionHistoryBatchPaymentPicker(group) + '</td>' + deductionHistoryTypeCell(group, 'epf', checker, '', filters.periodStart, filters.periodEnd) + deductionHistoryTypeCell(group, 'insurance', checker, '', filters.periodStart, filters.periodEnd) + deductionHistoryTypeCell(group, 'battery-tester', checker, '', filters.periodStart, filters.periodEnd) + deductionHistoryTypeCell(group, 'manual', checker, '', filters.periodStart, filters.periodEnd) + '<td data-additional-history-cell>—</td>' + deductionHistoryDownloadCell(group, {}, deductionToday(), filters.periodStart, filters.periodEnd) + '<td>' + esc((group.periodStart || '-') + ' - ' + (group.periodEnd || '-')) + '</td><td>' + esc(deductionMoney(p.appliedCents)) + '</td><td>' + esc(deductionMoney(p.remainingCents)) + '</td><td><span class="deduction-history-status ' + esc(group.status) + '">' + esc(deductionDisplayStatus(group.status)) + '</span></td><td>' + esc(group.createdBy || '-') + '<small>' + esc(formatGrafanaTimestamp(group.createdAt)) + '</small></td></tr>';
+    return '<tr data-deduction-batch-id="' + esc(group.id) + '"><td>' + (rowIndex + 1) + '</td><td class="deduction-export-check"><div class="deduction-row-controls"><input type="checkbox" data-deduction-history-select aria-label="Select ' + esc(group.rider) + ' request for Rider PDF"' + (deductionHistorySelected.has(group.id) ? ' checked' : '') + '><button type="button" data-deduction-delete-batch aria-label="Delete ' + esc(group.rider) + ' deduction request" title="Delete request">×</button></div></td><td><strong>' + esc(group.rider) + '</strong><small>' + group.records.length + ' deductions in one request</small><small>' + esc(group.references.join(' | ')) + '</small>' + deductionHistoryBatchPaymentPicker(group) + deductionHistoryPdfControls(group) + '</td>' + deductionHistoryTypeCell(group, 'epf', checker, '', filters.periodStart, filters.periodEnd) + deductionHistoryTypeCell(group, 'insurance', checker, '', filters.periodStart, filters.periodEnd) + deductionHistoryTypeCell(group, 'battery-tester', checker, '', filters.periodStart, filters.periodEnd) + deductionHistoryTypeCell(group, 'manual', checker, '', filters.periodStart, filters.periodEnd) + '<td data-additional-history-cell>—</td>' + deductionHistoryDownloadCell(group, {}, deductionToday(), filters.periodStart, filters.periodEnd) + '<td>' + esc((group.periodStart || '-') + ' - ' + (group.periodEnd || '-')) + '</td><td>' + esc(deductionMoney(p.appliedCents)) + '</td><td>' + esc(deductionMoney(p.remainingCents)) + '</td><td><span class="deduction-history-status ' + esc(group.status) + '">' + esc(deductionDisplayStatus(group.status)) + '</span></td><td>' + esc(group.createdBy || '-') + '<small>' + esc(formatGrafanaTimestamp(group.createdAt)) + '</small></td></tr>';
   }).join('') : '<tr><td colspan="14">History is unavailable until the full register loads. <button type="button" data-deduction-retry>Retry register</button></td></tr>';
   view.querySelector('[data-deduction-history-empty]').hidden = !deductionState.loaded || shown.length > 0;
   additionalJobsHistoryRender(view);
@@ -17161,7 +17173,7 @@ async function deductionCombinedPaymentStatementPayload(options, commissionRange
   // so mixed payment weeks download together without counting commission twice.
   const starts = periods.map(period => period?.start).filter(Boolean).sort();
   const ends = periods.map(period => period?.end).filter(Boolean).sort();
-  const pdfPeriod = selectedRange || (starts.length && ends.length ? { start: starts[0], end: ends.at(-1) } : null);
+  const pdfPeriod = (formula?.periodStart && formula?.periodEnd ? {start:formula.periodStart,end:formula.periodEnd} : null) || selectedRange || (starts.length && ends.length ? { start: starts[0], end: ends.at(-1) } : null);
   const payload = await deductionPaymentStatementPayload(payments[0].record, payments[0].index, pdfPeriod), columns = payload.columns || [];
   const commissionColumn = columns.find(column => String(column.key || '').trim().toLowerCase().replace(/[\s-]+/g, '_') === 'commission');
   if (!commissionColumn) throw new Error('The Commission Rider table has no commission column.');
@@ -17200,8 +17212,8 @@ async function deductionHistoryDownloadBatch(groupId, button, selectedFormats = 
   await deductionLoad();
   const group = deductionHistoryGroups(deductionState.records).find(item => item.id === groupId);
   if (!group) throw new Error('This deduction request is no longer available. Refresh History and try again.');
-  const formulaIndex=deductionHistoryFormulaIndex(group),formula=deductionHistorySavedFormula(group,formulaIndex);
-  if(formulaIndex>0&&!formula){deductionPaymentFormulaDialog(groupId,formulaIndex);return;}
+  const formulaIndex=deductionHistoryFormulaIndex(group),formula=deductionHistoryEffectiveFormula(group);
+  if(formulaIndex>0&&!formula)throw new Error('Save Payment '+(formulaIndex+1)+' from Commission Rider: choose the existing request and payment, then Proceed.');
   const filters = deductionHistoryFilters(deductionHistoryEnsure()), options = deductionHistoryDownloadOptions(group, {}, deductionToday(), filters.periodStart, filters.periodEnd);
   if (!options.length) throw new Error('Select at least one Include in PDF payment.');
   button.disabled = true;
@@ -17246,7 +17258,7 @@ function deductionHistoryPrefetchRow(row) {
   if (!group) return;
   const view = deductionHistoryEnsure(), filters = deductionHistoryFilters(view);
   const options = deductionHistoryDownloadOptions(group, {}, deductionToday(), filters.periodStart, filters.periodEnd);
-  const index=deductionHistoryFormulaIndex(group),formula=deductionHistorySavedFormula(group,index);
+  const index=deductionHistoryFormulaIndex(group),formula=deductionHistoryEffectiveFormula(group);
   if(index>0&&!formula)return;
   if (!options.length) return;
   void Promise.allSettled([...staticTools, additionalJobsLoad(), deductionCombinedPaymentStatementPayload(options, { start: filters.periodStart, end: filters.periodEnd }, formula)]);
@@ -17433,6 +17445,14 @@ document.addEventListener('change', event => {
   const workflowFields = { 'data-history-installment': 'installment', 'data-history-progress': 'progress', 'data-history-payment-month': 'month', 'data-history-due-start': 'dueStart', 'data-history-due-end': 'dueEnd' };
   for (const [attribute, key] of Object.entries(workflowFields)) if (event.target.hasAttribute?.(attribute)) { deductionWorkflowScope[key] = event.target.value; deductionHistoryRender(); return; }
   if (event.target.matches?.('[data-deduction-history-status], [data-deduction-history-type], [data-deduction-history-due], [data-deduction-history-timing], [data-deduction-history-month], [data-deduction-history-period-start], [data-deduction-history-period-end]')) return deductionHistoryRender();
+  const paymentInclude=event.target.closest?.('[data-payment-pdf-type]');
+  if(paymentInclude) {
+    const group=deductionHistoryGroups(deductionState.records).find(item=>item.id===paymentInclude.closest('[data-deduction-batch-id]')?.dataset.deductionBatchId);
+    if(!group)return;
+    const key=group.id+'|'+deductionHistoryFormulaIndex(group)+'|'+paymentInclude.dataset.paymentPdfType;
+    if(paymentInclude.checked)deductionPaymentPdfExclusions.delete(key);else deductionPaymentPdfExclusions.add(key);
+    deductionStatementPayloadCache.clear();deductionHistoryRender();return;
+  }
   const pdfInclude = event.target.closest?.('[data-deduction-history-pdf-include]');
   if (pdfInclude) {
     const groupId = pdfInclude.closest('[data-deduction-batch-id]')?.dataset.deductionBatchId, type = pdfInclude.dataset.deductionHistoryPdfType, payment = pdfInclude.dataset.deductionHistoryPdfPayment;
@@ -17462,13 +17482,22 @@ document.addEventListener('change', event => {
     return deductionHistoryRender();
   }
   const summary = event.target.closest?.('.deduction-workspace'); if (!summary) return;
+  if(event.target.matches('[data-deduction-target-request], [data-deduction-target-payment]')) {
+    const draft=deductionDrafts.get(summary.dataset.deductionTable);
+    if(event.target.matches('[data-deduction-target-request]')) { draft.targetBatch=event.target.value; draft.paymentIndex=0; }
+    else draft.paymentIndex=Number(event.target.value);
+    const group=deductionHistoryGroups(deductionState.records).find(item=>item.id===draft.targetBatch);
+    const saved=group&&deductionHistorySavedFormula(group,draft.paymentIndex);
+    draft.selected=(saved?.lines||[]).map(line=>line.type);
+    draft.amounts=Object.fromEntries((saved?.lines||[]).map(line=>[line.type,(line.amountCents/100).toFixed(2)]));
+    render();return;
+  }
   if (event.target.matches('[data-deduction-inline-battery-plan]')) {
     const amount = summary.querySelector('[data-deduction-inline-amount="battery-tester"]'), count = summary.querySelector('[data-deduction-inline-battery-count]'); amount.value = event.target.value === 'manual' ? '' : event.target.value === 'fixed-7' ? '40.00' : '50.00'; amount.readOnly = event.target.value !== 'manual'; count.value = event.target.value === 'manual' ? '3' : event.target.value === 'fixed-7' ? '7' : '2'; count.readOnly = event.target.value !== 'manual'; if (!amount.readOnly) amount.focus();
   } deductionUpdateInline(summary);
 });
 document.addEventListener('click', async event => {
-  const formulaEdit=event.target.closest?.('[data-payment-formula-edit]');
-  if(formulaEdit){event.preventDefault();deductionPaymentFormulaDialog(formulaEdit.dataset.paymentFormulaEdit);return;}
+
   const stage = event.target.closest?.('[data-history-stage]');
   if (stage) { deductionWorkflowScope.tab = stage.dataset.historyStage; deductionHistoryRender(); return; }
   const preset = event.target.closest?.('[data-history-due-preset]');
@@ -17558,6 +17587,7 @@ document.addEventListener('click', async event => {
   if (!auditIdentity(id)) return;
   if (!summary) return deductionProceedBatch(id, [button.dataset.deductionCreate || 'manual'], {}, button);
   deductionUpdateInline(summary); if (button.disabled) return;
+  if (deductionDrafts.get(id)?.targetBatch) return deductionSaveMainPayment(id,summary,button);
   if (!deductionDrafts.get(id)?.selected.length && additionalJobsCanProceed(id)) {
     const jobsDraft = additionalJobDrafts.get(id);
     const emptyStarterOnly = jobsDraft.rows.length && jobsDraft.rows.every(row => row.description.trim() === 'Additional Job' && !String(row.amount || '').trim());
