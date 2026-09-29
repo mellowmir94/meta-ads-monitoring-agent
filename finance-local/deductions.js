@@ -1285,13 +1285,11 @@ document.addEventListener('change', event => {
   const row = checkbox.closest('tr'), id = row?.dataset.deductionBatchId || row?.dataset.jobSelectionId; if (!id) return;
   deductionHistorySelected.clear();
   document.querySelectorAll('[data-deduction-history-select]').forEach(input => { if (input !== checkbox) input.checked = false; });
-  if (checkbox.checked) {
-    deductionHistorySelected.add(id);
-    // Start preparing the selected rider immediately. The header button then
-    // reuses these in-flight/cached requests instead of beginning from zero.
-    deductionHistoryPrefetchRow(row);
-  }
+  if (checkbox.checked) deductionHistorySelected.add(id);
   const button = deductionHistoryEnsure()?.querySelector('[data-deduction-history-export="pdf"]'); if (button) button.disabled = deductionHistorySelected.size !== 1 || !deductionState.loaded;
+  // Optional warmup must never interrupt selection or leave Export disabled.
+  // The download path retries preparation and reports any actual export error.
+  if (checkbox.checked) void Promise.resolve().then(() => deductionHistoryPrefetchRow(row)).catch(() => {});
 });
 function deductionHistoryWarmDownloadFromIntent(event) {
   const control = event.target.closest?.('[data-deduction-history-batch-download],[data-additional-download]');
