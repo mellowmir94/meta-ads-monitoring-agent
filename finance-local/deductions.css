@@ -308,6 +308,17 @@
 .deduction-exposure :is(button,select):focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 .deduction-exposure .commission-status-note { margin-top:14px; line-height:1.5; }
 @container (min-width:760px) { .deduction-exposure-groups { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.payment-formula-editor { display:grid; gap:14px; }
+.payment-formula-editor > label { display:grid; gap:6px; font-weight:700; }
+.payment-formula-editor p,.payment-formula-editor small { margin:0; color:var(--text-soft); line-height:1.5; }
+.payment-formula-editor select,.payment-formula-editor input[type="number"] { min-height:40px; padding:8px 10px; border:1px solid var(--line); border-radius:6px; background:var(--surface); color:var(--text); font:inherit; }
+.deduction-dialog .payment-formula-editor .payment-formula-lines { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); justify-content:normal; gap:8px; }
+.deduction-dialog .payment-formula-editor .payment-formula-line { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px; background:var(--surface); border:1px solid var(--line); border-radius:6px; flex-wrap:wrap; }
+.payment-formula-line > span { display:flex; align-items:center; gap:8px; }
+.payment-formula-line input[type="number"] { width:130px; }
+.payment-formula-line input[type="checkbox"] { width:18px; height:18px; }
+.payment-formula-editor button { min-height:42px; padding:10px 14px; background:var(--accent); color:var(--accent-on-fill); border:0; border-radius:6px; font-weight:700; cursor:pointer; }
+@media(max-width:600px){.deduction-dialog .payment-formula-editor .payment-formula-lines{grid-template-columns:1fr;}}
 /* Manual earnings are visually separate from deductions. */
 .additional-jobs { margin:18px 0; padding:18px; border:1px solid var(--line); border-radius:12px; background:var(--surface); }
 .additional-jobs p,.additional-jobs small { display:block; font-size:12px; line-height:1.5; color:var(--text-soft); }

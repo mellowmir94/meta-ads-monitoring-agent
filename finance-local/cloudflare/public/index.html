@@ -6438,6 +6438,17 @@
 .deduction-exposure :is(button,select):focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 .deduction-exposure .commission-status-note { margin-top:14px; line-height:1.5; }
 @container (min-width:760px) { .deduction-exposure-groups { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.payment-formula-editor { display:grid; gap:14px; }
+.payment-formula-editor > label { display:grid; gap:6px; font-weight:700; }
+.payment-formula-editor p,.payment-formula-editor small { margin:0; color:var(--text-soft); line-height:1.5; }
+.payment-formula-editor select,.payment-formula-editor input[type="number"] { min-height:40px; padding:8px 10px; border:1px solid var(--line); border-radius:6px; background:var(--surface); color:var(--text); font:inherit; }
+.deduction-dialog .payment-formula-editor .payment-formula-lines { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); justify-content:normal; gap:8px; }
+.deduction-dialog .payment-formula-editor .payment-formula-line { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px; background:var(--surface); border:1px solid var(--line); border-radius:6px; flex-wrap:wrap; }
+.payment-formula-line > span { display:flex; align-items:center; gap:8px; }
+.payment-formula-line input[type="number"] { width:130px; }
+.payment-formula-line input[type="checkbox"] { width:18px; height:18px; }
+.payment-formula-editor button { min-height:42px; padding:10px 14px; background:var(--accent); color:var(--accent-on-fill); border:0; border-radius:6px; font-weight:700; cursor:pointer; }
+@media(max-width:600px){.deduction-dialog .payment-formula-editor .payment-formula-lines{grid-template-columns:1fr;}}
 /* Manual earnings are visually separate from deductions. */
 .additional-jobs { margin:18px 0; padding:18px; border:1px solid var(--line); border-radius:12px; background:var(--surface); }
 .additional-jobs p,.additional-jobs small { display:block; font-size:12px; line-height:1.5; color:var(--text-soft); }
@@ -16777,10 +16788,51 @@ function deductionPaymentMatchesCommissionRange(option, periodStart = '', period
 function deductionHistoryBatchPaymentCount(group, today = deductionToday()) {
   return Math.max(0, ...deductionHistoryPaymentOptions(group, today).map(option => option.count));
 }
+function deductionHistoryFormulaIndex(group) {
+  const selected = deductionHistoryBatchPaymentSelections.get(group.id);
+  if (Number.isInteger(selected)) return selected;
+  return Math.max(0, ...group.records.map(record => deductionHistorySelectedPayment(group, record.type)?.index ?? 0));
+}
+function deductionHistorySavedFormula(group, index = deductionHistoryFormulaIndex(group)) {
+  return group.records.find(record => record.paymentFormulas?.[index])?.paymentFormulas[index] || null;
+}
+function deductionPaymentFormulaDialog(groupId, paymentIndex) {
+  const group = deductionHistoryGroups(deductionState.records).find(item => item.id === groupId);
+  if (!group) throw new Error('Refresh History to load this request.');
+  const count = deductionHistoryBatchPaymentCount(group), index = paymentIndex ?? deductionHistoryFormulaIndex(group);
+  const saved = deductionHistorySavedFormula(group, index);
+  // Unreviewed later payments start empty: no automatic copy from Payment 1.
+  const lines = saved?.lines || (index === 0 ? group.records.filter(record => !['cancelled','rejected','reversed'].includes(record.status)).map(record => ({type:record.type,amountCents:deductionInstallmentAmount(record, deductionInstallments(record)[0])})) : []);
+  const dialog = deductionDialog('Commission deduction formula'), body = dialog.querySelector('[data-deduction-body]');
+  body.innerHTML = '<p><strong>' + esc(group.rider) + '</strong></p><form class="payment-formula-editor"><label>Payment number<select data-formula-number>' + Array.from({length:count},(_,i)=>'<option value="'+i+'"'+(i===index?' selected':'')+'>Payment '+(i+1)+' of '+count+'</option>').join('') + '</select></label><p>Tick the deductions and enter the RM amount for this payment’s PDF. Every payment is saved separately. Leave all unticked for RM0.00 deductions. These statement amounts do not change the original installment schedule.</p><div class="payment-formula-lines">' + Object.entries(deductionTypes).map(([type,label])=>{const line=lines.find(item=>item.type===type);return '<label class="payment-formula-line"><span><input type="checkbox" data-formula-type="'+type+'"'+(line?' checked':'')+'> '+esc(label)+'</span><span>RM <input type="number" aria-label="'+esc(label)+' amount for this payment" data-formula-amount="'+type+'" min="0.01" max="1000000" step="0.01" inputmode="decimal" value="'+(line?(line.amountCents/100).toFixed(2):'')+'"'+(line?' required':' disabled')+'></span></label>';}).join('') + '</div><strong data-formula-total></strong><small>'+(saved?'Saved by '+esc(saved.savedBy)+' · '+esc(formatGrafanaTimestamp(saved.savedAt)):'Not saved for this payment yet.')+'</small><p role="status" data-formula-feedback></p><button type="submit">Save payment formula</button></form>';
+  const form=body.querySelector('form'),feedback=form.querySelector('[data-formula-feedback]'),button=form.querySelector('[type="submit"]');
+  const total=()=>{const cents=[...form.querySelectorAll('[data-formula-type]:checked')].reduce((sum,check)=>sum+Math.round(Number(form.querySelector('[data-formula-amount="'+check.dataset.formulaType+'"]').value||0)*100),0);form.querySelector('[data-formula-total]').textContent='Payment '+(index+1)+' deductions: '+deductionMoney(cents);};
+  let dirty=false;
+  form.onchange=event=>{
+    if(event.target.matches('[data-formula-number]')){if(dirty){event.target.value=String(index);feedback.textContent='Save this payment formula before switching payment numbers.';return;}const next=Number(event.target.value);deductionHistoryBatchPaymentSelections.set(groupId,next);dialog.close();deductionPaymentFormulaDialog(groupId,next);return;}
+    dirty=true;
+    if(event.target.matches('[data-formula-type]')){const input=form.querySelector('[data-formula-amount="'+event.target.dataset.formulaType+'"]');input.disabled=!event.target.checked;input.required=event.target.checked;}
+    total();
+  };
+  form.oninput=event=>{if(!event.target.matches('[data-formula-number]'))dirty=true;total();};total();
+  const identity=deductionRequestIdentity();
+  form.onsubmit=async event=>{
+    event.preventDefault();if(button.disabled||!form.reportValidity())return;
+    const input={batchId:groupId,paymentIndex:index,expectedRevision:saved?.revision||0,lines:[...form.querySelectorAll('[data-formula-type]:checked')].map(check=>({type:check.dataset.formulaType,amount:form.querySelector('[data-formula-amount="'+check.dataset.formulaType+'"]').value}))};
+    button.disabled=true;feedback.textContent='Saving payment '+(index+1)+' formula…';
+    try{
+      const result=await deductionRequest('/save-payment-formula',{...input,requestId:identity(input)});
+      const owner=deductionState.records.find(record=>record.id===result.ownerId);
+      if(owner)owner.paymentFormulas={...owner.paymentFormulas,[index]:result.formula};
+      deductionHistoryBatchPaymentSelections.set(groupId,index);deductionStatementPayloadCache.clear();deductionHistoryRender();dialog.close();
+      deductionHistoryEnsure().querySelector('[data-deduction-history-feedback]').textContent='Payment '+(index+1)+' formula saved. PDF and Excel will use these selections and amounts.';
+    }catch(error){feedback.textContent=error.message;button.disabled=false;}
+  };
+}
 function deductionHistoryBatchPaymentPicker(group, today = deductionToday()) {
   const count = deductionHistoryBatchPaymentCount(group, today);
   if (count < 2) return '';
-  const selected = deductionHistoryBatchPaymentSelections.get(group.id), index = Number.isInteger(selected) && selected >= 0 && selected < count ? selected : 0;
+  const selected = deductionHistoryFormulaIndex(group), index = Number.isInteger(selected) && selected >= 0 && selected < count ? selected : 0;
   return '<label class="deduction-history-batch-payment-picker"><span>Payment filter</span><select data-deduction-history-batch-payment-select aria-label="Select payment for ' + esc(group.rider) + '">' + Array.from({ length: count }, (_value, paymentIndex) => '<option value="' + (paymentIndex + 1) + '"' + (paymentIndex === index ? ' selected' : '') + '>Payment ' + (paymentIndex + 1) + '/' + count + '</option>').join('') + '</select></label>';
 }
 function deductionHistorySelectedPayment(group, type, today = deductionToday(), timing = '', periodStart = '', periodEnd = '') {
@@ -16791,6 +16843,8 @@ function deductionHistorySelectedPayment(group, type, today = deductionToday(), 
   return allOptions.find(option => option.key === selected) || options.find(option => option.state === queueState) || options.find(option => option.state === 'ready') || options.find(option => option.state === 'upcoming') || allOptions.find(option => option.state === queueState) || allOptions.find(option => option.state === 'ready') || allOptions.find(option => option.state === 'upcoming') || allOptions[0] || null;
 }
 function deductionHistoryPaymentCell(group, type, today = deductionToday(), timing = '', periodStart = '', periodEnd = '') {
+  const formula = deductionHistorySavedFormula(group);
+  if (formula) { const line = formula.lines.find(item => item.type === type); return '<strong>' + (line ? esc(deductionMoney(line.amountCents)) : 'RM 0.00') + '</strong><small>' + (line ? 'Included in saved payment formula' : 'Not included in this payment PDF') + '</small>'; }
   const options = deductionHistoryPaymentOptions(group, today).filter(option => option.record.type === type), selected = deductionHistorySelectedPayment(group, type, today, timing, periodStart, periodEnd);
   if (!selected) return '<strong>—</strong><small>Not in this payment</small>';
   const status = selected.state === 'sent' ? '✓ Statement downloaded' : selected.state === 'ready' ? 'Ready to download' : 'Upcoming';
@@ -16801,15 +16855,18 @@ function deductionHistoryPdfSelectionKey(group, type, option) {
   return [group?.id || '', type || '', option?.key || ''].join('|');
 }
 function deductionHistoryDownloadOptions(group, typeTimings = {}, today = deductionToday(), periodStart = '', periodEnd = '') {
+  if (deductionHistorySavedFormula(group)) return deductionHistoryPaymentOptions(group,today).filter(option=>option.index===deductionHistoryFormulaIndex(group)&&!['cancelled','rejected','reversed'].includes(option.record.status)&&!['cancelled','reversed'].includes(option.item.status));
   return group.records.map(record => deductionHistorySelectedPayment(group, record.type, today, typeTimings[record.type] || '', periodStart, periodEnd)).filter(option => option && deductionWorkflowIncluded(group, option));
 }
 function deductionHistoryDownloadCell(group, typeTimings = {}, today = deductionToday(), periodStart = '', periodEnd = '') {
+  const index=deductionHistoryFormulaIndex(group),formula=deductionHistorySavedFormula(group,index),edit='<button type="button" data-payment-formula-edit="'+esc(group.id)+'">'+(formula?'Edit':'Set')+' payment '+(index+1)+' formula</button>';
+  if(index>0&&!formula)return '<td class="deduction-history-download-cell"><strong>Payment '+(index+1)+' needs its own formula</strong><small>Choose deductions and amounts before exporting.</small>'+edit+'</td>';
   const selected = deductionHistoryDownloadOptions(group, typeTimings, today, periodStart, periodEnd), upcoming = selected.filter(option => option.state === 'upcoming');
-  if (!selected.length) return '<td class="deduction-history-download-cell"><small>Tick at least one Include in PDF box.</small></td>';
-  const labels = selected.map(option => (deductionTypes[option.record.type] || option.record.type) + ' payment ' + (option.index + 1)).join(' · ');
+  if (!selected.length) return '<td class="deduction-history-download-cell"><small>Set this payment’s deduction formula before exporting.</small>'+edit+'</td>';
+  const labels = formula ? (formula.lines.map(line=>deductionTypes[line.type]+' '+deductionMoney(line.amountCents)).join(' · ')||'No deductions · RM 0.00') : selected.map(option => (deductionTypes[option.record.type] || option.record.type) + ' payment ' + (option.index + 1)).join(' · ');
   const sent = selected.every(option => option.state === 'sent');
   const readiness = sent ? '<span class="deduction-download-ready is-sent">✓ Statements recorded</span>' : upcoming.length ? '<span class="deduction-download-ready is-upcoming">Download now · stays Upcoming</span>' : '<span class="deduction-download-ready">Ready to download</span>';
-  return '<td class="deduction-history-download-cell"><div class="deduction-history-download-item"><strong>' + esc(selected.length + ' selected payment' + (selected.length === 1 ? '' : 's')) + '</strong><small>' + esc(labels) + '</small>' + (upcoming.length ? '<small>' + esc(upcoming.length + ' upcoming payment' + (upcoming.length === 1 ? ' stays' : 's stay') + ' Upcoming until its scheduled date.') + '</small>' : '') + readiness + '<div class="deduction-file-formats" role="group" aria-label="Statement file formats"><label><input type="checkbox" data-statement-file-format="pdf" checked> PDF</label><label><input type="checkbox" data-statement-file-format="excel"> Excel</label></div><button type="button" data-deduction-history-batch-download>Download</button></div></td>';
+  return '<td class="deduction-history-download-cell"><div class="deduction-history-download-item"><strong>Payment ' + (index+1) + ' of '+deductionHistoryBatchPaymentCount(group)+'</strong><small>' + esc(labels) + '</small>'+edit + (upcoming.length ? '<small>' + esc(upcoming.length + ' upcoming payment' + (upcoming.length === 1 ? ' stays' : 's stay') + ' Upcoming until its scheduled date.') + '</small>' : '') + readiness + '<div class="deduction-file-formats" role="group" aria-label="Statement file formats"><label><input type="checkbox" data-statement-file-format="pdf" checked> PDF</label><label><input type="checkbox" data-statement-file-format="excel"> Excel</label></div><button type="button" data-deduction-history-batch-download>Download</button></div></td>';
 }
 function deductionRecordMatchesCommissionRange(record, start = '', end = '') {
   if (!start && !end) return true;
@@ -17095,7 +17152,7 @@ function deductionPrefetchPaymentStatement(record, index, commissionRange = null
 async function deductionPaymentStatementPayload(record, index, commissionRange = null) {
   return deductionPrefetchPaymentStatement(record, index, commissionRange);
 }
-async function deductionCombinedPaymentStatementPayload(options, commissionRange = null) {
+async function deductionCombinedPaymentStatementPayload(options, commissionRange = null, formula = null) {
   const payments = options.filter(Boolean);
   if (!payments.length) throw new Error('Select at least one Include in PDF payment.');
   const periods = payments.map(option => deductionInstallmentSettlement(option.record, option.item, option.index) || deductionWeekBounds(option.item.dueDate));
@@ -17109,12 +17166,14 @@ async function deductionCombinedPaymentStatementPayload(options, commissionRange
   const commissionColumn = columns.find(column => String(column.key || '').trim().toLowerCase().replace(/[\s-]+/g, '_') === 'commission');
   if (!commissionColumn) throw new Error('The Commission Rider table has no commission column.');
   const commissionIndex = columns.indexOf(commissionColumn), quantityColumn = columns.find(column => String(column.key || '').trim().toLowerCase().replace(/[\s-]+/g, '_') === 'quantity');
-  const grossCents = Math.round((payload.rows || []).reduce((sum, row) => sum + numberValue(commissionColumn.value(row)), 0) * 100), deductedCents = payments.reduce((sum, option) => sum + deductionStatementAmountForRecord(option.record, [option.item]), 0), netCents = grossCents - deductedCents;
+  const lines = formula ? formula.lines : payments.map(option=>({type:option.record.type,amountCents:deductionInstallmentAmount(option.record,option.item)}));
+  const grossCents = Math.round((payload.rows || []).reduce((sum, row) => sum + numberValue(commissionColumn.value(row)), 0) * 100), deductedCents = lines.reduce((sum, line) => sum + line.amountCents, 0), netCents = grossCents - deductedCents;
   const footerRow = (label, value, valueColumnIndex = commissionIndex) => columns.map((_column, columnIndex) => columnIndex === 0 ? label : columnIndex === valueColumnIndex ? value : '');
   const filteredTotal = columns.map(column => column === columns[0] ? 'Filtered total' : column === quantityColumn ? formatNumber((payload.rows || []).reduce((sum, row) => sum + Number(row.quantity || 0), 0)) : column === commissionColumn ? deductionMoney(grossCents) : '');
   const filename = String(payments[0].record.rider || 'Rider').trim().replace(/\s+/g, '_').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/, '').slice(0, 160) || 'Rider', highestPaymentCount = Math.max(...payments.map(option => option.count));
   const statementDetails = payments.map((option, index) => (deductionTypes[option.record.type] || option.record.type) + ' · Payment ' + (option.index + 1) + ' of ' + option.count + ' · Deduction date: ' + deductionDateLabel(option.item.dueDate) + (periods[index] ? ' · Payment commission period: ' + deductionPeriodLabel(periods[index]) : '')).join(' | ');
-  return { ...payload, filename: filename + '_payment-' + highestPaymentCount, pdfFilename: filename + '_payment-' + highestPaymentCount + '.pdf', period: statementDetails + ' · Commission period: ' + deductionPeriodLabel(pdfPeriod) + ' · refreshed from Grafana', summary: { label: 'Net Commission', value: deductionMoney(netCents) }, footerRows: [filteredTotal, ...payments.map(option => footerRow((deductionTypes[option.record.type] || option.record.type).toUpperCase(), '- ' + deductionMoney(deductionStatementAmountForRecord(option.record, [option.item])))), footerRow('TOTAL DEDUCTIONS', '- ' + deductionMoney(deductedCents)), footerRow('NET COMMISSION', deductionMoney(netCents))] };
+  const paymentNumber = formula ? formula.paymentIndex+1 : Math.max(...payments.map(option=>option.index+1));
+  return { ...payload, statementPaymentNumber:paymentNumber, statementPaymentCount:highestPaymentCount, filename: filename + '_payment-' + paymentNumber, pdfFilename: filename + '_payment-' + paymentNumber + '.pdf', period: 'Payment '+paymentNumber+' of '+highestPaymentCount+' · '+statementDetails + ' · Commission period: ' + deductionPeriodLabel(pdfPeriod), summary: { label: 'Net Commission', value: deductionMoney(netCents) }, footerRows: [filteredTotal, ...lines.map(line => footerRow((deductionTypes[line.type] || line.type).toUpperCase(), '- ' + deductionMoney(line.amountCents))), footerRow('TOTAL DEDUCTIONS', '- ' + deductionMoney(deductedCents)), footerRow('NET COMMISSION', deductionMoney(netCents))] };
 }
 function deductionDownloadFeedback(button, message) {
   const feedback = deductionHistoryEnsure()?.querySelector('[data-deduction-history-feedback]');
@@ -17137,8 +17196,12 @@ async function deductionHistoryDownloadBatch(groupId, button, selectedFormats = 
   try {
   const formats = selectedFormats || [...button.closest('.deduction-history-download-item').querySelectorAll('[data-statement-file-format]:checked')].map(input => input.dataset.statementFileFormat);
   if (!formats.length) { if (feedback) feedback.textContent = 'Select PDF, Excel, or both before downloading.'; return; }
+  button.disabled=true;button.textContent='Preparing…';button.setAttribute('aria-busy','true');
+  await deductionLoad();
   const group = deductionHistoryGroups(deductionState.records).find(item => item.id === groupId);
   if (!group) throw new Error('This deduction request is no longer available. Refresh History and try again.');
+  const formulaIndex=deductionHistoryFormulaIndex(group),formula=deductionHistorySavedFormula(group,formulaIndex);
+  if(formulaIndex>0&&!formula){deductionPaymentFormulaDialog(groupId,formulaIndex);return;}
   const filters = deductionHistoryFilters(deductionHistoryEnsure()), options = deductionHistoryDownloadOptions(group, {}, deductionToday(), filters.periodStart, filters.periodEnd);
   if (!options.length) throw new Error('Select at least one Include in PDF payment.');
   button.disabled = true;
@@ -17148,7 +17211,7 @@ async function deductionHistoryDownloadBatch(groupId, button, selectedFormats = 
     // Fetch current earnings and logo alongside commission data and libraries,
     // rather than adding two more network waits after the main request finishes.
     const jobsReady = additionalJobsLoad(true);
-    const [, rawPayload] = await Promise.all([Promise.all(formats.map(format => ensureFinanceExportBundle(format))), deductionCombinedPaymentStatementPayload(options, { start: filters.periodStart, end: filters.periodEnd }), jobsReady, financePdfLogo().catch(() => null)]);
+    const [, rawPayload] = await Promise.all([Promise.all(formats.map(format => ensureFinanceExportBundle(format))), deductionCombinedPaymentStatementPayload(options, { start: filters.periodStart, end: filters.periodEnd }, formula), jobsReady, financePdfLogo().catch(() => null)]);
     const payload = await prepareRiderStatement(rawPayload, jobsReady);
     if (formats.includes('excel')) await downloadExcelTable(payload);
     if (!formats.includes('pdf')) { if (feedback) feedback.textContent = 'Rider Excel statement downloaded.'; return; }
@@ -17156,7 +17219,7 @@ async function deductionHistoryDownloadBatch(groupId, button, selectedFormats = 
     if (!downloaded) { if (feedback) feedback.textContent = 'PDF download was cancelled.'; return; }
     button.textContent = 'Downloaded';
     feedback.textContent = 'PDF downloaded. Updating History…';
-    const eligible = options.filter(option => option.state !== 'upcoming' && option.state !== 'sent' && !option.item.statementSentAt);
+    const eligible = options.filter(option => (!formula || formula.lines.some(line=>line.type===option.record.type)) && option.state !== 'upcoming' && option.state !== 'sent' && !option.item.statementSentAt);
     await Promise.all(eligible.map(async option => {
       const saved = await deductionRequest('/mark-sent', { recordId: option.record.id, installmentIndex: option.index, requestId: crypto.randomUUID(), reason: 'PDF downloaded through the History workflow; rider delivery is not verified' });
       Object.assign(option.item, { statementSentAt: saved.statementSentAt, statementSentBy: saved.statementSentBy, statementDownloaded: true });
@@ -17183,8 +17246,10 @@ function deductionHistoryPrefetchRow(row) {
   if (!group) return;
   const view = deductionHistoryEnsure(), filters = deductionHistoryFilters(view);
   const options = deductionHistoryDownloadOptions(group, {}, deductionToday(), filters.periodStart, filters.periodEnd);
+  const index=deductionHistoryFormulaIndex(group),formula=deductionHistorySavedFormula(group,index);
+  if(index>0&&!formula)return;
   if (!options.length) return;
-  void Promise.allSettled([...staticTools, additionalJobsLoad(), deductionCombinedPaymentStatementPayload(options, { start: filters.periodStart, end: filters.periodEnd })]);
+  void Promise.allSettled([...staticTools, additionalJobsLoad(), deductionCombinedPaymentStatementPayload(options, { start: filters.periodStart, end: filters.periodEnd }, formula)]);
 }
 async function deductionHistoryExport(format) {
   if (format === 'pdf') {
@@ -17402,6 +17467,8 @@ document.addEventListener('change', event => {
   } deductionUpdateInline(summary);
 });
 document.addEventListener('click', async event => {
+  const formulaEdit=event.target.closest?.('[data-payment-formula-edit]');
+  if(formulaEdit){event.preventDefault();deductionPaymentFormulaDialog(formulaEdit.dataset.paymentFormulaEdit);return;}
   const stage = event.target.closest?.('[data-history-stage]');
   if (stage) { deductionWorkflowScope.tab = stage.dataset.historyStage; deductionHistoryRender(); return; }
   const preset = event.target.closest?.('[data-history-due-preset]');
@@ -17781,7 +17848,8 @@ async function prepareRiderStatement(payload, jobsReady = null) {
   const scope=payload.statementScope;
   if(!scope?.rider || !scope.start || !scope.end)throw new Error('A rider and commission period are required for a complete statement.');
   const dateLabel=value=>String(value).slice(0,10).split('-').reverse().join('/');
-  payload={...payload,period:'Payment commission period: '+dateLabel(scope.start)+' - '+dateLabel(scope.end)};
+  const paymentLabel=Number.isInteger(payload.statementPaymentNumber)?'Payment '+payload.statementPaymentNumber+(payload.statementPaymentCount?' of '+payload.statementPaymentCount:'')+' · ':'';
+  payload={...payload,period:paymentLabel+'Payment commission period: '+dateLabel(scope.start)+' - '+dateLabel(scope.end)};
   await (jobsReady || additionalJobsLoad(true));
   const jobs=(typeof additionalJobsForStatementScope==='function'?additionalJobsForStatementScope:additionalJobsForScope)(scope.rider,scope.start,scope.end),index=payload.columns.findIndex(column=>column.key==='commission');
   const row=(label,value)=>payload.columns.map((_,i)=>i===0?label:i===index?value:'');

@@ -8,7 +8,8 @@ async function prepareRiderStatement(payload, jobsReady = null) {
   const scope=payload.statementScope;
   if(!scope?.rider || !scope.start || !scope.end)throw new Error('A rider and commission period are required for a complete statement.');
   const dateLabel=value=>String(value).slice(0,10).split('-').reverse().join('/');
-  payload={...payload,period:'Payment commission period: '+dateLabel(scope.start)+' - '+dateLabel(scope.end)};
+  const paymentLabel=Number.isInteger(payload.statementPaymentNumber)?'Payment '+payload.statementPaymentNumber+(payload.statementPaymentCount?' of '+payload.statementPaymentCount:'')+' · ':'';
+  payload={...payload,period:paymentLabel+'Payment commission period: '+dateLabel(scope.start)+' - '+dateLabel(scope.end)};
   await (jobsReady || additionalJobsLoad(true));
   const jobs=(typeof additionalJobsForStatementScope==='function'?additionalJobsForStatementScope:additionalJobsForScope)(scope.rider,scope.start,scope.end),index=payload.columns.findIndex(column=>column.key==='commission');
   const row=(label,value)=>payload.columns.map((_,i)=>i===0?label:i===index?value:'');

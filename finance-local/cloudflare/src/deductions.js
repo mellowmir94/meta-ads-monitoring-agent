@@ -4,6 +4,7 @@ import { verifyWeeklyCommission } from './deduction-verification.js';
 import { createDeductionSnapshot } from './deduction-backup.js';
 import { handleBookings } from './bookings.js';
 import { handleDataSource } from './data-source.js';
+import { savePaymentFormula } from './payment-formula.js';
 const types = ['insurance', 'battery-tester', 'manual', 'epf'];
 const subtypes = ['accident', 'ganti rugi lost item', 'repair accident', 'insurance', 'battery tester', 'EPF', 'other'];
 const checkerRoles = new Set(['checker', 'admin']);
@@ -144,7 +145,7 @@ export class DeductionRegister {
         return reply({ found: true, result: prior.result });
       }
       if (!/^[a-z0-9-]{16,80}$/i.test(input.requestId || '')) return reply({ error: 'A valid request ID is required.' }, 400);
-      if (!['/save-job', '/save-jobs', '/delete-jobs', '/set-jobs-included', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/mark-sent', '/complete-installment', '/reopen-installment', '/delete-batch'].includes(url.pathname)) return reply({ error: 'Deduction action not found.' }, 404);
+      if (!['/save-payment-formula', '/save-job', '/save-jobs', '/delete-jobs', '/set-jobs-included', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/mark-sent', '/complete-installment', '/reopen-installment', '/delete-batch'].includes(url.pathname)) return reply({ error: 'Deduction action not found.' }, 404);
       const signature = requestSignature(url.pathname, input);
       const result = await this.storage.transaction(async tx => {
         const prior = await tx.get('request:' + input.requestId);
@@ -153,7 +154,9 @@ export class DeductionRegister {
           return prior.result;
         }
         const now = this.now().toISOString(); let result;
-        if (url.pathname === '/save-jobs' || url.pathname === '/delete-jobs' || url.pathname === '/set-jobs-included') {
+        if (url.pathname === '/save-payment-formula') {
+          result = await savePaymentFormula(tx, input, actor, now);
+        } else if (url.pathname === '/save-jobs' || url.pathname === '/delete-jobs' || url.pathname === '/set-jobs-included') {
           const deleting=url.pathname==='/delete-jobs';
           const updatingInclusion=url.pathname==='/set-jobs-included';
           if(deleting&&request.headers.get('x-deduction-delete-authorized')!=='1')throw new Error('Delete PIN authorization is required.');
@@ -392,7 +395,7 @@ export async function deductionsApi(request, env, actor, context) {
     if (request.headers.get('origin') !== url.origin || !request.headers.get('content-type')?.startsWith('application/json')) return reply({ error: 'Same-origin JSON request required.' }, 403);
   }
   const path = url.pathname.slice('/api/deductions'.length) || '/';
-  if (!['/', '/jobs', '/save-job', '/save-jobs', '/delete-jobs', '/set-jobs-included', '/eligibility', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/mark-sent', '/complete-installment', '/reopen-installment', '/delete-batch'].includes(path)) return reply({ error: 'Deduction action not found.' }, 404);
+  if (!['/', '/jobs', '/save-payment-formula', '/save-job', '/save-jobs', '/delete-jobs', '/set-jobs-included', '/eligibility', '/create', '/create-batch', '/approve', '/reject', '/apply', '/cancel', '/reverse', '/update-schedule', '/update-details', '/mark-sent', '/complete-installment', '/reopen-installment', '/delete-batch'].includes(path)) return reply({ error: 'Deduction action not found.' }, 404);
   const readOnly = path === '/' || path === '/eligibility' || path === '/jobs';
   if ((readOnly && request.method !== 'GET') || (!readOnly && request.method !== 'POST')) return reply({ error: 'Method not allowed.' }, 405);
   try {

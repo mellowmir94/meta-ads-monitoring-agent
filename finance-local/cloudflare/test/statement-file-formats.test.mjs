@@ -15,6 +15,7 @@ function fixture(formats, failPdf = false, overrides = {}) {
     deductionDownloadFeedback: (_button, message) => { feedback.textContent = message; },
     deductionHistoryEnsure: () => ({querySelector: () => feedback}),
     deductionHistoryGroups: () => [{id: 'group'}], deductionHistoryFilters: () => ({}),
+    deductionLoad: async () => {}, deductionHistoryFormulaIndex: () => 0, deductionHistorySavedFormula: () => null,
     deductionToday: () => '2026-09-21',
     deductionHistoryDownloadOptions: () => [{record: {id: 'record'}, index: 0, item: {}, state: 'ready'}],
     ensureFinanceExportBundle: async format => calls.push('bundle:' + format),
@@ -55,6 +56,14 @@ test('failed PDF does not mark acknowledgement and releases download button', as
   const f=fixture(['pdf'],true); await assert.rejects(f.run(), /PDF failed/);
   assert.ok(!f.calls.includes('mark')); assert.equal(f.button.disabled,false);
 });
+test('a saved all-unticked payment exports but does not acknowledge excluded schedule entries',async()=>{
+  const formula={paymentIndex:1,lines:[]};
+  const f=fixture(['pdf'],false,{
+    deductionHistoryFormulaIndex:()=>1,deductionHistorySavedFormula:()=>formula,
+    deductionCombinedPaymentStatementPayload:async(_options,_range,saved)=>{assert.equal(saved,formula);return {};},
+  });
+  await f.run();assert.ok(f.calls.includes('pdf'));assert.ok(!f.calls.includes('mark'));
+});
 test('commission, fresh Additional Jobs and logo start concurrently before export',async()=>{
   let release;const gate=new Promise(resolve=>{release=resolve;}),started=[];
   const f=fixture(['pdf'],false,{
@@ -63,6 +72,7 @@ test('commission, fresh Additional Jobs and logo start concurrently before expor
     deductionCombinedPaymentStatementPayload:async()=>{started.push('commission');await gate;return {};},
   });
   const run=f.run();
+  await new Promise(resolve=>setImmediate(resolve)); // Drain the register refresh across the VM boundary.
   assert.deepEqual(started.sort(),['commission','jobs','logo']);
   assert.ok(!f.calls.includes('pdf'));release();await run;
   assert.ok(f.calls.includes('pdf'));
