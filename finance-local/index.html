@@ -17137,7 +17137,7 @@ async function deductionFreshPaymentStatementPayload(record, index, commissionRa
   const quantityColumn = columns.find(column => String(column.key || '').trim().toLowerCase().replace(/[\s-]+/g, '_') === 'quantity');
   const grossCents = Math.round(rows.reduce((sum, row) => sum + numberValue(commissionColumn.value(row)), 0) * 100), deductedCents = deductionStatementAmountForRecord(record, [item]), netCents = grossCents - deductedCents, commissionIndex = columns.indexOf(commissionColumn);
   const footerRow = (label, value, valueColumnIndex = commissionIndex) => columns.map((_column, columnIndex) => columnIndex === 0 ? label : columnIndex === valueColumnIndex ? value : '');
-  const filteredTotal = columns.map(column => column === columns[0] ? 'Filtered total' : column === quantityColumn ? formatNumber(rows.reduce((sum, row) => sum + Number(row.quantity || 0), 0)) : column === commissionColumn ? deductionMoney(grossCents) : '');
+  const filteredTotal = columns.map(column => column === columns[0] ? 'Filtered total' : column === quantityColumn ? formatNumber(rows.reduce((sum, row) => sum + numberValue(quantityColumn.value(row)), 0)) : column === commissionColumn ? deductionMoney(grossCents) : '');
   const payment = Number.isInteger(Number(item.index)) ? Number(item.index) + 1 : index + 1, paymentCount = Number(record.installmentCount || progress.items.length || payment), type = (deductionTypes[record.type] || record.type || 'Deduction').toUpperCase(), filename = String(record.rider || 'Rider').trim().replace(/\s+/g, '_').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/, '').slice(0, 160) || 'Rider';
   return { statementScope:{rider:record.rider,start:period.start,end:period.end}, title: record.rider, panelTitle: 'Commission Rider', filename: filename + '_payment-' + paymentCount, pdfFilename: filename + '_payment-' + paymentCount + '.pdf', columns, rows, period: type + ' · Payment ' + payment + ' of ' + paymentCount + ' · Deduction date: ' + deductionDateLabel(item.dueDate) + ' · Commission period: ' + deductionPeriodLabel(period) + ' · refreshed from Grafana', summary: { label: 'Net Commission', value: deductionMoney(netCents) }, footerRows: [filteredTotal, footerRow(type, '- ' + deductionMoney(deductedCents)), footerRow('TOTAL DEDUCTIONS', '- ' + deductionMoney(deductedCents)), footerRow('NET COMMISSION', deductionMoney(netCents))] };
 }
@@ -17169,7 +17169,7 @@ async function deductionCombinedPaymentStatementPayload(options, commissionRange
   const lines = formula ? formula.lines : payments.map(option=>({type:option.record.type,amountCents:deductionInstallmentAmount(option.record,option.item)}));
   const grossCents = Math.round((payload.rows || []).reduce((sum, row) => sum + numberValue(commissionColumn.value(row)), 0) * 100), deductedCents = lines.reduce((sum, line) => sum + line.amountCents, 0), netCents = grossCents - deductedCents;
   const footerRow = (label, value, valueColumnIndex = commissionIndex) => columns.map((_column, columnIndex) => columnIndex === 0 ? label : columnIndex === valueColumnIndex ? value : '');
-  const filteredTotal = columns.map(column => column === columns[0] ? 'Filtered total' : column === quantityColumn ? formatNumber((payload.rows || []).reduce((sum, row) => sum + Number(row.quantity || 0), 0)) : column === commissionColumn ? deductionMoney(grossCents) : '');
+  const filteredTotal = columns.map(column => column === columns[0] ? 'Filtered total' : column === quantityColumn ? formatNumber((payload.rows || []).reduce((sum, row) => sum + numberValue(quantityColumn.value(row)), 0)) : column === commissionColumn ? deductionMoney(grossCents) : '');
   const filename = String(payments[0].record.rider || 'Rider').trim().replace(/\s+/g, '_').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/, '').slice(0, 160) || 'Rider', highestPaymentCount = Math.max(...payments.map(option => option.count));
   const statementDetails = payments.map((option, index) => (deductionTypes[option.record.type] || option.record.type) + ' · Payment ' + (option.index + 1) + ' of ' + option.count + ' · Deduction date: ' + deductionDateLabel(option.item.dueDate) + (periods[index] ? ' · Payment commission period: ' + deductionPeriodLabel(periods[index]) : '')).join(' | ');
   const paymentNumber = formula ? formula.paymentIndex+1 : Math.max(...payments.map(option=>option.index+1));
@@ -17753,8 +17753,11 @@ async function additionalJobsFetchStatementPayload(rider, start, end) {
   if(index<0)throw new Error('The Commission Rider table has no commission column.');
   const gross=Math.round(rows.reduce((sum,row)=>sum+numberValue(row.commission),0)*100);
   const footer=(label,value)=>columns.map((_,i)=>i===0?label:i===index?value:'');
+  const filteredTotal=footer('Filtered total',deductionMoney(gross));
+  const quantityIndex=columns.findIndex(column=>column.key==='quantity');
+  if(quantityIndex>0)filteredTotal[quantityIndex]=formatNumber(rows.reduce((sum,row)=>sum+numberValue(columns[quantityIndex].value(row)),0));
   const filename=rider.replace(/[<>:"/\\|?*\u0000-\u001f]/g,'_').replace(/[. ]+$/,'').slice(0,160)||'Rider';
-  return {statementScope:{rider,start,end},panelTitle:'Commission Rider',title:rider,filename:filename+'-Commission-Statement',pdfFilename:filename+'-Commission-Statement.pdf',columns,rows,period:'Commission period: '+deductionPeriodLabel({start,end}),summary:{label:'Net Commission',value:deductionMoney(gross)},footerRows:[footer('Filtered total',deductionMoney(gross)),footer('TOTAL DEDUCTIONS',deductionMoney(0))]};
+  return {statementScope:{rider,start,end},panelTitle:'Commission Rider',title:rider,filename:filename+'-Commission-Statement',pdfFilename:filename+'-Commission-Statement.pdf',columns,rows,period:'Commission period: '+deductionPeriodLabel({start,end}),summary:{label:'Net Commission',value:deductionMoney(gross)},footerRows:[filteredTotal,footer('TOTAL DEDUCTIONS',deductionMoney(0))]};
 }
 document.addEventListener('click',async event=>{
   const button=event.target.closest?.('[data-additional-download]');if(!button||button.disabled)return;

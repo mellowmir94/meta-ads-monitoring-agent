@@ -159,8 +159,11 @@ async function additionalJobsFetchStatementPayload(rider, start, end) {
   if(index<0)throw new Error('The Commission Rider table has no commission column.');
   const gross=Math.round(rows.reduce((sum,row)=>sum+numberValue(row.commission),0)*100);
   const footer=(label,value)=>columns.map((_,i)=>i===0?label:i===index?value:'');
+  const filteredTotal=footer('Filtered total',deductionMoney(gross));
+  const quantityIndex=columns.findIndex(column=>column.key==='quantity');
+  if(quantityIndex>0)filteredTotal[quantityIndex]=formatNumber(rows.reduce((sum,row)=>sum+numberValue(columns[quantityIndex].value(row)),0));
   const filename=rider.replace(/[<>:"/\\|?*\u0000-\u001f]/g,'_').replace(/[. ]+$/,'').slice(0,160)||'Rider';
-  return {statementScope:{rider,start,end},panelTitle:'Commission Rider',title:rider,filename:filename+'-Commission-Statement',pdfFilename:filename+'-Commission-Statement.pdf',columns,rows,period:'Commission period: '+deductionPeriodLabel({start,end}),summary:{label:'Net Commission',value:deductionMoney(gross)},footerRows:[footer('Filtered total',deductionMoney(gross)),footer('TOTAL DEDUCTIONS',deductionMoney(0))]};
+  return {statementScope:{rider,start,end},panelTitle:'Commission Rider',title:rider,filename:filename+'-Commission-Statement',pdfFilename:filename+'-Commission-Statement.pdf',columns,rows,period:'Commission period: '+deductionPeriodLabel({start,end}),summary:{label:'Net Commission',value:deductionMoney(gross)},footerRows:[filteredTotal,footer('TOTAL DEDUCTIONS',deductionMoney(0))]};
 }
 document.addEventListener('click',async event=>{
   const button=event.target.closest?.('[data-additional-download]');if(!button||button.disabled)return;
