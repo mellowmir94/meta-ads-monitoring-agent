@@ -793,6 +793,7 @@ function deductionRememberLiveStatementRows(panel, payload, rows, filters) {
   return true;
 }
 function deductionLoadStatementRows(panel, start, end) {
+  const sourceEpoch = typeof financeSource !== 'undefined' ? financeSource.epoch : 0;
   const key = [panel.id, start, end].join('|');
   const cached = deductionStatementRowsCache.get(key);
   if (cached && Date.now() - cached.loadedAt < 30000) return Promise.resolve(cached.rows);
@@ -801,6 +802,7 @@ function deductionLoadStatementRows(panel, start, end) {
   // Exports and hover previews for different riders can share the same period.
   // Cache only complete results briefly; bound memory to three reporting ranges.
   const pending = deductionFetchStatementRows(panel, start, end).then(rows => {
+    if (sourceEpoch !== (typeof financeSource !== 'undefined' ? financeSource.epoch : 0)) throw new Error('Data source changed. Click Download again to use the selected source.');
     deductionStatementRowsCache.set(key, { rows, loadedAt: Date.now() });
     while (deductionStatementRowsCache.size > 3) deductionStatementRowsCache.delete(deductionStatementRowsCache.keys().next().value);
     return rows;

@@ -35,3 +35,12 @@ test('hover warmup does not query Grafana or load financial statements',async()=
  c.ensureFinanceExportBundle=async()=>{};c.financePdfLogo=async()=>{};
  c.deductionHistoryPrefetchRow({});await new Promise(resolve=>setImmediate(resolve));assert.equal(requests,0);
 });
+
+test('old source response cannot repopulate the statement cache after switching Live/Sync',async()=>{
+ let release;const c=fixture(()=>new Promise(resolve=>{release=resolve;}));c.financeSource={epoch:0};
+ const pending=c.deductionLoadStatementRows({id:'commission-main'},'2026-09-14','2026-09-20');
+ c.financeSource.epoch++;
+ release({response:{ok:true},payload:{rows:[{commission:100}]}});
+ await assert.rejects(pending,/Data source changed/);
+ assert.equal(vm.runInContext('deductionStatementRowsCache.size',c),0);
+});

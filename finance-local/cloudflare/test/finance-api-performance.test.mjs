@@ -26,16 +26,16 @@ function fixture(t) {
   return { env, config, cache, stored, tasks, act, call, upstreamUrls, stats: () => ({ upstreamCalls, checks, matches, state }), flush: async () => { await Promise.all(tasks.splice(0)); } };
 }
 
-test('five admitted users share cached API work; the sixth stays blocked until FIFO promotion', async (t) => {
+test('five admitted users receive live data; the sixth stays blocked until FIFO promotion', async (t) => {
   const f = fixture(t);
   for (let index = 1; index <= 5; index++) assert.equal(f.act('enter', `u${index}`).status, 'admitted');
   assert.equal(f.act('enter', 'u6').status, 'queued');
   const first = await f.call('u1'); assert.equal(first.status, 200); await first.text(); await f.flush();
-  for (let index = 2; index <= 5; index++) { const response = await f.call(`u${index}`); assert.equal(response.headers.get('x-finance-cache'), 'HIT'); await response.text(); }
+  for (let index = 2; index <= 5; index++) { const response = await f.call(`u${index}`); assert.equal(response.headers.get('x-finance-cache'), 'BYPASS'); await response.text(); }
   const before = f.stats();
   const denied = await f.call('u6'); assert.equal(denied.status, 403); assert.equal((await denied.json()).code, 'queue_required');
   assert.equal(f.stats().matches, before.matches, 'the queue check runs before any cache read');
-  assert.equal(f.stats().upstreamCalls, 1);
+  assert.equal(f.stats().upstreamCalls, 5);
   assert.equal(Object.keys(f.stats().state.active).length, 5);
   f.act('enter', 'u7'); f.act('release', 'u1');
   assert.equal(f.act('check', 'u6').status, 'admitted'); assert.equal(f.act('check', 'u7').position, 1);
@@ -50,22 +50,19 @@ test('unauthenticated requests never reach the cache or Grafana', async (t) => {
   assert.equal(response.status, 401); assert.equal(f.stats().matches, 0); assert.equal(f.stats().upstreamCalls, 0);
 });
 
-test('stale revalidation is shared until its entire streamed cache write finishes', async (t) => {
+test('simultaneous live requests share only pending work, never completed cached responses', async (t) => {
   const f = fixture(t); f.act('enter', 'u1');
-  const first = await f.call('u1'); await first.text(); await f.flush();
-  const [key, cached] = [...f.stored.entries()][0];
-  const headers = new Headers(cached.headers); headers.set('x-finance-cached-at', new Date(Date.now() - 50_000).toISOString());
-  f.stored.set(key, new Response(await cached.text(), { headers }));
-  let releaseWrite;
-  const writeGate = new Promise((resolve) => { releaseWrite = resolve; });
-  const originalPut = f.cache.put;
-  f.cache.put = async (...args) => { await writeGate; await originalPut(...args); };
-  const responses = await Promise.all(Array.from({ length: 5 }, () => f.call('u1')));
-  assert.ok(responses.every((response) => response.headers.get('x-finance-cache') === 'STALE'));
+  let calls=0,release;
+  const gate=new Promise(resolve=>{release=resolve;});
+  f.env.GRAFANA_PROXY.fetch=async()=>{calls++;await gate;return Response.json({rows:[]});};
+  const pending=Promise.all(Array.from({length:5},()=>f.call('u1')));
+  await new Promise(resolve=>setTimeout(resolve,20));release();
+  const responses=await pending;
+  assert.ok(responses.every(response=>response.headers.get('x-finance-cache')==='BYPASS'));
   await Promise.all(responses.map((response) => response.text()));
+  assert.equal(calls,1);
   const again = await f.call('u1'); await again.text();
-  assert.equal(f.stats().upstreamCalls, 2, 'one initial fetch plus one shared revalidation');
-  releaseWrite(); await f.flush();
+  assert.equal(calls,2);assert.equal(f.stored.size,0);assert.equal(f.stats().matches,0);
 });
 
 test('Refresh still bypasses cache and forwards every filter/date/revision unchanged', async (t) => {

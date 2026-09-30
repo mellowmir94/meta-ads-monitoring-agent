@@ -233,10 +233,16 @@ function financeClientResponse(source, cacheStatus) {
 async function fetchFinanceUpstream(upstreamUrl, env, requestKey) {
   let pending = financeRequests.get(requestKey);
   if (!pending) {
-    pending = env.GRAFANA_PROXY.fetch(new Request(upstreamUrl, {
+    const controller = new AbortController();
+    let timer;
+    const deadline = new Promise((_, reject) => {
+      timer = setTimeout(() => { controller.abort(); reject(new Error('Grafana upstream deadline exceeded.')); }, 22000);
+    });
+    pending = Promise.race([env.GRAFANA_PROXY.fetch(new Request(upstreamUrl, {
         method: "GET",
+        signal: controller.signal,
         headers: { "x-finance-proxy-secret": env.FINANCE_PROXY_SHARED_SECRET }
-      }));
+      })), deadline]).finally(() => clearTimeout(timer));
     financeRequests.set(requestKey, pending);
   }
   try { return (await pending).clone(); }

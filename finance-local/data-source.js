@@ -45,6 +45,10 @@ function financeSourceReady() {
 function financeSourceClear(clearDisplayed = false) {
   financeSource.epoch++;
   financeSource.rows.clear();
+  // Only transient requests are invalidated; synced weeks and financial records stay intact.
+  financePanelControllers.forEach(entry => entry.controller.abort());
+  financePanelControllers.clear(); financeInflightRequests.clear();
+  deductionStatementRowLoads.clear();
   deductionStatementRowsCache.clear(); deductionStatementPayloadCache.clear(); additionalJobsStatementCache.clear();
   auditViews.data.clear(); auditViews.errors.clear();
   state.api.loaded['commission-main'] = false;
