@@ -25,6 +25,11 @@ test('HTML gateway failures recover without a JSON parsing error',async()=>{
   const h=harness([new Response('<html>Bad Gateway</html>',{status:502}),Response.json({rows:[]})]);
   assert.equal((await h.run()).response.ok,true);
 });
+
+test('HTTP 500 from Grafana retries once without needing a page refresh',async()=>{
+  const h=harness([Response.json({error:'Temporary server failure'},{status:500}),Response.json({rows:[{commission:25}]})]);
+  assert.equal((await h.run()).payload.rows[0].commission,25);assert.equal(h.calls(),2);
+});
 test('persistent gateway failure stops after one retry with a useful HTTP message',async()=>{
   const h=harness([Response.json({}, {status:503})]);
   const result=await h.run();

@@ -810,16 +810,36 @@ function deductionLoadStatementRows(panel, start, end) {
   deductionStatementRowLoads.set(key, pending);
   return pending;
 }
-async function deductionFetchStatementRows(panel, start, end) {
+async function deductionFetchStatementRows(panel, start, end, recovery = { deadline: Date.now()+90000, attempts: 0 }, depth = 0) {
   const params = new URLSearchParams({ panel: 'commission-main', scope: 'selection', part: 'statement', from: start + ' 00:00:00', to: end + ' 23:59:59', filters: '{}', revision: 'commission-statement-v1', refresh: '1' });
-  const { response, payload } = await requestFinancePayload(FINANCE_API_ENDPOINT + '?' + params, 'statement-rows:' + start + ':' + end, true);
-  if (!response.ok || payload?.ok === false || payload?.error) throw new Error(payload?.error || 'Commission data could not be loaded. Please retry the download.');
+  let response, payload;
+  try {
+    if(Date.now()>=recovery.deadline || recovery.attempts>=7) throw new Error('Statement recovery limit reached. No incomplete PDF was created. Click Download to retry; no page refresh is needed.');
+    recovery.attempts++;
+    ({response,payload}=await requestFinancePayload(FINANCE_API_ENDPOINT + '?' + params, 'statement-rows:' + start + ':' + end, false, {timeoutMs:Math.max(1,Math.min(25000,recovery.deadline-Date.now()))}));
+    if (!response.ok || payload?.ok === false || payload?.error) {
+      const error=new Error(payload?.error || 'Commission data could not be loaded.');error.status=response.status;throw error;
+    }
+  } catch(error) {
+    const transient=[500,502,503,504,520,522,524].includes(error.status) || (!error.status && (error.name==='TypeError' || /took too long|timed?\s*out|timeout/i.test(error.message)));
+    if(!transient)throw error;
+    if(depth>=2 || recovery.attempts>=7 || Date.now()>=recovery.deadline) throw new Error('Grafana is still unavailable after automatic recovery. No incomplete PDF was created. Click Download to retry; no page refresh is needed.');
+    // Split slow ranges without overlapping dates; publish only when every part succeeds.
+    const first=Date.parse(start+'T00:00:00Z'),last=Date.parse(end+'T00:00:00Z'),day=86400000;
+    if(last>first) {
+      const middle=first+Math.floor((last-first)/day/2)*day;
+      const left=await deductionFetchStatementRows(panel,start,new Date(middle).toISOString().slice(0,10),recovery,depth+1);
+      const right=await deductionFetchStatementRows(panel,new Date(middle+day).toISOString().slice(0,10),end,recovery,depth+1);
+      return [...left,...right];
+    }
+    return deductionFetchStatementRows(panel,start,end,recovery,depth+1);
+  }
   if (payload?.truncated) {
     const first = Date.parse(start + 'T00:00:00Z'), last = Date.parse(end + 'T00:00:00Z'), day = 86400000;
     if (!Number.isFinite(first) || !Number.isFinite(last) || last <= first) throw new Error('Commission data is incomplete for ' + start + '. Please retry the download.');
     const middle = first + Math.floor((last - first) / day / 2) * day;
-    const left = await deductionLoadStatementRows(panel, start, new Date(middle).toISOString().slice(0, 10));
-    const right = await deductionLoadStatementRows(panel, new Date(middle + day).toISOString().slice(0, 10), end);
+    const left = await deductionFetchStatementRows(panel, start, new Date(middle).toISOString().slice(0, 10), recovery, depth+1);
+    const right = await deductionFetchStatementRows(panel, new Date(middle + day).toISOString().slice(0, 10), end, recovery, depth+1);
     return [...left, ...right];
   }
   const packed = payload?.packedRows;
@@ -949,20 +969,9 @@ async function deductionHistoryDownloadBatch(groupId, button, selectedFormats = 
   } finally { if (button.isConnected) { button.disabled = false; button.textContent = originalLabel; button.removeAttribute('aria-busy'); } }
 }
 function deductionHistoryPrefetchRow(row) {
-  if (!row || !deductionState.loaded) return;
-  const staticTools = [ensureFinanceExportBundle('pdf'), ensureFinanceExportBundle('excel'), financePdfLogo()];
-  if (row.hasAttribute('data-additional-only-row')) {
-    void Promise.allSettled([...staticTools, additionalJobsLoad(), additionalJobsStatementPayload(row.dataset.jobRider, row.dataset.jobStart, row.dataset.jobEnd)]);
-    return;
-  }
-  const group = deductionHistoryGroups(deductionState.records).find(item => item.id === row.dataset.deductionBatchId);
-  if (!group) return;
-  const view = deductionHistoryEnsure(), filters = deductionHistoryFilters(view);
-  const options = deductionHistoryDownloadOptions(group, {}, deductionToday(), filters.periodStart, filters.periodEnd);
-  const index=deductionHistoryFormulaIndex(group),formula=deductionHistoryEffectiveFormula(group);
-  if(index>0&&!formula)return;
-  if (!options.length) return;
-  void Promise.allSettled([...staticTools, additionalJobsLoad(), deductionCombinedPaymentStatementPayload(options, { start: filters.periodStart, end: filters.periodEnd }, formula)]);
+  if (!row) return;
+  // Warm only local export assets. Hovering/filtering must not start Grafana queries.
+  void Promise.allSettled([ensureFinanceExportBundle('pdf'), ensureFinanceExportBundle('excel'), financePdfLogo()]);
 }
 async function deductionHistoryExport(format) {
   if (format === 'pdf') {
@@ -1011,7 +1020,7 @@ function deductionActionDialog(recordId, action) {
         rows.querySelectorAll('[data-deduction-payment-select]').forEach(button => { const active = Number(button.dataset.deductionPaymentSelect) === index; button.classList.toggle('is-selected', active); button.setAttribute('aria-pressed', String(active)); });
         const sent = item.statementSentAt ? '<span class="deduction-payment-sent">' + esc(deductionStatementLabel(record, item, selectedIndex)) + '</span><small>Recorded by ' + esc(item.statementSentBy || 'Finance') + ' · ' + esc(formatGrafanaTimestamp(item.statementSentAt)) + '</small>' : '<small>Statement not yet downloaded</small>';
         statement.innerHTML = '<div class="deduction-payment-statement-copy"><span>Selected payment</span><strong>Payment ' + payment + '/' + paymentCount + '</strong><small>Deduction date: ' + esc(deductionDateLabel(dueDate)) + ' · Commission period: ' + esc(deductionPeriodLabel(settlement)) + '</small></div><div class="deduction-payment-statement-copy"><span>Amount deducted</span><strong>− ' + esc(deductionMoney(amount)) + '</strong><small>' + esc(deductionTypes[record.type] || record.type) + ' · one payment only</small>' + sent + '</div><button type="button" data-deduction-payment-download' + (toggle.getAttribute('aria-pressed') === 'true' ? ' disabled' : '') + '>' + (item.statementSentAt ? 'Download weekly PDF again' : 'Download weekly PDF') + '</button><p data-deduction-payment-feedback></p>';
-        void Promise.allSettled([ensureFinanceExportBundle('pdf'), deductionPrefetchPaymentStatement(record, index)]);
+        void Promise.allSettled([ensureFinanceExportBundle('pdf')]);
         statement.querySelector('[data-deduction-payment-download]').onclick = async event => {
           const button = event.currentTarget, message = statement.querySelector('[data-deduction-payment-feedback]'); button.disabled = true; message.textContent = 'Preparing weekly PDF…';
           try { const [, payload] = await Promise.all([ensureFinanceExportBundle('pdf'), deductionPaymentStatementPayload(record, selectedIndex)]); const downloaded = await downloadPdfTable(payload); if (!downloaded) { message.textContent = 'PDF download was cancelled.'; return; } const saved = item.dueDate <= deductionToday() && !item.statementSentAt ? await deductionRequest('/mark-sent', { recordId: record.id, installmentIndex: selectedIndex, requestId: deliveryIdentity({ recordId: record.id, installmentIndex: selectedIndex }), reason: 'PDF downloaded; rider delivery is not verified' }) : null; if (saved) Object.assign(item, { statementSentAt: saved.statementSentAt, statementSentBy: saved.statementSentBy, statementDownloaded: true }); renderStatement(); statement.querySelector('[data-deduction-payment-feedback]').textContent = saved ? 'Weekly PDF downloaded and recorded. Completion remains a separate confirmation.' : 'Weekly PDF downloaded. This payment remains Upcoming until its scheduled date.'; }
@@ -1168,7 +1177,7 @@ document.addEventListener('change', event => {
     if (!groupId || !type) return;
     deductionHistoryBatchPaymentSelections.delete(groupId); deductionHistoryPaymentSelections.set(groupId + '|' + type, paymentSelector.value);
     const group = deductionHistoryGroups(deductionState.records).find(item => item.id === groupId), option = deductionHistoryPaymentOptions(group || { records: [] }).find(item => item.key === paymentSelector.value);
-    if (option) void Promise.allSettled([ensureFinanceExportBundle('pdf'), deductionPrefetchPaymentStatement(option.record, option.index)]);
+    if (option) void Promise.allSettled([ensureFinanceExportBundle('pdf')]);
     return deductionHistoryRender();
   }
   const batchPaymentSelector = event.target.closest?.('[data-deduction-history-batch-payment-select]');
@@ -1179,7 +1188,7 @@ document.addEventListener('change', event => {
     deductionHistoryBatchPaymentSelections.set(groupId, paymentIndex);
     const options = deductionHistoryPaymentOptions(group).filter(option => option.index === paymentIndex);
     options.forEach(option => deductionHistoryPaymentSelections.set(groupId + '|' + option.record.type, option.key));
-    void Promise.allSettled(options.map(option => deductionPrefetchPaymentStatement(option.record, option.index)));
+    void Promise.allSettled([ensureFinanceExportBundle('pdf')]);
     return deductionHistoryRender();
   }
   const summary = event.target.closest?.('.deduction-workspace'); if (!summary) return;
