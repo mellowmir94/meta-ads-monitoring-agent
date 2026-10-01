@@ -5546,11 +5546,29 @@
   var PITSTOP_DRAFT_COLUMNS = ['No_ID', 'Branch', 'State', 'Type', 'Tier', 'branch_status', 'City', 'Zone', 'Country', 'Date_Live', 'Latitude', 'Longitude'];
 
   function pitstopMasterDraftRows(issues) {
+    var sequences = {}, assigned = {};
+    (state.data.pitstopMaster || []).forEach(function(row) {
+      var match = /^(HQ|BP|WH)(\d+)$/i.exec(String(row.id || '').trim());
+      if (!match) return;
+      var prefix = match[1].toUpperCase(), value = Number(match[2]);
+      if (!Number.isSafeInteger(value)) return;
+      var sequence = sequences[prefix] || { highest: 0, digits: 0 };
+      sequence.highest = Math.max(sequence.highest, value);
+      sequence.digits = Math.max(sequence.digits, match[2].length);
+      sequences[prefix] = sequence;
+    });
     return issues.filter(function(row) { return row.reason === 'not in Malaysia Pitstop Master'; }).map(function(row) {
       var name = String(row.name || '').trim();
       var type = /^(HQ|BP|WH)\b/i.exec(name);
+      var prefix = type ? type[1].toUpperCase() : '', sequence = sequences[prefix];
+      var key = name.toUpperCase(), id = assigned[key] || '';
+      if (!id && sequence && sequence.highest < Number.MAX_SAFE_INTEGER) {
+        sequence.highest += 1;
+        id = prefix + String(sequence.highest).padStart(sequence.digits, '0');
+        assigned[key] = id;
+      }
       var alma = /^HQ\s+ALMA$/i.test(name);
-      return ['', name, alma ? 'PENANG' : '', type ? type[1].toUpperCase() : '', alma ? 'Tier 3' : '', numberValue(row.sales) > 0 ? 'Active' : '', alma ? 'BUKIT MERTAJAM' : '', alma ? 'NORTHERN' : '', 'MALAYSIA', '', alma ? '5.32987' : '', alma ? '100.47810' : ''];
+      return [id, name, alma ? 'PENANG' : '', prefix, alma ? 'Tier 3' : '', numberValue(row.sales) > 0 ? 'Active' : '', alma ? 'BUKIT MERTAJAM' : '', alma ? 'NORTHERN' : '', 'MALAYSIA', '', alma ? '5.32987' : '', alma ? '100.47810' : ''];
     });
   }
 
@@ -5558,7 +5576,7 @@
     var rows = pitstopMasterDraftRows(issues);
     if (!rows.length) return '';
     return '<section class="workflow-master-draft" aria-label="Draft Pitstop Master rows"><div class="workflow-master-draft-heading"><strong>Draft rows for your Excel master</strong><button type="button" class="header-button" data-copy-master-drafts>Copy draft rows for Excel</button></div>' +
-      '<p>Review before updating your master. Active is inferred from sales. HQ ALMA Tier 3 is provisional; its coordinates represent the Alma area, not a verified pitstop address. Unconfirmed fields are copied as empty cells.</p>' +
+      '<p>Review before updating your master. No_ID continues the matching HQ/BP/WH sequence in your loaded master. Active is inferred from sales. HQ ALMA Tier 3 is provisional; its coordinates represent the Alma area, not a verified pitstop address. Unconfirmed fields are copied as empty cells.</p>' +
       '<div class="workflow-master-draft-scroll" role="region" aria-label="Draft master table" tabindex="0"><table><thead><tr>' + PITSTOP_DRAFT_COLUMNS.map(function(label) { return '<th scope="col">' + escapeHtml(label) + '</th>'; }).join('') + '</tr></thead><tbody>' + rows.map(function(row) {
         return '<tr>' + row.map(function(value) { return '<td>' + escapeHtml(value || 'Not confirmed') + '</td>'; }).join('') + '</tr>';
       }).join('') + '</tbody></table></div></section>';

@@ -21,6 +21,7 @@ try {
   const before = await page.evaluate(() => {
     const { state, render, summaryNetworkRangeKey, b2cStateSummaryWindow } = draftTest;
     state.view = 'special';
+    state.data.pitstopMaster = [{ id: 'HQ136', name: 'HQ EXISTING', active: true }, { id: 'HQ120', name: 'HQ CLOSED', active: false }, { id: 'BP009', name: 'BP EXISTING', active: true }];
     state.pitstopReconciliation[summaryNetworkRangeKey(b2cStateSummaryWindow())] = { rawSales: 10, activeSales: 0, closedSales: 0, excluded: [
       { name: 'HQ ALMA', sales: 6, reason: 'not in Malaysia Pitstop Master' },
       { name: 'BP <UNKNOWN>', sales: 4, reason: 'not in Malaysia Pitstop Master' },
@@ -39,9 +40,12 @@ try {
   const lines = copied.split('\r\n').map(line => line.split('\t'));
   assert.equal(lines.length, 2);
   assert.ok(lines.every(row => row.length === 12));
-  assert.deepEqual(lines[0], ['', 'HQ ALMA', 'PENANG', 'HQ', 'Tier 3', 'Active', 'BUKIT MERTAJAM', 'NORTHERN', 'MALAYSIA', '', '5.32987', '100.47810']);
+  assert.deepEqual(lines[0], ['HQ137', 'HQ ALMA', 'PENANG', 'HQ', 'Tier 3', 'Active', 'BUKIT MERTAJAM', 'NORTHERN', 'MALAYSIA', '', '5.32987', '100.47810']);
+  assert.equal(lines[1][0], 'BP010');
   assert.equal(lines[1][4], '');
   assert.ok(!copied.includes('branch_status'));
+  const ids = await page.evaluate(() => draftTest.pitstopMasterDraftRows(['HQ ALMA', 'HQ NEXT', 'HQ ALMA', 'WH NEW'].map(name => ({ name, sales: 1, reason: 'not in Malaysia Pitstop Master' }))).map(row => row[0]));
+  assert.deepEqual(ids, ['HQ137', 'HQ138', 'HQ137', '']);
   assert.equal(await page.evaluate(() => JSON.stringify(draftTest.state.data.pitstopMaster)), before);
   assert.equal(await page.locator('.workflow-health.is-error[data-copy-exclude] .workflow-master-draft').count(), 1);
   await page.setViewportSize({ width: 390, height: 900 });
