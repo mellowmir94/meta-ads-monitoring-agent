@@ -4587,6 +4587,7 @@
     document.querySelectorAll('[data-service-nav]').forEach(function(button) { button.addEventListener('click', function() { moveServiceFullscreen(button.getAttribute('data-service-nav') === 'next' ? 1 : -1); }); });
     document.querySelectorAll('[data-service-exit]').forEach(function(button) { button.addEventListener('click', function() { state.serviceFullscreenIndex = -1; render(); }); });
     document.querySelectorAll('[data-copy-email-summary]').forEach(function(button) { button.addEventListener('click', copyEmailSummary); });
+    document.querySelectorAll('[data-copy-master-drafts]').forEach(function(button) { button.addEventListener('click', copyPitstopMasterDrafts); });
     document.querySelectorAll('[data-refresh-summary]').forEach(function(button) { button.addEventListener('click', refreshDashboard); });
     document.querySelectorAll('[data-email-ranking-toggle]').forEach(function(button) { button.addEventListener('click', function() { state.emailRankingCollapsed = !state.emailRankingCollapsed; render(); }); });
     document.querySelectorAll('[data-email-warehouse-toggle]').forEach(function(button) { button.addEventListener('click', function() { state.emailWarehouseHidden = !state.emailWarehouseHidden; render(); }); });
@@ -5542,6 +5543,45 @@
     }
   }
 
+  var PITSTOP_DRAFT_COLUMNS = ['Branch', 'State', 'Type', 'Tier', 'branch_status', 'City', 'Zone', 'Country', 'Date_Live', 'Latitude', 'Longitude'];
+
+  function pitstopMasterDraftRows(issues) {
+    return issues.filter(function(row) { return row.reason === 'not in Malaysia Pitstop Master'; }).map(function(row) {
+      var name = String(row.name || '').trim();
+      var type = /^(HQ|BP|WH)\b/i.exec(name);
+      var alma = /^HQ\s+ALMA$/i.test(name);
+      return [name, alma ? 'PENANG' : '', type ? type[1].toUpperCase() : '', alma ? 'Tier 3' : '', numberValue(row.sales) > 0 ? 'Active' : '', alma ? 'BUKIT MERTAJAM' : '', alma ? 'NORTHERN' : '', 'MALAYSIA', '', alma ? '5.32987' : '', alma ? '100.47810' : ''];
+    });
+  }
+
+  function pitstopMasterDraftMarkup(issues) {
+    var rows = pitstopMasterDraftRows(issues);
+    if (!rows.length) return '';
+    return '<section class="workflow-master-draft" aria-label="Draft Pitstop Master rows"><div class="workflow-master-draft-heading"><strong>Draft rows for your Excel master</strong><button type="button" class="header-button" data-copy-master-drafts>Copy draft rows for Excel</button></div>' +
+      '<p>Review before updating your master. Active is inferred from sales. HQ ALMA Tier 3 is provisional; its coordinates represent the Alma area, not a verified pitstop address. Unconfirmed fields are copied as empty cells.</p>' +
+      '<div class="workflow-master-draft-scroll" role="region" aria-label="Draft master table" tabindex="0"><table><thead><tr>' + PITSTOP_DRAFT_COLUMNS.map(function(label) { return '<th scope="col">' + escapeHtml(label) + '</th>'; }).join('') + '</tr></thead><tbody>' + rows.map(function(row) {
+        return '<tr>' + row.map(function(value) { return '<td>' + escapeHtml(value || 'Not confirmed') + '</td>'; }).join('') + '</tr>';
+      }).join('') + '</tbody></table></div></section>';
+  }
+
+  async function copyPitstopMasterDrafts() {
+    var rangeKey = state.view === 'special' ? summaryNetworkRangeKey(b2cStateSummaryWindow()) : selectedRangeKey();
+    var audit = state.pitstopReconciliation[rangeKey];
+    var rows = pitstopMasterDraftRows(audit && audit.excluded || []);
+    if (!rows.length) return;
+    var text = [PITSTOP_DRAFT_COLUMNS].concat(rows).map(function(row) { return row.map(function(value) { return String(value).replace(/[\t\r\n]/g, ' '); }).join('\t'); }).join('\r\n');
+    var holder;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(text);
+      else {
+        holder = document.createElement('textarea'); holder.value = text; holder.style.position = 'fixed'; holder.style.left = '-9999px'; document.body.appendChild(holder); holder.select();
+        if (!document.execCommand('copy')) throw new Error('Clipboard blocked');
+      }
+      showToast('Draft master rows copied. Review estimates before saving in Excel.');
+    } catch (error) { showToast('Copy was blocked by the browser. Allow clipboard access and try again.'); }
+    finally { if (holder) holder.remove(); }
+  }
+
   function workflowHealthMarkup() {
     var rangeKey = state.view === 'special' ? summaryNetworkRangeKey(b2cStateSummaryWindow()) : selectedRangeKey();
     var audit = state.pitstopReconciliation[rangeKey], sections = [];
@@ -5554,7 +5594,7 @@
         var excludedSales = issues.reduce(function(sum, row) { return sum + numberValue(row.sales); }, 0);
         details = '<p>' + formatNumber(excludedSales) + ' sales excluded from the network tables.</p><ul class="workflow-mapping-list">' + issues.map(function(row) {
           return '<li><div><strong>' + escapeHtml(row.name || 'Unnamed pitstop') + '</strong><span>' + escapeHtml(row.reason) + '</span></div><span class="workflow-mapping-sales">' + formatNumber(row.sales) + ' sales</span></li>';
-        }).join('') + '</ul><a class="workflow-master-link" href="' + (HOSTED_MODE ? '/upload/' : 'Data Upload Centre.html') + '">Review Pitstop Master</a>';
+        }).join('') + '</ul>' + pitstopMasterDraftMarkup(issues) + '<a class="workflow-master-link" href="' + (HOSTED_MODE ? '/upload/' : 'Data Upload Centre.html') + '">Review Pitstop Master</a>';
       }
       sections.push('<aside class="data-quality-banner workflow-health ' + (hasIssues ? 'is-error' : 'is-reconciled') + '" role="' + (hasIssues ? 'alert' : 'status') + '" aria-label="Pitstop reconciliation" data-copy-exclude><strong>' + escapeHtml(title) + '</strong><p>' + escapeHtml(totals) + '</p>' + details + '</aside>');
     }

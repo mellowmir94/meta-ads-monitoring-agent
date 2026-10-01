@@ -224,6 +224,13 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .workflow-mapping-list li > div { min-width: 0; }
 .workflow-mapping-list strong { margin: 0 0 2px; overflow-wrap: anywhere; }
 .workflow-mapping-sales { white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 700; }
+.workflow-master-draft { width: 100%; min-width: 0; max-width: 100%; margin: 12px 0; }
+.workflow-master-draft-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.workflow-master-draft-heading .header-button { background: #fff; color: #10243a; border-color: #bdccd6; }
+.workflow-master-draft-scroll { max-width: 100%; overflow-x: auto; margin-top: 8px; }
+.workflow-master-draft table { width: 100%; min-width: 1100px; border-collapse: collapse; background: #fff; color: #10243a; font-size: 12px; }
+.workflow-master-draft th, .workflow-master-draft td { border: 1px solid #d5e0e6; padding: 8px; text-align: left; vertical-align: top; }
+.workflow-master-draft th { background: #eef5f2; white-space: nowrap; }
 .workflow-master-link { color: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; padding: 4px 0; }
 .workflow-master-link:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .data-quality-banner ul { display: flex; flex-wrap: wrap; gap: 3px 22px; margin: 0; padding-left: 18px; }
