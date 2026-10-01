@@ -5543,14 +5543,14 @@
     }
   }
 
-  var PITSTOP_DRAFT_COLUMNS = ['Branch', 'State', 'Type', 'Tier', 'branch_status', 'City', 'Zone', 'Country', 'Date_Live', 'Latitude', 'Longitude'];
+  var PITSTOP_DRAFT_COLUMNS = ['No_ID', 'Branch', 'State', 'Type', 'Tier', 'branch_status', 'City', 'Zone', 'Country', 'Date_Live', 'Latitude', 'Longitude'];
 
   function pitstopMasterDraftRows(issues) {
     return issues.filter(function(row) { return row.reason === 'not in Malaysia Pitstop Master'; }).map(function(row) {
       var name = String(row.name || '').trim();
       var type = /^(HQ|BP|WH)\b/i.exec(name);
       var alma = /^HQ\s+ALMA$/i.test(name);
-      return [name, alma ? 'PENANG' : '', type ? type[1].toUpperCase() : '', alma ? 'Tier 3' : '', numberValue(row.sales) > 0 ? 'Active' : '', alma ? 'BUKIT MERTAJAM' : '', alma ? 'NORTHERN' : '', 'MALAYSIA', '', alma ? '5.32987' : '', alma ? '100.47810' : ''];
+      return ['', name, alma ? 'PENANG' : '', type ? type[1].toUpperCase() : '', alma ? 'Tier 3' : '', numberValue(row.sales) > 0 ? 'Active' : '', alma ? 'BUKIT MERTAJAM' : '', alma ? 'NORTHERN' : '', 'MALAYSIA', '', alma ? '5.32987' : '', alma ? '100.47810' : ''];
     });
   }
 
@@ -5569,7 +5569,7 @@
     var audit = state.pitstopReconciliation[rangeKey];
     var rows = pitstopMasterDraftRows(audit && audit.excluded || []);
     if (!rows.length) return;
-    var text = [PITSTOP_DRAFT_COLUMNS].concat(rows).map(function(row) { return row.map(function(value) { return String(value).replace(/[\t\r\n]/g, ' '); }).join('\t'); }).join('\r\n');
+    var text = rows.map(function(row) { return row.map(function(value) { return String(value).replace(/[\t\r\n]/g, ' '); }).join('\t'); }).join('\r\n');
     var holder;
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(text);
