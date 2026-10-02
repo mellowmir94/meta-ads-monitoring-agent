@@ -41,8 +41,8 @@ test('native Grafana table bundles contain the exact Finance panel counts and De
 });
 
 test('Commission uses exactly the saved Grafana Main Table, not Latest', () => {
-  assert.match(workerSource, /'commission-main': \{ dashboardUid: '_Qmhp4wHz', panelTitle: 'Main Table' \}/u);
-  assert.doesNotMatch(workerSource, /'commission-main': \{[^}]*panelId:/u);
+  assert.match(workerSource, /'commission-main': \{ dashboardUid: '_Qmhp4wHz', panelId: 25, panelTitle: 'Main Table' \}/u);
+  assert.doesNotMatch(workerSource, /'commission-main': \{[^}]*panelId: (?:20|26)\b/u);
 });
 
 test('sales panels preserve saved Grafana variables including Billplz and exact All semantics', () => {

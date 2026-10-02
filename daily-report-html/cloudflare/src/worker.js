@@ -8,6 +8,8 @@ export { ReportVersionsStore } from './report-versions.js';
 
 export { prepareOrderDailySql, savedPitstopBranchAreaSql, queryGrafanaPitstopRowsWithContext, loadPitstopPerformance, ConcurrencyLimiter, parseFinanceBoundary, financeDateWindow, resolveGrafanaTimeExpression, prepareFinanceSql, applyGrafanaCurrentVariables, appendFinancePredicate, FINANCE_GRAFANA_TABLES, pendingPaymentDealerSql, pendingPaymentCombinedSummarySql, buildFinanceQuery, buildCommissionMetricQuery, PENDING_PAYMENT_DEALER_LIMIT, preparePitstopPanelSql, prepareWarrantyPanelSql, prepareRsaPanelSql, normalizePitstopPanelRows, selectPitstopPanelTarget, warrantyDailySql, warrantyRowsToDaily, rsaRowsToDaily, resqDailySql, resqRowsToDaily, PITSTOP_GRAFANA_PANELS, summarizePitstopChannelSales, financeSnapshotKey, financeSnapshotFreshSeconds, packFinanceRows };
 
+export { FINANCE_PANEL_MAP, financePanelTarget };
+
 const DATA_KEY = 'current-workbook';
 const B2W_VALUES_KEY = 'manual-b2w-values';
 const RSA_VALUES_KEY = 'manual-rsa-values';
@@ -472,7 +474,7 @@ function frameRows(payload, refId = 'A') {
 }
 
 const FINANCE_PANEL_MAP = {
-  'commission-main': { dashboardUid: '_Qmhp4wHz', panelTitle: 'Main Table' },
+  'commission-main': { dashboardUid: '_Qmhp4wHz', panelId: 25, panelTitle: 'Main Table' },
   'commission-order-source': { dashboardUid: '_Qmhp4wHz', panelId: 4 },
   'commission-total-source': { dashboardUid: '_Qmhp4wHz', panelId: 6 },
   'reimbursement-details': { dashboardUid: 'XO4KTAeHk', panelId: 2 },
@@ -801,7 +803,7 @@ async function queryPendingPaymentSummary(env, window) {
 
 async function financePanelTarget(env, config, options = {}) {
   const baseUrl = String(env.GRAFANA_URL || '').replace(/\/$/, '');
-  const cacheKey = `${baseUrl}:${config.dashboardUid}:${config.panelTitle ? `title:${config.panelTitle}` : `id:${config.panelId}`}`;
+  const cacheKey = `${baseUrl}:${config.dashboardUid}:id:${config.panelId}:title:${config.panelTitle || ''}`;
   const now = Date.now();
   const forceFresh = options.forceFresh === true;
   const cached = forceFresh ? null : financePanelCache.get(cacheKey);
@@ -828,16 +830,14 @@ async function financePanelTarget(env, config, options = {}) {
   try {
     const dashboard = await dashboardPending;
     const panels = nestedPanels(dashboard && dashboard.panels);
-    // Commission must use the exact named table, never Latest or a stale ID.
-    // Refuse ambiguous/missing definitions rather than export the wrong data.
-    const namedPanels = config.panelTitle
-      ? panels.filter((item) => String(item.title || '').trim() === config.panelTitle)
-      : null;
-    if (namedPanels && namedPanels.length !== 1) {
-      throw new Error(`The Grafana finance table "${config.panelTitle}" was ${namedPanels.length ? 'ambiguous' : 'not found'}.`);
-    }
-    const panel = namedPanels ? namedPanels[0] : panels.find((item) => Number(item.id) === config.panelId);
+    // Live Grafana has two Main Tables (25 and 26). Pin the full-width panel
+    // shown above Latest, and validate its title/type instead of guessing by title.
+    const panel = panels.find((item) => Number(item.id) === config.panelId);
     const target = panel && Array.isArray(panel.targets) ? panel.targets.find((item) => item && item.hide !== true && (item.rawSql || item.rawSQL)) : null;
+    if (config.panelTitle && (!panel || String(panel.title || '').trim() !== config.panelTitle
+      || !['table', 'table-old'].includes(panel.type) || !target)) {
+      throw new Error(`The Grafana finance table "${config.panelTitle}" (panel ${config.panelId}) was not found.`);
+    }
     if (!target) throw new Error('The mapped Grafana finance table query was not found.');
     const value = { dashboard, panel, target };
     if (!forceFresh) financePanelCache.set(cacheKey, { value, expiresAt: Date.now() + FINANCE_PANEL_CACHE_SECONDS * 1000 });
