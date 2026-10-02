@@ -472,7 +472,7 @@ function frameRows(payload, refId = 'A') {
 }
 
 const FINANCE_PANEL_MAP = {
-  'commission-main': { dashboardUid: '_Qmhp4wHz', panelId: 20 },
+  'commission-main': { dashboardUid: '_Qmhp4wHz', panelTitle: 'Main Table' },
   'commission-order-source': { dashboardUid: '_Qmhp4wHz', panelId: 4 },
   'commission-total-source': { dashboardUid: '_Qmhp4wHz', panelId: 6 },
   'reimbursement-details': { dashboardUid: 'XO4KTAeHk', panelId: 2 },
@@ -801,7 +801,7 @@ async function queryPendingPaymentSummary(env, window) {
 
 async function financePanelTarget(env, config, options = {}) {
   const baseUrl = String(env.GRAFANA_URL || '').replace(/\/$/, '');
-  const cacheKey = `${baseUrl}:${config.dashboardUid}:${config.panelId}`;
+  const cacheKey = `${baseUrl}:${config.dashboardUid}:${config.panelTitle ? `title:${config.panelTitle}` : `id:${config.panelId}`}`;
   const now = Date.now();
   const forceFresh = options.forceFresh === true;
   const cached = forceFresh ? null : financePanelCache.get(cacheKey);
@@ -827,7 +827,16 @@ async function financePanelTarget(env, config, options = {}) {
 
   try {
     const dashboard = await dashboardPending;
-    const panel = nestedPanels(dashboard && dashboard.panels).find((item) => Number(item.id) === config.panelId);
+    const panels = nestedPanels(dashboard && dashboard.panels);
+    // Commission must use the exact named table, never Latest or a stale ID.
+    // Refuse ambiguous/missing definitions rather than export the wrong data.
+    const namedPanels = config.panelTitle
+      ? panels.filter((item) => String(item.title || '').trim() === config.panelTitle)
+      : null;
+    if (namedPanels && namedPanels.length !== 1) {
+      throw new Error(`The Grafana finance table "${config.panelTitle}" was ${namedPanels.length ? 'ambiguous' : 'not found'}.`);
+    }
+    const panel = namedPanels ? namedPanels[0] : panels.find((item) => Number(item.id) === config.panelId);
     const target = panel && Array.isArray(panel.targets) ? panel.targets.find((item) => item && item.hide !== true && (item.rawSql || item.rawSQL)) : null;
     if (!target) throw new Error('The mapped Grafana finance table query was not found.');
     const value = { dashboard, panel, target };

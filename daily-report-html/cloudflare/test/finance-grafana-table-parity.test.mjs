@@ -4,7 +4,6 @@ import { FINANCE_GRAFANA_TABLES, buildFinanceQuery, financeDateWindow, financeSn
 import { readFileSync } from 'node:fs';
 
 const workerSource = readFileSync(new URL('../src/worker.js', import.meta.url), 'utf8');
-const wranglerSource = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
 const window = { fromMs: Date.parse('2025-08-01T00:00:00Z'), toMs: Date.parse('2025-09-02T23:59:59Z') };
 
@@ -41,9 +40,9 @@ test('native Grafana table bundles contain the exact Finance panel counts and De
   assert.deepEqual(FINANCE_GRAFANA_TABLES['reimbursement-details'][0].columns, ['created_at', 'order_id', 'customer_name', 'phone_number', 'email', 'order_status', 'plate_number', 'brand', 'product', 'address', 'rider_category', 'rider_name', 'branch', 'branch_area', 'payment_type_1', 'payment_type_2', 'Payment_Status', 'service_price', 'direct_bank_in', 'amount_paid', 'reimbursement', 'order_segment', 'promocode', 'trade_in_price']);
 });
 
-test('Commission uses the newest saved Grafana Main Table panel', () => {
-  assert.match(workerSource, /'commission-main': \{ dashboardUid: '_Qmhp4wHz', panelId: 20 \}/u);
-  assert.doesNotMatch(workerSource, /'commission-main': \{ dashboardUid: '_Qmhp4wHz', panelId: 19 \}/u);
+test('Commission uses exactly the saved Grafana Main Table, not Latest', () => {
+  assert.match(workerSource, /'commission-main': \{ dashboardUid: '_Qmhp4wHz', panelTitle: 'Main Table' \}/u);
+  assert.doesNotMatch(workerSource, /'commission-main': \{[^}]*panelId:/u);
 });
 
 test('sales panels preserve saved Grafana variables including Billplz and exact All semantics', () => {
@@ -239,13 +238,10 @@ test('Finance snapshots use stable canonical keys and part-specific freshness', 
   assert.equal(financeSnapshotFreshSeconds(new URL('https://example.test/?part=options')), 900);
 });
 
-test('Finance snapshots are persisted, refreshed in the background, and prewarmed every two minutes', () => {
-  assert.match(workerSource, /env\.DASHBOARD_DATA\.getWithMetadata\(snapshotKey/u);
-  assert.match(workerSource, /env\.DASHBOARD_DATA\.put\(key/u);
-  assert.match(workerSource, /metadata: \{ status: response\.status, storedAt: Date\.now\(\) \}/u);
-  assert.match(workerSource, /x-finance-snapshot/u);
-  assert.match(workerSource, /ctx\.waitUntil\(financeLiveResponse/u);
-  assert.match(workerSource, /async scheduled\(_controller, env, ctx\)/u);
-  assert.match(workerSource, /prewarmFinanceSnapshots\(env, ctx\)/u);
-  assert.match(wranglerSource, /"crons": \["\*\/2 \* \* \* \*"\]/u);
+test('Finance reads use the live Grafana source, not obsolete persisted snapshots', () => {
+  const api = workerSource.slice(workerSource.indexOf('async function internalFinanceApi('), workerSource.indexOf('function normalizedGrafanaKey('));
+  assert.match(api, /await financeLiveResponse\(request, env\)/u);
+  assert.doesNotMatch(api, /DASHBOARD_DATA\.(get|put|delete)|x-finance-snapshot/u);
+  assert.match(workerSource, /'cache-control': 'private, no-store'/u);
+  assert.doesNotMatch(workerSource, /prewarmFinanceSnapshots\(env, ctx\)/u);
 });
