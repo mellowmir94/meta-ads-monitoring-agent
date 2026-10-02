@@ -97,8 +97,11 @@ export class DeductionRegister {
   async list(url, actor) {
     const after = url.searchParams.get('after');
     if (after && !/^record:[a-z0-9-]+$/i.test(after)) return reply({ error: 'Invalid cursor.' }, 400);
+    const requestedLimit = url.searchParams.get('limit');
+    const limit = requestedLimit == null ? 100 : Number(requestedLimit);
+    if (requestedLimit != null && (!/^\d{1,3}$/.test(requestedLimit) || limit < 1 || limit > 500)) return reply({ error: 'History page size must be between 1 and 500.' }, 400);
     const records = await this.storage.transaction(async tx => {
-      const page = await tx.list({ prefix: 'record:', limit: 101, ...(after ? { startAfter: after } : {}) }); let upgraded = 0;
+      const page = await tx.list({ prefix: 'record:', limit: limit + 1, ...(after ? { startAfter: after } : {}) }); let upgraded = 0;
       for (const [key, record] of page) {
         const scheduled = (record.installments || []).filter(item => item.status === 'scheduled');
         if (!['pending', 'approved'].includes(record.status)) continue;
@@ -112,8 +115,8 @@ export class DeductionRegister {
       if (upgraded) await tx.put('counter:revision', Number(await tx.get('counter:revision') || 0) + 1);
       return page;
     });
-    const entries = [...records].slice(0, 100);
-    return reply({ records: entries.map(([, record]) => publicRecord(record)), next: records.size > 100 ? entries.at(-1)[0] : null, actor, approvalAvailable: false });
+    const entries = [...records].slice(0, limit);
+    return reply({ records: entries.map(([, record]) => publicRecord(record)), next: records.size > limit ? entries.at(-1)[0] : null, actor, approvalAvailable: false });
   }
   async fetch(request) {
     try {

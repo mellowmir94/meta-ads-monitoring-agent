@@ -680,11 +680,11 @@ function normalizeFinanceFilterValues(value) {
   return values.slice(0, FINANCE_FILTER_VALUE_LIMIT);
 }
 
-async function financeCurrentFilterState(env, panelKey, overrides = null) {
+async function financeCurrentFilterState(env, panelKey, overrides = null, dashboardOverride = null) {
   const names = FINANCE_FILTER_VARIABLES[panelKey];
   const config = FINANCE_PANEL_MAP[panelKey];
   if (!Array.isArray(names) || !config) return null;
-  const { dashboard } = await financePanelTarget(env, config);
+  const dashboard = dashboardOverride || (await financePanelTarget(env, config)).dashboard;
   const current = new Map(grafanaCurrentVariables(dashboard).map((item) => [normalizedGrafanaKey(item.name), item.values]));
   return Object.fromEntries(names.map((name) => {
     const overrideKey = overrides && Object.keys(overrides).find((key) => normalizedGrafanaKey(key) === normalizedGrafanaKey(name));
@@ -805,12 +805,12 @@ async function financePanelTarget(env, config, options = {}) {
   const baseUrl = String(env.GRAFANA_URL || '').replace(/\/$/, '');
   const cacheKey = `${baseUrl}:${config.dashboardUid}:id:${config.panelId}:title:${config.panelTitle || ''}`;
   const now = Date.now();
-  const forceFresh = options.forceFresh === true;
+  const forceFresh = options.forceFresh === true || Boolean(options.dashboard);
   const cached = forceFresh ? null : financePanelCache.get(cacheKey);
   if (cached && cached.expiresAt > now) return cached.value;
 
   const dashboardKey = `${baseUrl}:${config.dashboardUid}`;
-  let dashboardPending = financeDashboardRequests.get(dashboardKey);
+  let dashboardPending = options.dashboard ? Promise.resolve(options.dashboard) : financeDashboardRequests.get(dashboardKey);
   if (!dashboardPending) {
     dashboardPending = (async () => {
       const dashboardCached = forceFresh ? null : financeDashboardCache.get(dashboardKey);
@@ -1056,12 +1056,14 @@ async function queryCommissionPrimaryBundle(env, window, options = {}) {
   // Commission parity requests intentionally bypass the dashboard-definition
   // cache. A saved Grafana query/variable change must be reflected in Finance
   // on the next request, not after the former 10-minute cache expires.
-  // Start definitions together so the shared dashboard request is reused.
-  const detailPending = financePanelTarget(env, FINANCE_PANEL_MAP['commission-main'], { forceFresh: true });
+  // One fresh per-request definition supplies the window, variables and SQL.
+  // Reuse it here instead of fetching that same dashboard for every phase.
+  const definitionOptions = { forceFresh: true, dashboard: options.dashboard };
+  const detailPending = financePanelTarget(env, FINANCE_PANEL_MAP['commission-main'], definitionOptions);
   let metricDefinitionError = '';
   const metricsPending = options.detailOnly ? Promise.resolve([null, null]) : Promise.all([
-    financePanelTarget(env, FINANCE_PANEL_MAP['commission-order-source'], { forceFresh: true }),
-    financePanelTarget(env, FINANCE_PANEL_MAP['commission-total-source'], { forceFresh: true })
+    financePanelTarget(env, FINANCE_PANEL_MAP['commission-order-source'], definitionOptions),
+    financePanelTarget(env, FINANCE_PANEL_MAP['commission-total-source'], definitionOptions)
   ]).catch(reason => { metricDefinitionError = reason && reason.message || 'Commission KPI query definition was not found.'; return [null, null]; });
   const [detail, [countMetric, totalMetric]] = await Promise.all([detailPending, metricsPending]);
   // Do not approximate Grafana's "$__all" as IS NOT NULL. The dashboard
@@ -1232,8 +1234,8 @@ function resolveGrafanaTimeExpression(value, nowMs = Date.now()) {
   return Date.parse(expression);
 }
 
-async function financeGrafanaWindow(env, panelKey) {
-  const { dashboard } = await financePanelTarget(env, FINANCE_PANEL_MAP[panelKey]);
+async function financeGrafanaWindow(env, panelKey, dashboardOverride = null) {
+  const dashboard = dashboardOverride || (await financePanelTarget(env, FINANCE_PANEL_MAP[panelKey])).dashboard;
   const nowMs = Date.now();
   const fromMs = resolveGrafanaTimeExpression(dashboard && dashboard.time && dashboard.time.from, nowMs);
   const toMs = resolveGrafanaTimeExpression(dashboard && dashboard.time && dashboard.time.to, nowMs);
@@ -1353,6 +1355,9 @@ async function financeLiveResponse(request, env) {
     const scopeEligible = panelKey === 'commission-main' || Boolean(FINANCE_GRAFANA_TABLES[panelKey]);
     const statementOnly = panelKey === 'commission-main' && requestedPart === 'statement';
     const variableOverrides = parseFinanceFilterOverrides(url, panelKey);
+    const commissionDashboard = panelKey === 'commission-main'
+      ? (await financePanelTarget(env, FINANCE_PANEL_MAP[panelKey], { forceFresh: true })).dashboard
+      : null;
     const hasExplicitWindow = url.searchParams.has('from') || url.searchParams.has('to');
     const useSavedGrafanaVariables = scopeEligible
       && url.searchParams.get('scope') === 'grafana'
@@ -1363,7 +1368,7 @@ async function financeLiveResponse(request, env) {
     // complete selection explicitly so the proxy cannot fall back to stale
     // saved variables or an old cached response.
     const window = !hasExplicitWindow && useSavedGrafanaVariables
-      ? await financeGrafanaWindow(env, panelKey)
+      ? await financeGrafanaWindow(env, panelKey, commissionDashboard)
       : financeDateWindow(url, usesGrafanaUtc ? 0 : 8);
     if (!window) return json({ error: 'Use a valid date range with From before or equal to To.' }, 400);
     // Keep the response's filterState as Grafana's saved dashboard selection,
@@ -1371,7 +1376,7 @@ async function financeLiveResponse(request, env) {
     // request scope is already represented by variableOverrides below; mixing
     // it into filterState makes the UI lose Grafana's canonical option set.
     const filterStatePromise = !statementOnly && FINANCE_FILTER_VARIABLES[panelKey]
-      ? financeCurrentFilterState(env, panelKey).catch(() => null)
+      ? financeCurrentFilterState(env, panelKey, null, commissionDashboard).catch(() => null)
       : Promise.resolve(null);
     let rows;
     let summary = null;
@@ -1381,8 +1386,8 @@ async function financeLiveResponse(request, env) {
     let sourceTables = null;
     if (panelKey === 'commission-main') {
       const [primaryResult, optionsResult] = await Promise.allSettled([
-        requestedPart === 'options' ? Promise.resolve({ rows: [], metricRows: null, summaryError: '' }) : queryCommissionPrimaryBundle(env, window, { variableOverrides, detailOnly: statementOnly }),
-        requestedPart === 'primary' || statementOnly ? Promise.resolve({}) : queryCommissionFilterOptions(env)
+        requestedPart === 'options' ? Promise.resolve({ rows: [], metricRows: null, summaryError: '' }) : queryCommissionPrimaryBundle(env, window, { variableOverrides, detailOnly: statementOnly, dashboard: commissionDashboard }),
+        requestedPart === 'primary' || statementOnly ? Promise.resolve({}) : queryCommissionFilterOptions(env, commissionDashboard)
       ]);
       if (primaryResult.status === 'rejected') throw primaryResult.reason;
       rows = primaryResult.value.rows;

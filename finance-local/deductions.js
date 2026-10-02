@@ -22,13 +22,15 @@ async function deductionRequest(path = '', body) {
   if (!response.ok) throw new Error(payload.error || 'Unable to load deductions.');
   return payload;
 }
-async function deductionLoad() {
+async function deductionLoad({ fresh = false } = {}) {
+  // A save must not reuse a read whose snapshot predates that transaction.
+  while (fresh && deductionState.loading) await deductionState.loading.catch(() => {});
   if (deductionState.loading) return deductionState.loading;
   deductionState.loading = (async () => {
     try {
       const records = [], cursors = new Set(); let next = '', actor = null, approvalAvailable = false;
       do {
-        const data = await deductionRequest(next ? '?after=' + encodeURIComponent(next) : '');
+        const data = await deductionRequest('?limit=500' + (next ? '&after=' + encodeURIComponent(next) : ''));
         if (!Array.isArray(data.records)) throw new Error('Incomplete deduction register. Refresh before creating or exporting deductions.');
         records.push(...data.records); actor = data.actor || actor; approvalAvailable ||= Boolean(data.approvalAvailable); next = data.next || '';
         if (next && cursors.has(next)) throw new Error('Incomplete deduction register. Please retry.');
@@ -146,8 +148,19 @@ function deductionRows(id, ignoreDeduction = false) {
 }
 function deductionSummaryForRows(dataRows, dates) {
   const grossCents = Math.round(dataRows.reduce((sum, row) => sum + numberValue(row.commission), 0) * 100);
-  const rowDates = dataRows.map(row => formatGrafanaTimestamp(row.created_at).slice(0, 10)).filter(Boolean).sort();
-  const scopeStart = String(dates?.start || rowDates[0] || '').slice(0, 10), scopeEnd = String(dates?.end || rowDates.at(-1) || '').slice(0, 10);
+  let scopeStart = String(dates?.start || '').slice(0, 10), scopeEnd = String(dates?.end || '').slice(0, 10);
+  // The audit scope already supplies both boundaries in normal formula use.
+  // Only infer missing boundaries, without allocating and sorting all row dates.
+  if (!scopeStart || !scopeEnd) {
+    let first = '', last = '';
+    for (const row of dataRows) {
+      const value = formatGrafanaTimestamp(row.created_at).slice(0, 10);
+      if (!value) continue;
+      if (!first || value < first) first = value;
+      if (!last || value > last) last = value;
+    }
+    scopeStart ||= first; scopeEnd ||= last;
+  }
   const rider = deductionSingleRider(dataRows), amounts = { epf: 0, insurance: 0, 'battery-tester': 0, manual: 0 }, statementAmounts = { epf: 0, insurance: 0, 'battery-tester': 0, manual: 0 };
   let pendingCents = 0, legacyCount = 0;
   if (deductionState.loaded && rider.valid && scopeStart && scopeEnd) deductionState.records.forEach(record => {
@@ -267,7 +280,7 @@ async function deductionRefreshAfterSave(body, records, backupWarning = '') {
   body.innerHTML = '<section class="deduction-save-success" role="status"><span class="deduction-status-pill">Saved · applied</span><h4>Deduction applied</h4><p>The full selected deduction now reduces this rider’s commission. The payment split remains available for reference.</p><ul>' + records.map(record => '<li><span>' + esc(deductionTypes[record.type] || record.type || 'Deduction') + '</span><strong>' + esc(record.reference || record.id) + '</strong></li>').join('') + '</ul><p data-deduction-refresh-message>Refreshing the register…</p><button type="button" data-deduction-done>Done</button></section>';
   if (backupWarning) body.querySelector('[data-deduction-refresh-message]').insertAdjacentHTML('beforebegin', '<p class="deduction-feedback is-error">Saved centrally. ' + esc(backupWarning) + ' Do not create this request again.</p>');
   body.querySelector('[data-deduction-done]').onclick = () => body.closest('dialog').close(); deductionState.loaded = false;
-  try { await deductionLoad(); body.querySelector('[data-deduction-refresh-message]').textContent = 'The register is up to date.'; }
+  try { await deductionLoad({ fresh: true }); body.querySelector('[data-deduction-refresh-message]').textContent = 'The register is up to date.'; }
   catch { body.querySelector('[data-deduction-refresh-message]').textContent = 'Your request is saved. Register refresh failed; use Retry register before exporting.'; }
   render();
 }
@@ -312,8 +325,8 @@ async function deductionProceedBatch(id, selectedTypes, drafts = {}, sourceButto
     const saved = await deductionRequest('/create-batch', { ...input, requestId: draft.requestId });
     deductionDrafts.delete(id); deductionState.loaded = false;
     let refreshWarning = '';
-    try { await deductionLoad(); } catch { refreshWarning = 'The deduction was applied, but History refresh failed. Use Retry register; do not proceed again.'; }
-    render(); await deductionHistoryOpen();
+    try { await deductionLoad({ fresh: true }); } catch { refreshWarning = 'The deduction was applied, but History refresh failed. Use Retry register; do not proceed again.'; }
+    render(); await deductionHistoryOpen({ refresh: false });
     const feedback = deductionHistoryEnsure()?.querySelector('[data-deduction-history-feedback]');
     if (feedback && (saved.backupWarning || refreshWarning)) feedback.textContent = ['Deduction applied.', saved.backupWarning, refreshWarning].filter(Boolean).join(' ');
   } catch (reason) {
@@ -523,7 +536,7 @@ async function deductionSaveMainPayment(id, summary, button) {
     deductionHistoryBatchPaymentSelections.set(group.id,index);
     Object.keys(deductionTypes).forEach(type=>deductionPaymentPdfExclusions.delete(group.id+'|'+index+'|'+type));
     deductionStatementPayloadCache.clear();
-    await deductionHistoryOpen();
+    await deductionHistoryOpen({ fresh: true });
   } catch(error) { feedback.textContent=error.message; } finally { button.disabled=false; }
 }
 function deductionHistoryEffectiveFormula(group) {
@@ -1108,14 +1121,15 @@ function deductionHistorySyncNavigation(historyOpen) {
   history?.classList.toggle('active', historyOpen);
   history?.setAttribute('aria-current', historyOpen ? 'page' : 'false');
 }
-async function deductionHistoryOpen() {
+async function deductionHistoryOpen({ refresh = true, fresh = false } = {}) {
   if (typeof closeTableFullscreen === 'function') closeTableFullscreen();
   const commission = document.querySelector('.nav-button[data-tab="commission"]');
   if (!commission?.classList.contains('active')) commission?.click();
   const view = deductionHistoryEnsure(); if (!view) return;
   deductionHistoryUseCommissionRange(view);
   document.getElementById('tab-commission')?.classList.add('deduction-history-active'); view.hidden = false; deductionHistorySyncNavigation(true);
-  try { await deductionLoad(); } catch {} deductionHistoryRender(); view.scrollIntoView({ block: 'start' });
+  if (refresh) { try { await deductionLoad({ fresh }); } catch {} }
+  deductionHistoryRender(); view.scrollIntoView({ block: 'start' });
 }
 function deductionHistoryClose() { document.getElementById('tab-commission')?.classList.remove('deduction-history-active'); const view = document.getElementById('deductionHistoryView'); if (view) view.hidden = true; deductionHistorySyncNavigation(false); }
 function deductionDeleteBatchDialog(batchId) {

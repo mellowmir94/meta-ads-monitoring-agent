@@ -44,9 +44,9 @@ test('an optional active tab loads when it is the current page', async () => {
   assert.deepEqual(calls, ['optional']);
 });
 
-test('same-scope loads share fetching and parsing; new filters and Refresh do not', async () => {
+test('same-scope pending loads and Refresh share work; new filters and later Refresh query again', async () => {
   const state = { dates: {}, filters: {}, grafanaFilterDirty: {}, grafanaScopeHydrated: {} }, calls = [];
-  const c = vm.createContext({ state, financePanelLoadPromises: new Map(), performGrafanaDataLoad: () => { const gate = deferred(); calls.push(gate); return gate.promise; } });
+  const c = vm.createContext({ state, financePanelLoadPromises: new Map(), deductionStatementRowsCache: new Map(), deductionStatementPayloadCache: new Map(), additionalJobsStatementCache: new Map(), performGrafanaDataLoad: () => { const gate = deferred(); calls.push(gate); return gate.promise; } });
   vm.runInContext(source('financeLoadScopeKey') + '\n' + source('loadGrafanaData'), c);
   const first = c.loadGrafanaData('commission-main');
   assert.equal(c.loadGrafanaData('commission-main'), first);
@@ -54,11 +54,14 @@ test('same-scope loads share fetching and parsing; new filters and Refresh do no
   state.filters['commission-main'] = { level: ['HIGH'] };
   const changed = c.loadGrafanaData('commission-main');
   const refreshed = c.loadGrafanaData('commission-main', true);
-  assert.equal(calls.length, 3);
-  assert.notEqual(first, changed); assert.notEqual(changed, refreshed);
+  assert.equal(calls.length, 2);
+  assert.notEqual(first, changed); assert.equal(changed, refreshed);
   calls.forEach((gate) => gate.resolve());
   await Promise.all([first, changed, refreshed]);
   assert.equal(c.financePanelLoadPromises.size, 0);
+  const later = c.loadGrafanaData('commission-main', true);
+  assert.equal(calls.length, 3);
+  calls.at(-1).resolve(); await later;
 });
 
 test('an old response finishing parsing cannot overwrite a newer scope', async () => {
@@ -83,7 +86,7 @@ test('an old response finishing parsing cannot overwrite a newer scope', async (
 
 test('foreground requests use high priority; supplemental/background requests use low priority', async () => {
   const requests = [];
-  const c = vm.createContext({ AbortController, performance, financeInflightRequests: new Map(), financePanelControllers: new Map(),
+  const c = vm.createContext({ AbortController, performance, setTimeout, clearTimeout, financeInflightRequests: new Map(), financePanelControllers: new Map(),
     activePanel: () => ({ id: 'commission-main' }),
     fetch: async (_url, options) => { requests.push(options); return { json: async () => ({ rows: [] }) }; } });
   vm.runInContext(source('requestFinancePayload'), c);
